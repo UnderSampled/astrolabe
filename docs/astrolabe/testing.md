@@ -25,6 +25,15 @@ not active yet, so Hype falls, the game's own recovery (behavior 16) returns him
 nearby, and a second placement holds. Placement moves position only: heading and
 story flags stay as the save left them, so set them before trusting a stage.
 
+Rebinding is checked on demand, outside the gate, by
+`godot/tests/controls_rebind_probe.gd`: its `bind` phase rebinds through the
+Controls page from the main and pause menus and plays with the new keys; its
+`reload` phase, a new process with the same private `XDG_DATA_HOME`, checks the
+saved bindings and the page's reset. Run it like the controls probe, after
+`astrolabe import-save` has staged a slot.
+`godot/tests/controls_page_capture.gd` renders the page states compared with the
+original captures.
+
 The gate is capped at three checks and ten minutes. Adding a check means removing
 one. It prints every stand-in reached. Godot renders on the discrete GPU through
 a headless Gamescope, so no window opens. It doesn't replace `tools/test.py`,

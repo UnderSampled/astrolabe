@@ -656,6 +656,29 @@ fn import_menu_variant(game: &Path, selection: Selection, pause: bool) -> Result
                 imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
             }
         }
+        if let Some(controls) = &mut configuration.controls {
+            for sprite in controls
+                .items_mut()
+                .flat_map(|item| item.normal.iter_mut().chain(&mut item.selected))
+            {
+                let entry = archive
+                    .find_entry(sprite.texture.path.file())
+                    .context("controls font atlas absent from CNT")?;
+                sprite.texture = entry.texture.clone();
+                if !imported.assets.contains(&entry.texture.path) {
+                    imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+                }
+            }
+            for picture in &mut controls.pictures {
+                let entry = archive
+                    .find_entry(picture.texture.path.file())
+                    .context("controls picture absent from CNT")?;
+                picture.texture = entry.texture.clone();
+                if !imported.assets.contains(&entry.texture.path) {
+                    imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+                }
+            }
+        }
     }
     if let Some(credits) = &mut menu.credits {
         let entry = archive
@@ -702,6 +725,17 @@ fn import_menu_variant(game: &Path, selection: Selection, pause: bool) -> Result
                 .context("required configuration backdrop absent")?;
             configuration.background = entry.texture.clone();
             imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
+            if let Some(controls) = &mut configuration.controls {
+                let entry = vignette
+                    .find_entry(
+                        &Path::new(controls.background.path.file())
+                            .with_extension("gf")
+                            .to_string_lossy(),
+                    )
+                    .context("required controls backdrop absent")?;
+                controls.background = entry.texture.clone();
+                imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
+            }
         }
     }
     imported.put(&AssetRef::from_path(menu.path.clone()), menu, true)?;

@@ -86,6 +86,9 @@ pub(super) fn export(
         }
         let background = source.load(&configuration.background)?;
         project.save(&configuration.background, background.as_ref())?;
+        if let Some(controls) = &configuration.controls {
+            export_controls(project, source, controls)?;
+        }
         Some(directory)
     } else {
         None
@@ -112,7 +115,7 @@ pub(super) fn export(
         format!("{directory}/menu.tscn"),
         scene(project, value, directory)?.as_bytes(),
     )?;
-    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; Sound settings preserve source mixer values and stereo actions, Images maps source shadow/framing settings and marks source texture swapping unsupported, and Controls map the five playable actions to keyboard or generic Godot joypad events",value.path));
+    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; Sound settings preserve source mixer values and stereo actions, Images maps source shadow/framing settings and marks source texture swapping unsupported, and Controls opens the original remapping page whose bindings feed every script action",value.path));
     Ok(())
 }
 
@@ -499,8 +502,18 @@ fn configuration_scene(
             quoted(page),
             visible
         )?;
-        if page == "ControlsPage" {
-            text.push_str("\nmetadata/source_actions = \"Keyboard,Gamepad,KeyStrokes,DefaultValues\"\nmetadata/native_mapping_scope = \"Button_Left,Button_Right,Button_Up,Button_Down,Button_Hit\"\nmetadata/controller_events = \"Godot JoypadButton/JoypadMotion; source Paddle/Joystick hardware modes are not emulated\"");
+        if page == "ControlsPage"
+            && let Some(controls) = &configuration.controls
+        {
+            let directory = disk_path(&project.selection, &controls.path, "");
+            writeln!(
+                text,
+                "metadata/controls_scene = {}",
+                quoted(&format!(
+                    "res://{}/menu.tscn",
+                    directory.trim_end_matches('.')
+                ))
+            )?;
         }
     }
     let [music, effects, voices] = sound_rows;
@@ -730,6 +743,379 @@ fn append_configuration_tab(
     }
     Ok(())
 }
+/// Godot physical key and location (0 any, 1 left, 2 right) for a DirectInput
+/// scancode. Physical keycodes name US-layout positions, as scancodes do.
+fn godot_key(scancode: u16) -> Option<(i64, i64)> {
+    const SPECIAL: i64 = 1 << 22;
+    let letters = |row: &str, first: u16| {
+        row.bytes()
+            .enumerate()
+            .find(|(i, _)| first + *i as u16 == scancode)
+            .map(|(_, b)| (i64::from(b), 0))
+    };
+    if let Some(key) = letters("1234567890-=", 0x02)
+        .or_else(|| letters("QWERTYUIOP[]", 0x10))
+        .or_else(|| letters("ASDFGHJKL;'`", 0x1e))
+        .or_else(|| letters("ZXCVBNM,./", 0x2c))
+    {
+        return Some(key);
+    }
+    let special = |n: i64| Some((SPECIAL + n, 0));
+    match scancode {
+        0x01 => special(1),              // escape
+        0x0e => special(4),              // backspace
+        0x0f => special(2),              // tab
+        0x1c => special(5),              // enter
+        0x9c => special(6),              // keypad enter
+        0x1d => Some((SPECIAL + 22, 1)), // left ctrl
+        0x9d => Some((SPECIAL + 22, 2)),
+        0x2a => Some((SPECIAL + 21, 1)), // left shift
+        0x36 => Some((SPECIAL + 21, 2)),
+        0x38 => Some((SPECIAL + 24, 1)), // left alt
+        0xb8 => Some((SPECIAL + 24, 2)),
+        0x2b => Some((92, 0)),                                   // backslash
+        0x39 => Some((32, 0)),                                   // space
+        0x3a => special(25),                                     // caps lock
+        0x3b..=0x44 => special(28 + i64::from(scancode - 0x3b)), // F1..F10
+        0x57 => special(38),                                     // F11
+        0x58 => special(39),                                     // F12
+        0x45 => special(26),                                     // num lock
+        0x46 => special(27),                                     // scroll lock
+        0x37 => special(129),                                    // keypad *
+        0xb5 => special(130),                                    // keypad /
+        0x4a => special(131),                                    // keypad -
+        0x53 => special(132),                                    // keypad .
+        0x4e => special(133),                                    // keypad +
+        0x52 => special(134),                                    // keypad 0
+        0x4f => special(135),                                    // keypad 1
+        0x50 => special(136),
+        0x51 => special(137),
+        0x4b => special(138),
+        0x4c => special(139),
+        0x4d => special(140),
+        0x47 => special(141),
+        0x48 => special(142),
+        0x49 => special(143), // keypad 9
+        0xd2 => special(7),   // insert
+        0xd3 => special(8),   // delete
+        0xc7 => special(13),  // home
+        0xcf => special(14),  // end
+        0xcb => special(15),  // left
+        0xc8 => special(16),  // up
+        0xcd => special(17),  // right
+        0xd0 => special(18),  // down
+        0xc9 => special(19),  // page up
+        0xd1 => special(20),  // page down
+        _ => None,
+    }
+}
+
+/// Godot key identity used by UserSettings: keycode plus location << 32.
+fn godot_key_id(scancode: u16) -> Option<i64> {
+    godot_key(scancode).map(|(code, location)| code + (location << 32))
+}
+
+/// Original pad buttons keep their index as the Godot joypad button; pad
+/// directions are the fixed D-pad buttons (JOY_BUTTON_DPAD_UP = 11 onward).
+fn godot_input(input: &ControlInput) -> Option<(&'static str, i64)> {
+    match input {
+        ControlInput::Key(code) => godot_key_id(*code).map(|id| ("key", id)),
+        ControlInput::PadButton(button) => Some(("pad", i64::from(*button))),
+        ControlInput::PadDirection(direction) if *direction < 4 => {
+            Some(("pad_direction", 11 + i64::from(*direction)))
+        }
+        ControlInput::PadDirection(_) => None,
+    }
+}
+
+fn export_controls(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    controls: &MenuControls,
+) -> Result<()> {
+    let directory = disk_path(&project.selection, &controls.path, "");
+    let directory = directory.trim_end_matches('.').to_owned();
+    for item in controls.items() {
+        if item.normal.is_empty() {
+            continue;
+        }
+        let states: &[(&str, &[MenuSprite])] = if controls.tabs.contains(item) {
+            &[("normal", &item.normal), ("selected", &item.selected)]
+        } else {
+            &[("normal", &item.normal)]
+        };
+        for (state, sprites) in states {
+            project.write(
+                format!("{directory}/{}_{state}.png", item.name),
+                &raster(item, sprites, source)?,
+            )?;
+        }
+    }
+    let background = source.load(&controls.background)?;
+    project.save(&controls.background, background.as_ref())?;
+    for picture in &controls.pictures {
+        let texture = source.load(&picture.texture)?;
+        project.save(&picture.texture, texture.as_ref())?;
+    }
+    let bindings_path = format!("{directory}/bindings.tres");
+    project.write(
+        bindings_path.clone(),
+        controls_bindings(controls, &directory)?.as_bytes(),
+    )?;
+    project.write(
+        format!("{directory}/menu.tscn"),
+        controls_scene(project, controls, &directory, &bindings_path)?.as_bytes(),
+    )?;
+    Ok(())
+}
+
+fn rect2(item: &MenuItem) -> String {
+    format!(
+        "Rect2({}, {}, {}, {})",
+        item.position[0] + item.rect[0],
+        item.position[1] + item.rect[1],
+        item.rect[2],
+        item.rect[3]
+    )
+}
+
+fn controls_bindings(controls: &MenuControls, directory: &str) -> Result<String> {
+    let mut entries = Vec::new();
+    for entry in &controls.entries {
+        let (kind, default) = entry
+            .default
+            .as_ref()
+            .and_then(godot_input)
+            .unwrap_or(("none", 0));
+        entries.push(format!(
+            "{{\"name\": {}, \"kind\": {}, \"default\": {default}}}",
+            quoted(&entry.name),
+            quoted(kind)
+        ));
+    }
+    let actions = controls
+        .actions
+        .iter()
+        .map(|action| {
+            format!(
+                "{}: PackedStringArray({})",
+                quoted(&action.name),
+                action
+                    .entries
+                    .iter()
+                    .map(|entry| quoted(entry))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut key_names = Vec::new();
+    let mut pad_names = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for name in &controls.input_names {
+        let Some((kind, id)) = godot_input(&name.input) else {
+            continue;
+        };
+        // The first table record wins, as IPT_fn_szGetStringOf scans in order.
+        if !seen.insert((kind, id)) {
+            continue;
+        }
+        let value = format!(
+            "{{\"label\": {}, \"texture\": {}, \"rect\": {}}}",
+            quoted(&name.artwork.label),
+            quoted(&format!(
+                "res://{directory}/{}_normal.png",
+                name.artwork.name
+            )),
+            rect2(&name.artwork)
+        );
+        if kind == "key" {
+            key_names.push(format!("{id}: {value}"));
+        } else {
+            pad_names.push(format!("{id}: {value}"));
+        }
+    }
+    ensure!(
+        key_names.len() >= 80 && pad_names.len() == 32,
+        "controls key-name mapping is incomplete"
+    );
+    Ok(format!(
+        "[gd_resource type=\"Resource\" script_class=\"ControlBindings\" load_steps=2 format=3]\n\n[ext_resource type=\"Script\" path=\"res://game/control_bindings.gd\" id=\"script\"]\n\n[resource]\nscript = ExtResource(\"script\")\nentries = [{}]\nactions = {{\n{}\n}}\nkey_names = {{\n{}\n}}\npad_names = {{\n{}\n}}\ncapture = {{\"label\": \"???\", \"texture\": {}, \"rect\": {}}}\n",
+        entries.join(", "),
+        actions.join(",\n"),
+        key_names.join(",\n"),
+        pad_names.join(",\n"),
+        quoted(&format!(
+            "res://{directory}/{}_normal.png",
+            controls.capture.name
+        )),
+        rect2(&controls.capture)
+    ))
+}
+
+fn controls_scene(
+    project: &Project,
+    controls: &MenuControls,
+    directory: &str,
+    bindings_path: &str,
+) -> Result<String> {
+    let mut resources = vec![
+        (
+            "Script".to_owned(),
+            "res://game/controls_menu.gd".to_owned(),
+            "script".to_owned(),
+        ),
+        (
+            "Resource".to_owned(),
+            format!("res://{bindings_path}"),
+            "bindings".to_owned(),
+        ),
+        (
+            "Texture2D".to_owned(),
+            format!(
+                "res://{}",
+                disk_path(&project.selection, &controls.background.path, "png")
+            ),
+            "background".to_owned(),
+        ),
+    ];
+    for picture in &controls.pictures {
+        resources.push((
+            "Texture2D".into(),
+            format!(
+                "res://{}",
+                disk_path(&project.selection, &picture.texture.path, "png")
+            ),
+            picture.name.clone(),
+        ));
+    }
+    for tab in &controls.tabs {
+        for state in ["normal", "selected"] {
+            resources.push((
+                "Texture2D".into(),
+                format!("res://{directory}/{}_{state}.png", tab.name),
+                format!("{}_{state}", tab.name),
+            ));
+        }
+    }
+    for row in controls.keyboard.iter().chain(&controls.gamepad) {
+        if !row.item.normal.is_empty() {
+            resources.push((
+                "Texture2D".into(),
+                format!("res://{directory}/{}_normal.png", row.item.name),
+                format!("{}_normal", row.item.name),
+            ));
+        }
+    }
+    let mut text = format!("[gd_scene load_steps={} format=3]\n\n", resources.len() + 2);
+    for (kind, path, id) in &resources {
+        writeln!(
+            text,
+            "[ext_resource type={} path={} id={}]",
+            quoted(kind),
+            quoted(path),
+            quoted(id)
+        )?;
+    }
+    let first_row = controls
+        .keyboard
+        .first()
+        .context("controls keyboard list empty")?;
+    writeln!(
+        text,
+        "\n[sub_resource type=\"CanvasItemMaterial\" id=\"Additive\"]\nblend_mode = 1\n\n[node name=\"ControlsMenu\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nscript = ExtResource(\"script\")\nbindings = ExtResource(\"bindings\")\ncanvas_size = Vector2(640, 480)\nselect_offset = {}\nmetadata/source_hint = {}\n\n[node name=\"Canvas\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\n\n[node name=\"Background\" type=\"TextureRect\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture = ExtResource(\"background\")\nexpand_mode = 1\nstretch_mode = 0",
+        controls.select_first_y - first_row.item.position[1],
+        quoted(&controls.hint)
+    )?;
+    for picture in &controls.pictures {
+        writeln!(
+            text,
+            "\n[node name={} type=\"TextureRect\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = {}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\nvisible = {}",
+            quoted(&picture.name),
+            picture.center[0] - picture.size[0] * 0.5,
+            picture.center[1] - picture.size[1] * 0.5,
+            picture.center[0] + picture.size[0] * 0.5,
+            picture.center[1] + picture.size[1] * 0.5,
+            quoted(&picture.name),
+            !matches!(picture.name.as_str(), "DisplayWithGamepad" | "SelectBox")
+        )?;
+    }
+    for tab in &controls.tabs {
+        let node = if tab.name.ends_with("keyboard") {
+            "TabKeyboard"
+        } else {
+            "TabGamepad"
+        };
+        let [relative_x, relative_y, width, height] = tab.rect;
+        let x = tab.position[0] + relative_x;
+        let y = tab.position[1] + relative_y;
+        writeln!(
+            text,
+            "\n[node name={} type=\"Control\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\nmetadata/source_action = {}",
+            quoted(node),
+            x + width,
+            y + height,
+            quoted(&tab.action)
+        )?;
+        for (state, child, visible) in [
+            ("normal", "Artwork", true),
+            ("selected", "SelectedArtwork", false),
+        ] {
+            writeln!(
+                text,
+                "\n[node name={} type=\"TextureRect\" parent={}]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 1\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\nvisible = {visible}",
+                quoted(child),
+                quoted(&format!("Canvas/{node}")),
+                quoted(&format!("{}_{state}", tab.name))
+            )?;
+        }
+    }
+    for (list, rows, visible) in [
+        ("KeyboardList", &controls.keyboard, true),
+        ("GamepadList", &controls.gamepad, false),
+    ] {
+        writeln!(
+            text,
+            "\n[node name={} type=\"Control\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\nvisible = {visible}",
+            quoted(list)
+        )?;
+        for (index, row) in rows.iter().enumerate() {
+            let parent = format!("Canvas/{list}");
+            writeln!(
+                text,
+                "\n[node name=\"Row{index}\" type=\"Control\" parent={}]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\nmetadata/source_action = {}\nmetadata/source_entry = {}\nmetadata/source_anchor = Vector2({}, {})",
+                quoted(&parent),
+                quoted(&row.item.action),
+                quoted(row.entry.as_deref().unwrap_or("")),
+                row.item.position[0],
+                row.item.position[1]
+            )?;
+            let row_parent = format!("{parent}/Row{index}");
+            if !row.item.normal.is_empty() {
+                let [relative_x, relative_y, width, height] = row.item.rect;
+                let x = row.item.position[0] + relative_x;
+                let y = row.item.position[1] + relative_y;
+                writeln!(
+                    text,
+                    "\n[node name=\"Label\" type=\"TextureRect\" parent={}]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0",
+                    quoted(&row_parent),
+                    x + width,
+                    y + height,
+                    quoted(&format!("{}_normal", row.item.name))
+                )?;
+            }
+            if row.entry.is_some() {
+                writeln!(
+                    text,
+                    "\n[node name=\"Input\" type=\"TextureRect\" parent={}]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 0\nmouse_filter = 2\nexpand_mode = 1\nstretch_mode = 0",
+                    quoted(&row_parent)
+                )?;
+            }
+        }
+    }
+    Ok(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -880,12 +1266,34 @@ mod tests {
                     && configuration_text.contains("The source uses a centered viewport crop. Godot scales the camera projection to match")
                     && configuration_text.contains("source texture-swapping ratio has no Godot equivalent")
                     && !configuration_text.contains("UnsupportedImageSettings")
-                    && configuration_text.contains("metadata/native_mapping_scope = \"Button_Left,Button_Right,Button_Up,Button_Down,Button_Hit\"")
-                    && configuration_text.contains("source Paddle/Joystick hardware modes are not emulated")
+                    && configuration_text.contains("metadata/controls_scene = \"res://generated/hype/shared/menu/controls/en/menu.tscn\"")
                     && !configuration_text.contains("UnsupportedControls")
                     && configuration_text.contains("type=\"Texture2D\" path=\"res://generated/hype/textures/MENU/Config_back.gf.png\"")
                     && configuration_text.contains("metadata/source_action = \"DisplayWithSound\""),
                 "native configuration labels/source sliders/backdrop differ"
+            );
+            let controls_directory = project
+                .stage
+                .path()
+                .join("generated/hype/shared/menu/controls/en");
+            let controls_text = std::fs::read_to_string(controls_directory.join("menu.tscn"))?;
+            let bindings_text = std::fs::read_to_string(controls_directory.join("bindings.tres"))?;
+            let controls_checks = [
+                controls_text.matches("[node name=\"Row").count() == 26,
+                controls_text.matches("[node name=\"Input\"").count() == 24,
+                controls_text.contains("metadata/source_entry = \"Look_Key\""),
+                controls_text.contains("metadata/source_entry = \"ModeLook_Pad\""),
+                controls_text.contains("path=\"res://generated/hype/textures/FixTex/menus/controlsmenu/select.gf.png\""),
+                controls_text.contains("Use the arrows to select the action"),
+                bindings_text.contains("\"Button_Hit\": PackedStringArray(\"Action_Key\", \"Action_Pad\")"),
+                bindings_text.contains("\"BT_Camera_Look\": PackedStringArray(\"Look_Key\", \"ModeLook_Pad\")"),
+                bindings_text.contains("{\"name\": \"Look_Key\", \"kind\": \"key\", \"default\": 4194438}"),
+                bindings_text.contains("{\"name\": \"Jump_Key\", \"kind\": \"key\", \"default\": 4299161622}"),
+                bindings_text.contains("\"label\": \"pad0\""),
+            ];
+            ensure!(
+                controls_checks.iter().all(|passed| *passed),
+                "native controls page/bindings differ: {controls_checks:?}"
             );
             let credits_scene = project
                 .stage

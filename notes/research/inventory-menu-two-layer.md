@@ -130,10 +130,10 @@ Abbreviations: `inv.rs` = src/openspace/level/inventory.rs, `invg.rs` = inventor
 
 | # | Feature | Data layer | UI layer |
 | --- | --- | --- | --- |
-| C1 | Rebinding page | [ ] action list in Fix 7:0 (75,217 B, entry names + 16-byte records, 497 actions); user bindings in scrambled `Gamedata/Options/Default.cfg` (616 B; 004a7330, 004a71f0); none decoded in Rete | [ ] port page rebinds five actions (`user_settings.gd` `CONTROL_ACTIONS`); layout, order, capture and defaults not matched |
-| C2 | Default key table | [ ] Tab inventory 0x0f, End map 0xcf, F3 save, F2 load, X/Z sword/crossbow, P shield, Enter magic, Delete scroll, A/S side step, Numpad0 look [doc static-checklist-records.md 7]; Up default unmatched | [ ] Hype's compiled script (fix/28) binds Button_GetCrossbow Z, Button_GetSword X and Button_Magic Enter; it adopts TestInventoryMode, Button_ActivateMap, Button_Shield, Button_MagicScroll and Button_SSLeft/Right with KEY_NONE, so those are unbound (checked 2026-11-04 in godot/generated/.../fix/28.gd) |
-| C3 | Remaining actions rebindable (jump, run, sword, crossbow, magic, object, freelook, camera keys) | [ ] see C2 | [ ] only five actions rebindable |
-| C4 | Reserved keys | n/a | [x] Esc, Tab, F5, R reserved (`RESERVED_KEYS`); F1 session panel |
+| C1 | Rebinding page | [x] Controls root in Fix 18:0 and entry actions in Fix 7:0 (`controls()` in menu.rs; [research](controls-menu-original.md)); user bindings in `user://hype-settings.cfg`, not the scrambled `Default.cfg` | [x] `game/controls_menu.gd` on the converted page; matched against the original (checklist) |
+| C2 | Default key table | [x] read from Fix 7:0; Up_Key is 0xc8 | [x] source defaults for every options entry, including shield P, scroll Delete, side steps A/S, map End |
+| C3 | Remaining actions rebindable | [x] the page lists 15 keyboard and 9 pad entries; Save, Load, Map, Shield, AlwaysRun, Lateral, SkipCinema and the 1/2/3 shortcuts have no row (file only) | [x] all composed into their script actions; TestInventoryMode stays with the inventory host (4-334) |
+| C4 | Reserved keys | [x] nameless keys (Esc, PrintScreen, Scroll, Pause, NumLock) cannot be bound | [x] those plus F1, F5 and R (port session keys) |
 | C5 | Entry-action reset on mode change | [x] 0040e550 marks nine handles (`DAT_00754340..` incl. back `DAT_00754354`) at every menu entry | [ ] port releases all `Button_*` on `leave_session` only |
 
 ## Cheats (manor AI)
@@ -174,7 +174,7 @@ Order: what blocks or visibly changes play on the Manoir to Brigand path first, 
    the host, and run the exit rules. Size S. Evidence complete in this note.
 2. **Retire 1-118, 1-119, 3-197, 3-199 (I21, I22, G2).** `inventory.gd` already has the methods; 1-118 needs a full flag
    set at admission failure and cleared on removal (0041c720, 0041cb70). F28 reaches 1-118 on both pickup branches. Size S.
-3. **Bind the keys Hype's script adopts unbound (C2).** Checked statically: sword (X), crossbow (Z) and magic (Enter) are bound; shield, scroll, side steps, TestInventoryMode and Button_ActivateMap are not. Binding them to the source defaults in Fix 7:0's key table is small; the inventory and map entry also depend on item 1.
+3. **Bind the keys Hype's script adopts unbound (C2).** Done 2026-11-04 through the Controls page bindings (C1 to C3); TestInventoryMode and Button_ActivateMap now wait only on item 1.
    Size S.
 4. **Save lectern as a motor mode (S4-S7).** Replace the instant save by the pushed menu page (`DAT_00752418`), its back path
    (00413fe0) and the checkpoint offset stand-in (M348 node 83); decide the slot model together with `travel-save`. Size M.

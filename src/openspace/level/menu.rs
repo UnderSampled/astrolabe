@@ -189,7 +189,17 @@ fn font(s: &SourceSession, name: &str) -> Result<Font> {
     }
     found.with_context(|| format!("required source menu font {name} absent"))
 }
-fn artwork(font: &Font, label: &str, [x, y, z]: [f32; 3]) -> Result<Vec<MenuSprite>> {
+fn artwork(font: &Font, label: &str, position: [f32; 3]) -> Result<Vec<MenuSprite>> {
+    aligned_artwork(font, label, position, 1)
+}
+/// FON_fn_vDrawText3D alignment: 0 starts the text at x, 1 centres it, 2 ends it at x
+/// (glyph centres; see below).
+fn aligned_artwork(
+    font: &Font,
+    label: &str,
+    [x, y, z]: [f32; 3],
+    alignment: u8,
+) -> Result<Vec<MenuSprite>> {
     let (half_x, half_y, scale) = projection(z)?;
     let glyphs = label
         .chars()
@@ -212,7 +222,18 @@ fn artwork(font: &Font, label: &str, [x, y, z]: [f32; 3]) -> Result<Vec<MenuSpri
             }
         })
         .sum::<f32>();
-    let mut center = x - width * 0.5;
+    // Left and right alignment put the first or last glyph centre at x, as
+    // the centred case positions glyph centres (matched against the original
+    // Controls page capture, take s2-controls).
+    let span = glyphs
+        .windows(2)
+        .map(|pair| pair[0].width * 0.5 + font.tracking + pair[1].width * 0.5)
+        .sum::<f32>();
+    let mut center = match alignment {
+        0 => x,
+        2 => x - span,
+        _ => x - width * 0.5,
+    };
     // Original FON_fn_vDraw3DString (005bb730), centered single line.
     // Convert observable 640×480 quads ahead of runtime; no font VM is retained.
     let line_half = font
@@ -1059,5 +1080,658 @@ fn configuration(s: &SourceSession) -> Result<MenuConfiguration> {
         slider_positions: slider_positions
             .try_into()
             .map_err(|_| anyhow::anyhow!("source slider count differs"))?,
+        controls: Some(controls(s)?),
     })
+}
+
+/// MenuText records on the Controls root (FUN_004105b0/FUN_00410230) carry the
+/// keyboard and pad options-entry names at +0xba and +0xda, 32 bytes each.
+const CONTROLS_KEYBOARD_ENTRY: usize = 0xba;
+const CONTROLS_PAD_ENTRY: usize = 0xda;
+/// FUN_00414b00 puts the SelectBox at y 173.0 (0x432d0000) when a list opens.
+const CONTROLS_SELECT_FIRST_Y: f32 = 173.0;
+/// Fix 7:0 (input module): 0x1c-byte entry actions from 0x68 and the
+/// {u16 code, French, English, German} key-name records at 0x10898.
+const ENTRY_ACTIONS: usize = 0x68;
+const KEY_NAMES: usize = 0x10898;
+
+/// One source text record projected like `configuration()` items.
+fn text_item(s: &SourceSession, address: Address, name: String, alignment: u8) -> Result<MenuItem> {
+    let header: MenuTextWire = wire(s.bytes(address, 177)?)?;
+    let label = string(s, s.required(address, 76)?)?;
+    let normal_font = font(s, fixed_string(&header.normal_font)?)?;
+    let selected_font = font(s, fixed_string(&header.selected_font)?)?;
+    labelled_item(
+        name,
+        &label,
+        fixed_string(&header.name)?,
+        header.position,
+        alignment,
+        &normal_font,
+        &selected_font,
+    )
+}
+
+fn labelled_item(
+    name: String,
+    label: &str,
+    action: &str,
+    position: [f32; 3],
+    alignment: u8,
+    normal_font: &Font,
+    selected_font: &Font,
+) -> Result<MenuItem> {
+    let (half_x, half_y, scale) = projection(position[2])?;
+    let anchor = [
+        (half_x + position[0]) * scale,
+        (half_y - position[1]) * scale,
+    ];
+    let mut normal = aligned_artwork(normal_font, label, position, alignment)?;
+    let mut selected = aligned_artwork(selected_font, label, position, alignment)?;
+    let all: Vec<_> = normal.iter().chain(&selected).collect();
+    if all.is_empty() {
+        // The pad list's DefaultValues label is three spaces; nothing is drawn.
+        ensure!(
+            label.trim().is_empty(),
+            "controls label {label:?} has no artwork"
+        );
+        return Ok(MenuItem {
+            name,
+            label: label.to_owned(),
+            action: action.to_owned(),
+            position: anchor,
+            horizontal_alignment: alignment,
+            neighbors: [None, None, None, None],
+            rect: [-1., -1., 2., 2.],
+            normal,
+            selected,
+        });
+    }
+    let x = all
+        .iter()
+        .map(|g| g.rect[0])
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        - 1.;
+    let y = all
+        .iter()
+        .map(|g| g.rect[1])
+        .fold(f32::INFINITY, f32::min)
+        .floor()
+        - 1.;
+    let right = all
+        .iter()
+        .map(|g| g.rect[0] + g.rect[2])
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil()
+        + 1.;
+    let bottom = all
+        .iter()
+        .map(|g| g.rect[1] + g.rect[3])
+        .fold(f32::NEG_INFINITY, f32::max)
+        .ceil()
+        + 1.;
+    for sprite in normal.iter_mut().chain(&mut selected) {
+        sprite.rect[0] -= x;
+        sprite.rect[1] -= y;
+    }
+    Ok(MenuItem {
+        name,
+        label: label.to_owned(),
+        action: action.to_owned(),
+        position: anchor,
+        horizontal_alignment: alignment,
+        neighbors: [None, None, None, None],
+        rect: [x - anchor[0], y - anchor[1], right - x, bottom - y],
+        normal,
+        selected,
+    })
+}
+
+/// The separate Controls root (`Menu/control_back.bmp`). FUN_00414b00 enters it
+/// from the Options `Controls` item; its body's first item is the Keyboard tab.
+fn controls(s: &SourceSession) -> Result<MenuControls> {
+    let key = BlockKey(18, 0);
+    let mut root = None;
+    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(bytes) = s.bytes(address, 12) else {
+            continue;
+        };
+        let header: MenuTextureListWire = wire(bytes)?;
+        if header.mode != 1 {
+            continue;
+        }
+        let Ok(background) = s.required(address, 4).and_then(|at| string(s, at)) else {
+            continue;
+        };
+        if background
+            .replace('\\', "/")
+            .eq_ignore_ascii_case("Menu/control_back.bmp")
+        {
+            ensure!(
+                root.replace(address).is_none(),
+                "ambiguous source controls root"
+            );
+        }
+    }
+    let root = root.context("source controls root absent")?;
+    let body = s.required(root, 8)?;
+    let hint = {
+        let data = &s.block(root)?.data[root.offset + 12..];
+        let end = data
+            .iter()
+            .take(1024)
+            .position(|b| *b == 0)
+            .context("unbounded controls hint")?;
+        dialogue::decode_cp1252(&data[..end])?.trim_end().to_owned()
+    };
+    let keyboard_tab = s.required(body, 8)?;
+    let gamepad_tab = s.required(keyboard_tab, 24)?;
+    ensure!(
+        s.pointer(keyboard_tab, 20)? == Some(gamepad_tab)
+            && s.pointer(gamepad_tab, 20)? == Some(keyboard_tab)
+            && s.pointer(gamepad_tab, 24)? == Some(keyboard_tab),
+        "source controls tabs are not a left/right pair"
+    );
+    let mut tabs = Vec::new();
+    let mut lists = Vec::new();
+    for (tab, tab_name, entry_field) in [
+        (keyboard_tab, "keyboard", CONTROLS_KEYBOARD_ENTRY),
+        (gamepad_tab, "gamepad", CONTROLS_PAD_ENTRY),
+    ] {
+        let header: MenuTextWire = wire(s.bytes(tab, 177)?)?;
+        let action = fixed_string(&header.name)?;
+        ensure!(
+            action.eq_ignore_ascii_case(tab_name),
+            "source controls tab {action} differs"
+        );
+        let mut item = text_item(s, tab, format!("controls_{tab_name}"), 1)?;
+        item.neighbors[2] = Some(
+            if tab_name == "keyboard" {
+                "controls_gamepad"
+            } else {
+                "controls_keyboard"
+            }
+            .into(),
+        );
+        item.neighbors[3] = item.neighbors[2].clone();
+        tabs.push(item);
+        // The child ring: up/down wrap through every row back to the first.
+        let first = s.required(tab, 28)?;
+        let mut rows = Vec::new();
+        let mut at = first;
+        loop {
+            let header: MenuTextWire = wire(s.bytes(at, 177)?)?;
+            let action = fixed_string(&header.name)?.to_owned();
+            let entry = fixed_string(s.bytes(plus(at, entry_field), 32)?)?.to_owned();
+            let (entry, alignment) = match action.as_str() {
+                "KeyStrokes" => {
+                    ensure!(!entry.is_empty(), "controls row has no {tab_name} entry");
+                    (Some(entry), header.horizontal_alignment)
+                }
+                "DefaultValues" => (None, header.horizontal_alignment),
+                other => anyhow::bail!("unsupported controls row action {other}"),
+            };
+            let index = rows.len();
+            let item = text_item(s, at, format!("controls_{tab_name}_{index}"), alignment)?;
+            rows.push((at, ControlRow { item, entry }));
+            ensure!(rows.len() <= 32, "controls row ring does not close");
+            at = s.required(at, 16)?;
+            if at == first {
+                break;
+            }
+        }
+        let count = rows.len();
+        for index in 0..count {
+            let up = s.required(rows[index].0, 12)?;
+            ensure!(
+                up == rows[(index + count - 1) % count].0,
+                "controls rows are not an up/down ring"
+            );
+            rows[index].1.item.neighbors[0] = Some(format!(
+                "controls_{tab_name}_{}",
+                (index + count - 1) % count
+            ));
+            rows[index].1.item.neighbors[1] =
+                Some(format!("controls_{tab_name}_{}", (index + 1) % count));
+        }
+        lists.push(rows.into_iter().map(|(_, row)| row).collect::<Vec<_>>());
+    }
+    let gamepad = lists.pop().unwrap();
+    let keyboard = lists.pop().unwrap();
+    // The root's sprite list (list node +0x8c head, records linked at +0):
+    // name +0x24, centre +0x1c/+0x20 in pixels, size +0x74/+0x78 and a GLI
+    // texture at +0x64 or +0x68. The four unnamed records tile the localized
+    // stained-glass title; the named ones are the pictures and SelectBox.
+    let mut anchor_sprite = None;
+    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(bytes) = s.allocation_bytes(address) else {
+            continue;
+        };
+        if bytes.len() >= 0x7c && fixed_string(&bytes[0x24..0x44]).ok() == Some("SelectBox") {
+            ensure!(
+                anchor_sprite.replace(address).is_none(),
+                "ambiguous source SelectBox"
+            );
+        }
+    }
+    let list = s.required(anchor_sprite.context("source SelectBox absent")?, 8)?;
+    let mut pictures = Vec::new();
+    let mut at = s.pointer(list, 0x8c)?;
+    while let Some(address) = at {
+        ensure!(pictures.len() < 32, "controls sprite list does not end");
+        let bytes = s.allocation_bytes(address)?;
+        ensure!(bytes.len() >= 0x7c, "controls sprite record is short");
+        let texture = match s.pointer(address, 0x64)? {
+            Some(texture) => texture,
+            None => s.required(address, 0x68)?,
+        };
+        let info: TextureInfoWire = wire(s.bytes(texture, 188)?)?;
+        let float = |at: usize| f32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
+        let name = fixed_string(&bytes[0x24..0x44])?;
+        pictures.push(MenuPicture {
+            name: if name.is_empty() {
+                format!("Title{}", pictures.len())
+            } else {
+                name.to_owned()
+            },
+            texture: AssetRef::new(format!(
+                "texture:/{}",
+                fixed_string(&info.name)?.replace('\\', "/")
+            ))?,
+            center: [float(0x1c), float(0x20)],
+            size: [float(0x74), float(0x78)],
+        });
+        at = s.pointer(address, 0)?;
+    }
+    for name in ["DisplayWithKeyboard", "DisplayWithGamepad", "SelectBox"] {
+        ensure!(
+            pictures.iter().any(|picture| picture.name == name),
+            "source controls sprite {name} absent"
+        );
+    }
+    let (entries, actions) = entry_actions(s)?;
+    // Key names: IPT_fn_szGetStringOf through _strlwr, in the row's +0x90 font,
+    // at x - 0.4 with alignment 2 (FUN_004105b0).
+    let first_row = s.required(keyboard_tab, 28)?;
+    let row: MenuTextWire = wire(s.bytes(first_row, 177)?)?;
+    let name_font = font(s, fixed_string(&row.normal_font)?)?;
+    let name_position = [row.position[0] - 0.4, row.position[1], row.position[2]];
+    let mut input_names = Vec::new();
+    let table = Address {
+        owner: Owner::Fix,
+        key: BlockKey(7, 0),
+        offset: KEY_NAMES,
+    };
+    for index in 0..512 {
+        let record = plus(table, index * 16);
+        let code = u16::from_le_bytes(s.bytes(record, 2)?.try_into().unwrap());
+        if code == 0xffff {
+            break;
+        }
+        let input = if code & 0x8000 != 0 {
+            // Pad codes share the entry encoding: 0x0a + button index.
+            let pad = code & 0x7fff;
+            if !(0x0a..0x2a).contains(&pad) {
+                continue;
+            }
+            ControlInput::PadButton(u8::try_from(pad - 0x0a)?)
+        } else {
+            ControlInput::Key(code)
+        };
+        let english = string(s, s.required(record, 8)?)?.to_lowercase();
+        let label: String = english
+            .chars()
+            .filter(|c| name_font.glyphs.contains_key(c))
+            .collect();
+        if label.trim().is_empty() {
+            continue;
+        }
+        let artwork = labelled_item(
+            format!("controls_input_{index}"),
+            &label,
+            "KeyName",
+            name_position,
+            2,
+            &name_font,
+            &name_font,
+        )?;
+        input_names.push(ControlInputName { input, artwork });
+    }
+    ensure!(input_names.len() >= 100, "controls key-name table is short");
+    let capture = labelled_item(
+        "controls_capture".into(),
+        "???",
+        "KeyName",
+        name_position,
+        2,
+        &name_font,
+        &name_font,
+    )?;
+    Ok(MenuControls {
+        path: AssetPath::new("fix:/menu/controls/en")?,
+        background: AssetRef::new("texture:/Menu/control_back.bmp")?,
+        hint,
+        tabs,
+        keyboard,
+        gamepad,
+        pictures,
+        select_first_y: CONTROLS_SELECT_FIRST_Y,
+        input_names,
+        capture,
+        entries,
+        actions,
+    })
+}
+
+enum InputTerm {
+    And(Box<InputTerm>, Box<InputTerm>),
+    Or(Box<InputTerm>, Box<InputTerm>),
+    Entry(usize),
+    NotEntry,
+    /// A raw key/pad/axis test outside the options entries.
+    Fixed {
+        negative: bool,
+    },
+    Input(ControlInput),
+}
+
+/// Fix 7:0 entry actions (IPT_fn_vLoadBinaryFile 004a5060): +0 element count,
+/// +4 elements, +8 name, +0xc options name, +0x10 state (-2 at load). Elements
+/// are 8 bytes in prefix order: f001 AND, f002 OR, f00a entry, f00b NOT entry,
+/// f004/f006/f007 key (pressed/held/not held), f018/f01a pad button, f00e pad
+/// direction, f010 axis range.
+fn entry_actions(s: &SourceSession) -> Result<(Vec<ControlEntry>, Vec<ControlAction>)> {
+    let table = Address {
+        owner: Owner::Fix,
+        key: BlockKey(7, 0),
+        offset: ENTRY_ACTIONS,
+    };
+    let mut records = Vec::new();
+    for index in 0..1024 {
+        let at = plus(table, index * 0x1c);
+        let Ok(bytes) = s.bytes(at, 0x1c) else { break };
+        let state = i32::from_le_bytes(bytes[16..20].try_into().unwrap());
+        if state != -2 {
+            break;
+        }
+        let Ok(Some(name)) = s.pointer(at, 8) else {
+            break;
+        };
+        let options = s.pointer(at, 12)?.map(|a| string(s, a)).transpose()?;
+        let count = u32_at(bytes, 0)? as usize;
+        ensure!(count <= 256, "entry action element count is implausible");
+        records.push((at, string(s, name)?, options, count));
+    }
+    ensure!(records.len() > 400, "Fix 7:0 entry-action table is short");
+    let index_of: BTreeMap<Address, usize> =
+        records.iter().enumerate().map(|(i, r)| (r.0, i)).collect();
+    let parse_entry = |i: usize| -> Result<Option<InputTerm>> {
+        let (at, _, _, count) = &records[i];
+        if *count == 0 {
+            return Ok(None);
+        }
+        let elements = s.required(*at, 4)?;
+        let value = |k: usize| -> Result<u32> { u32_at(s.bytes(plus(elements, k * 8), 4)?, 0) };
+        let entry = |k: usize| -> Result<usize> {
+            let target = s.required(plus(elements, k * 8), 0)?;
+            index_of
+                .get(&target)
+                .copied()
+                .context("entry action references an unknown entry")
+        };
+        fn term(
+            k: &mut usize,
+            count: usize,
+            value: &dyn Fn(usize) -> Result<u32>,
+            entry: &dyn Fn(usize) -> Result<usize>,
+        ) -> Result<Option<InputTerm>> {
+            ensure!(*k < count, "entry action expression is truncated");
+            let opcode = value(*k)?;
+            *k += 1;
+            Ok(Some(match opcode {
+                0xf001 | 0xf002 => {
+                    let Some(a) = term(k, count, value, entry)? else {
+                        return Ok(None);
+                    };
+                    let Some(b) = term(k, count, value, entry)? else {
+                        return Ok(None);
+                    };
+                    if opcode == 0xf001 {
+                        InputTerm::And(Box::new(a), Box::new(b))
+                    } else {
+                        InputTerm::Or(Box::new(a), Box::new(b))
+                    }
+                }
+                0xf00a | 0xf00b => {
+                    let target = entry(*k)?;
+                    *k += 1;
+                    if opcode == 0xf00a {
+                        InputTerm::Entry(target)
+                    } else {
+                        InputTerm::NotEntry
+                    }
+                }
+                0xf004 | 0xf006 | 0xf007 => {
+                    let code = value(*k)?;
+                    *k += 1;
+                    if opcode == 0xf006 {
+                        InputTerm::Input(ControlInput::Key(u16::try_from(code)?))
+                    } else {
+                        InputTerm::Fixed {
+                            negative: opcode == 0xf007,
+                        }
+                    }
+                }
+                0xf018 | 0xf01a => {
+                    let button = value(*k + 1)?;
+                    *k += 2;
+                    // Button codes PadButton0..31 are 0x0a..0x29 (table 0x5ee514);
+                    // other codes are fixed menu/inventory pad tests.
+                    if opcode == 0xf01a && (0x0a..0x2a).contains(&button) {
+                        InputTerm::Input(ControlInput::PadButton(u8::try_from(button - 0x0a)?))
+                    } else {
+                        InputTerm::Fixed { negative: false }
+                    }
+                }
+                0xf00e => {
+                    let direction = value(*k + 1)?;
+                    *k += 2;
+                    InputTerm::Input(ControlInput::PadDirection(u8::try_from(direction)?))
+                }
+                0xf010 => {
+                    *k += 4;
+                    InputTerm::Fixed { negative: false }
+                }
+                // Typed cheat strings and other device tests are not controls.
+                _ => return Ok(None),
+            }))
+        }
+        let mut k = 0;
+        let parsed = term(&mut k, *count, &value, &entry)?;
+        Ok(parsed.filter(|_| k == *count))
+    };
+    let terms = (0..records.len())
+        .map(parse_entry)
+        .collect::<Result<Vec<_>>>()?;
+    let direct = |i: usize| match &terms[i] {
+        Some(InputTerm::Input(input)) => Some(input.clone()),
+        _ => None,
+    };
+    let entries: Vec<ControlEntry> = records
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.2.is_some())
+        .map(|(i, r)| ControlEntry {
+            name: r.2.clone().unwrap(),
+            default: direct(i),
+        })
+        .collect();
+    // OR branches contribute their options entries; a negated guard narrows
+    // but does not add input. Two positive operands (a chord) and raw keys
+    // outside the options entries have no single remappable input and are
+    // left out.
+    fn leaves(
+        term: &InputTerm,
+        terms: &[Option<InputTerm>],
+        records: &[(Address, String, Option<String>, usize)],
+        visiting: &mut Vec<usize>,
+        out: &mut Vec<String>,
+    ) {
+        let positive =
+            |t: &InputTerm| !matches!(t, InputTerm::NotEntry | InputTerm::Fixed { negative: true });
+        match term {
+            InputTerm::Or(a, b) => {
+                leaves(a, terms, records, visiting, out);
+                leaves(b, terms, records, visiting, out);
+            }
+            InputTerm::And(a, b) => match (positive(a), positive(b)) {
+                (true, false) => leaves(a, terms, records, visiting, out),
+                (false, true) => leaves(b, terms, records, visiting, out),
+                _ => {}
+            },
+            InputTerm::Entry(i) => {
+                if let Some(options) = &records[*i].2
+                    && matches!(terms[*i], Some(InputTerm::Input(_)))
+                {
+                    if !out.contains(options) {
+                        out.push(options.clone());
+                    }
+                } else if !visiting.contains(i)
+                    && let Some(inner) = &terms[*i]
+                {
+                    visiting.push(*i);
+                    leaves(inner, terms, records, visiting, out);
+                    visiting.pop();
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut actions = Vec::new();
+    for (i, record) in records.iter().enumerate() {
+        let Some(term) = &terms[i] else { continue };
+        if matches!(term, InputTerm::Input(_)) {
+            continue;
+        }
+        let mut out = Vec::new();
+        leaves(term, &terms, &records, &mut vec![i], &mut out);
+        if !out.is_empty() {
+            actions.push(ControlAction {
+                name: record.1.clone(),
+                entries: out,
+            });
+        }
+    }
+    Ok((entries, actions))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires local Hype Fix data"]
+    fn controls_page_matches_the_original_layout_defaults_and_actions() -> Result<()> {
+        let game = std::env::var_os("ASTROLABE_GAME_DIR")
+            .map(std::path::PathBuf::from)
+            .context("ASTROLABE_GAME_DIR required for the Controls page regression")?;
+        let selection = Selection::hype("manoir", "en")?;
+        let mut s = SourceSession::open(&game, &selection)?;
+        dialogue::load_language(&mut s, &game, &selection)?;
+        let controls = controls(&s)?;
+        let labels = |rows: &[ControlRow]| -> Vec<(String, Option<String>)> {
+            rows.iter()
+                .map(|row| (row.item.label.clone(), row.entry.clone()))
+                .collect()
+        };
+        let keyboard = labels(&controls.keyboard);
+        ensure!(keyboard.len() == 16 && controls.gamepad.len() == 10);
+        ensure!(keyboard[0] == ("move forward".into(), Some("Up_Key".into())));
+        ensure!(keyboard[14] == ("look".into(), Some("Look_Key".into())));
+        ensure!(keyboard[15] == ("reset to default values".into(), None));
+        ensure!(labels(&controls.gamepad)[8] == ("look".into(), Some("ModeLook_Pad".into())));
+        ensure!(
+            controls
+                .tabs
+                .iter()
+                .map(|t| t.label.as_str())
+                .collect::<Vec<_>>()
+                == ["keyboard", "gamepad"]
+        );
+        ensure!(controls.keyboard[0].item.neighbors[0].as_deref() == Some("controls_keyboard_15"));
+        let default = |name: &str| {
+            controls
+                .entries
+                .iter()
+                .find(|e| e.name == name)
+                .and_then(|e| e.default.clone())
+        };
+        ensure!(default("Up_Key") == Some(ControlInput::Key(0xc8)));
+        ensure!(default("Look_Key") == Some(ControlInput::Key(0x52)));
+        ensure!(default("Shield_Key") == Some(ControlInput::Key(0x19)));
+        ensure!(default("Activate_Map_Key") == Some(ControlInput::Key(0xcf)));
+        ensure!(default("SpeedUp_Pad") == Some(ControlInput::PadButton(6)));
+        ensure!(default("Up_Pad") == Some(ControlInput::PadDirection(0)));
+        let action = |name: &str| {
+            controls
+                .actions
+                .iter()
+                .find(|a| a.name == name)
+                .map(|a| a.entries.clone())
+                .unwrap_or_default()
+        };
+        ensure!(action("Button_Hit") == ["Action_Key", "Action_Pad"]);
+        ensure!(action("BT_Camera_Look") == ["Look_Key", "ModeLook_Pad"]);
+        ensure!(action("Button_Left") == ["Left_Key", "Left_Pad"]);
+        ensure!(action("Button_SSRight") == ["SSRight_Key"]);
+        ensure!(action("Button_ActivateMap") == ["Activate_Map_Key"]);
+        ensure!(action("TestInventoryMode") == ["Inventory_Key", "Inventory_Pad"]);
+        let name = |input: ControlInput| {
+            controls
+                .input_names
+                .iter()
+                .find(|n| n.input == input)
+                .map(|n| n.artwork.label.clone())
+        };
+        ensure!(name(ControlInput::Key(0x52)).as_deref() == Some("pad0"));
+        ensure!(name(ControlInput::Key(0x2a)).as_deref() == Some("left shift"));
+        ensure!(name(ControlInput::PadButton(0)).as_deref() == Some("b1"));
+        ensure!(
+            name(ControlInput::Key(0x01)).is_none(),
+            "escape has no display name"
+        );
+        ensure!(
+            controls
+                .pictures
+                .iter()
+                .map(|p| p.texture.path.as_str())
+                .collect::<Vec<_>>()
+                == [
+                    "texture:/multilanguage/English/fixtex/menus/controlsmenu/contr_ta.tga",
+                    "texture:/multilanguage/English/fixtex/menus/controlsmenu/contr_tb.tga",
+                    "texture:/multilanguage/English/fixtex/menus/controlsmenu/contr_tc.tga",
+                    "texture:/multilanguage/English/fixtex/menus/controlsmenu/contr_td.tga",
+                    "texture:/fixtex/menus/controlsmenu/kboard.tga",
+                    "texture:/fixtex/menus/controlsmenu/gamepad.tga",
+                    "texture:/fixtex/menus/controlsmenu/select.tga"
+                ]
+        );
+        ensure!(
+            controls
+                .hint
+                .starts_with("Use the arrows to select the action")
+        );
+        Ok(())
+    }
 }

@@ -20,21 +20,32 @@ const ORIGINAL_SIZE_META := &"astrolabe_settings_original_camera_size"
 const AUDIO_ORIGINAL_META := &"astrolabe_settings_original_audio_stream"
 const LIGHT_SETTINGS_GROUP := &"astrolabe_settings_lights"
 const CAMERA_SETTINGS_GROUP := &"astrolabe_settings_cameras"
-const CONTROL_ACTIONS := [
-	{"action": "Button_Left", "label": "Move Left", "default_key": KEY_LEFT},
-	{"action": "Button_Right", "label": "Move Right", "default_key": KEY_RIGHT},
-	{"action": "Button_Up", "label": "Move Forward", "default_key": KEY_UP},
-	{"action": "Button_Down", "label": "Move Back", "default_key": KEY_DOWN},
-	{"action": "Button_Hit", "label": "Use / Attack", "default_key": KEY_SPACE},
-]
-const RESERVED_KEYS := [KEY_ESCAPE, KEY_TAB, KEY_F5, KEY_R]
-const PAD_AXIS_CAPTURE_THRESHOLD := 0.65
+## Generated from the original input module; absent until the menu is converted.
+const CONTROL_BINDINGS := "res://generated/hype/shared/menu/controls/en/bindings.tres"
+## Stand-in 4-334: the authored inventory host owns the inventory screen, so
+## the script's inventory-mode actions stay unbound and the host reads the
+## Inventory_Key/Inventory_Pad bindings itself.
+const HOST_OWNED_ACTIONS := ["TestInventoryMode", "InventoryExit"]
+## The port session's own keys (F1 panel, F5 save, R reload) cannot be bound.
+const RESERVED_KEYS := [KEY_F1, KEY_F5, KEY_R]
+## While aiming, the crossbow camera actions take these inputs instead.
+const AIM_ROUTES := {
+	"Button_Left": "BT_Camera_LookLeft",
+	"Button_Right": "BT_Camera_LookRight",
+	"Button_Up": "BT_Camera_LookUp",
+	"Button_Down": "BT_Camera_LookDown",
+	"Button_Hit": "BT_Camera_TireArbalete",
+}
+## Earlier Astrolabe settings stored five actions by script name.
+const LEGACY_KEYBOARD := {"Button_Left": "Left_Key", "Button_Right": "Right_Key", "Button_Up": "Up_Key", "Button_Down": "Down_Key", "Button_Hit": "Action_Key"}
 
 ## Keep the original mixer units in settings; Voice -20 is its silent UI sentinel.
 var values: Dictionary = AUDIO_DEFAULTS.duplicate(true)
 var image_values: Dictionary = IMAGE_DEFAULTS.duplicate(true)
-var keyboard_bindings: Dictionary = {}
-var controller_bindings: Dictionary = {}
+var control_bindings: Resource
+## Options entry -> key id (keycode + location << 32) or pad button index.
+var key_bindings: Dictionary = {}
+var pad_bindings: Dictionary = {}
 var reverse_stereo := false
 var _aim_mode := false
 var _reversed_audio_cache: Dictionary = {}
@@ -43,6 +54,8 @@ var _stereo_test_player: AudioStreamPlayer
 func _ready() -> void:
 	for bus_name in BUSES.values():
 		_ensure_bus(bus_name)
+	if ResourceLoader.exists(CONTROL_BINDINGS):
+		control_bindings = load(CONTROL_BINDINGS)
 	_reset_control_binding_data()
 	var file := ConfigFile.new()
 	if file.load(FILE_PATH) == OK:
@@ -60,6 +73,7 @@ func _ready() -> void:
 		image_values["screen_framing"] = clampi(int(file.get_value("video", "screen_framing", IMAGE_DEFAULTS.screen_framing)), 60, 100)
 		_load_control_bindings(file)
 	get_tree().node_added.connect(_on_node_added)
+	configure_gameplay_inputs(false)
 	_apply()
 	_apply_image_settings_to_tree(get_tree().root)
 	_apply_reverse_stereo_to_tree(get_tree().root)
@@ -129,170 +143,150 @@ func play_stereo_test() -> bool:
 	player.play()
 	return true
 
-func get_control_actions() -> Array:
-	return CONTROL_ACTIONS.duplicate(true)
+func get_control_bindings() -> Resource:
+	return control_bindings
 
-func get_binding_label(action: String, mode: String) -> String:
-	if mode == "Keyboard":
-		var code := int(keyboard_bindings.get(action, 0))
-		return OS.get_keycode_string(code) if code > 0 else "Unassigned"
-	var binding: Variant = controller_bindings.get(action, {})
-	if not binding is Dictionary or binding.is_empty():
-		return "Unassigned"
-	match str(binding.get("type", "")):
-		"button":
-			return "Button %d" % (int(binding.get("index", -1)) + 1)
-		"axis":
-			return "Axis %d %s" % [int(binding.get("index", -1)), "+" if float(binding.get("value", 0.0)) > 0.0 else "−"]
-	return "Unassigned"
+## The entry's current input: a key id, a pad button, or -1.
+func get_entry_binding(entry: String) -> int:
+	if key_bindings.has(entry):
+		return int(key_bindings[entry])
+	return int(pad_bindings.get(entry, -1))
 
-## Binds an event and transfers an existing same-mode binding to the edited row.
-## This mirrors the source remapper's occupied-key transfer behavior.
-func set_control_binding(action: String, mode: String, event: InputEvent) -> Dictionary:
-	if not _has_control_action(action):
-		return {"ok": false, "message": "That action is not supported by this game session."}
-	var binding: Variant = _binding_from_event(mode, event)
-	if binding == null:
-		return {"ok": false, "message": "That input cannot be assigned."}
-	var bindings := keyboard_bindings if mode == "Keyboard" else controller_bindings if mode == "Controller" else {}
-	if bindings.is_empty():
-		return {"ok": false, "message": "Choose Keyboard or Controller first."}
-	var previous: Variant = bindings.get(action)
-	var swapped_action := ""
-	for candidate in CONTROL_ACTIONS:
-		var candidate_action := str(candidate["action"])
-		if candidate_action == action:
-			continue
-		if _same_binding(mode, bindings.get(candidate_action), binding):
-			swapped_action = candidate_action
+## Name artwork ({label, texture, rect}) for the entry's bound input.
+func get_entry_input_name(entry: String) -> Dictionary:
+	if control_bindings == null:
+		return {}
+	if key_bindings.has(entry):
+		return control_bindings.key_names.get(int(key_bindings[entry]), {})
+	if pad_bindings.has(entry):
+		return control_bindings.pad_names.get(int(pad_bindings[entry]), {})
+	return {}
+
+## The key id for a physical key event; modifier keys keep their side.
+func key_id(event: InputEventKey) -> int:
+	var code := int(event.physical_keycode)
+	var sided := code + (int(event.location) << 32)
+	if control_bindings != null and control_bindings.key_names.has(sided):
+		return sided
+	return code
+
+## IPT_fn_bChangeIPTValue accepts only inputs with a display name.
+func can_bind_key(id: int) -> bool:
+	return control_bindings != null and control_bindings.key_names.has(id) and not RESERVED_KEYS.has(id & 0xffffffff)
+
+## Bind an input to an options entry. An entry of the same kind already using
+## it receives this entry's previous input (FUN_004a4be0 swap, mode 1).
+func bind_entry(entry: String, input: int) -> Dictionary:
+	var is_key := key_bindings.has(entry)
+	if not is_key and not pad_bindings.has(entry):
+		return {"ok": false}
+	if (is_key and not can_bind_key(input)) or (not is_key and not control_bindings.pad_names.has(input)):
+		return {"ok": false}
+	var bindings: Dictionary = key_bindings if is_key else pad_bindings
+	var previous := int(bindings[entry])
+	var swapped := ""
+	for other in bindings:
+		if other != entry and int(bindings[other]) == input:
+			swapped = str(other)
+			bindings[other] = previous
 			break
-	if not swapped_action.is_empty():
-		bindings[swapped_action] = previous if mode == "Keyboard" or not previous is Dictionary else {}
-	bindings[action] = binding
-	var saved := _save()
+	bindings[entry] = input
 	configure_gameplay_inputs(_aim_mode)
-	if not saved:
-		return {"ok": true, "message": "Applied for this session, but preferences could not be saved."}
-	if swapped_action.is_empty():
-		return {"ok": true, "message": "%s saved." % _action_label(action)}
-	return {"ok": true, "message": "Bindings swapped: %s and %s." % [_action_label(action), _action_label(swapped_action)]}
+	return {"ok": true, "swapped": swapped, "saved": _save()}
 
-## Restore Astrolabe's current native controls, not unrecovered game defaults.
+## DefaultValues reloads every binding from the source defaults.
 func reset_control_bindings() -> bool:
 	_reset_control_binding_data()
-	var saved := _save()
 	configure_gameplay_inputs(_aim_mode)
-	return saved
+	return _save()
 
-## Route the five currently playable source actions to native gameplay actions.
-## The four movement bindings become crossbow camera controls only while aiming.
+## True when the event presses one of the entries' bound inputs.
+func entry_event_pressed(event: InputEvent, entries: Array) -> bool:
+	for entry in entries:
+		if key_bindings.has(entry) and event is InputEventKey:
+			var key := event as InputEventKey
+			if key.pressed and not key.echo and int(key.physical_keycode) == int(key_bindings[entry]) & 0xffffffff:
+				return true
+		if pad_bindings.has(entry) and event is InputEventJoypadButton:
+			var button := event as InputEventJoypadButton
+			if button.pressed and button.button_index == int(pad_bindings[entry]):
+				return true
+	return false
+
+## Give every script action the inputs of the options entries it ORs together.
+## While aiming, the movement/hit inputs feed the crossbow camera actions only.
 func configure_gameplay_inputs(aim_mode: bool) -> void:
 	_aim_mode = aim_mode
-	var routes := {
-		"Button_Left": "BT_Camera_LookLeft" if aim_mode else "Button_Left",
-		"Button_Right": "BT_Camera_LookRight" if aim_mode else "Button_Right",
-		"Button_Up": "BT_Camera_LookUp" if aim_mode else "Button_Up",
-		"Button_Down": "BT_Camera_LookDown" if aim_mode else "Button_Down",
-		"Button_Hit": "BT_Camera_TireArbalete" if aim_mode else "Button_Hit",
-	}
-	var affected := ["Button_Left", "Button_Right", "Button_Up", "Button_Down", "Button_Hit", "BT_Camera_LookLeft", "BT_Camera_LookRight", "BT_Camera_LookUp", "BT_Camera_LookDown", "BT_Camera_TireArbalete"]
-	for action in affected:
+	if control_bindings == null:
+		return
+	for action in control_bindings.actions:
+		if HOST_OWNED_ACTIONS.has(action):
+			continue
 		if not InputMap.has_action(action):
 			InputMap.add_action(action)
 		for existing in InputMap.action_get_events(action):
 			if existing is InputEventKey or existing is InputEventJoypadButton or existing is InputEventJoypadMotion:
 				InputMap.action_erase_event(action, existing)
-	for source_action in routes:
-		var target_action: String = routes[source_action]
-		var key_code := int(keyboard_bindings.get(source_action, 0))
-		if key_code > 0:
-			var key_event := InputEventKey.new()
-			key_event.physical_keycode = key_code
-			InputMap.action_add_event(target_action, key_event)
-		var pad_binding: Variant = controller_bindings.get(source_action, {})
-		var pad_event := _event_from_pad_binding(pad_binding)
-		if pad_event != null:
-			InputMap.action_add_event(target_action, pad_event)
+		var silent: bool = (aim_mode and AIM_ROUTES.has(action)) or (not aim_mode and AIM_ROUTES.values().has(action))
+		if silent:
+			continue
+		for entry in control_bindings.actions[action]:
+			var event := _event_for_entry(str(entry))
+			if event != null and not InputMap.action_has_event(action, event):
+				InputMap.action_add_event(action, event)
 
-func _reset_control_binding_data() -> void:
-	keyboard_bindings.clear()
-	controller_bindings.clear()
-	for item in CONTROL_ACTIONS:
-		var action := str(item["action"])
-		keyboard_bindings[action] = int(item["default_key"])
-		controller_bindings[action] = {}
-
-func _load_control_bindings(file: ConfigFile) -> void:
-	var stored_keyboard: Variant = file.get_value("controls", "keyboard", {})
-	if stored_keyboard is Dictionary:
-		for item in CONTROL_ACTIONS:
-			var action := str(item["action"])
-			var code := int(stored_keyboard.get(action, keyboard_bindings[action]))
-			if code > 0 and not RESERVED_KEYS.has(code):
-				keyboard_bindings[action] = code
-	var stored_controller: Variant = file.get_value("controls", "controller", {})
-	if stored_controller is Dictionary:
-		for item in CONTROL_ACTIONS:
-			var action := str(item["action"])
-			var binding: Variant = stored_controller.get(action, {})
-			if _valid_pad_binding(binding):
-				controller_bindings[action] = binding.duplicate(true)
-
-func _binding_from_event(mode: String, event: InputEvent) -> Variant:
-	if mode == "Keyboard" and event is InputEventKey:
-		var key := event as InputEventKey
-		var code := int(key.physical_keycode)
-		if code <= 0 or RESERVED_KEYS.has(code) or key.ctrl_pressed or key.alt_pressed or key.shift_pressed or key.meta_pressed:
-			return null
-		return code
-	if mode == "Controller" and event is InputEventJoypadButton:
-		return {"type": "button", "index": (event as InputEventJoypadButton).button_index}
-	if mode == "Controller" and event is InputEventJoypadMotion:
-		var motion := event as InputEventJoypadMotion
-		if absf(motion.axis_value) >= PAD_AXIS_CAPTURE_THRESHOLD:
-			return {"type": "axis", "index": motion.axis, "value": 1.0 if motion.axis_value > 0.0 else -1.0}
-	return null
-
-func _same_binding(mode: String, left: Variant, right: Variant) -> bool:
-	if mode == "Keyboard":
-		return int(left) == int(right)
-	return left is Dictionary and right is Dictionary and left == right and not left.is_empty()
-
-func _valid_pad_binding(binding: Variant) -> bool:
-	if not binding is Dictionary:
-		return false
-	match str(binding.get("type", "")):
-		"button":
-			return int(binding.get("index", -1)) >= 0
-		"axis":
-			return int(binding.get("index", -1)) >= 0 and absf(float(binding.get("value", 0.0))) == 1.0
-	return false
-
-func _event_from_pad_binding(binding: Variant) -> InputEvent:
-	if not _valid_pad_binding(binding):
-		return null
-	if str(binding["type"]) == "button":
+func _event_for_entry(entry: String) -> InputEvent:
+	if key_bindings.has(entry):
+		var id := int(key_bindings[entry])
+		# The side of Ctrl/Shift/Alt names and identifies a binding, but the
+		# InputMap event matches either side: synthesized and replayed input
+		# (route bot, gate probe) carries no location.
+		var key := InputEventKey.new()
+		key.physical_keycode = id & 0xffffffff
+		return key
+	if pad_bindings.has(entry):
 		var button := InputEventJoypadButton.new()
 		button.device = -1
-		button.button_index = int(binding["index"])
+		button.button_index = int(pad_bindings[entry])
 		return button
-	var motion := InputEventJoypadMotion.new()
-	motion.device = -1
-	motion.axis = int(binding["index"])
-	motion.axis_value = float(binding["value"])
-	return motion
+	var item: Dictionary = control_bindings.entry(entry)
+	if str(item.get("kind", "")) == "pad_direction":
+		var direction := InputEventJoypadButton.new()
+		direction.device = -1
+		direction.button_index = int(item["default"])
+		return direction
+	return null
 
-func _has_control_action(action: String) -> bool:
-	for item in CONTROL_ACTIONS:
-		if str(item["action"]) == action:
-			return true
-	return false
+func _reset_control_binding_data() -> void:
+	key_bindings.clear()
+	pad_bindings.clear()
+	if control_bindings == null:
+		return
+	for item in control_bindings.entries:
+		match str(item["kind"]):
+			"key":
+				key_bindings[str(item["name"])] = int(item["default"])
+			"pad":
+				pad_bindings[str(item["name"])] = int(item["default"])
 
-func _action_label(action: String) -> String:
-	for item in CONTROL_ACTIONS:
-		if str(item["action"]) == action:
-			return str(item["label"])
-	return action
+func _load_control_bindings(file: ConfigFile) -> void:
+	var stored_keys: Variant = file.get_value("controls", "keys", {})
+	if not file.has_section_key("controls", "keys"):
+		var legacy: Variant = file.get_value("controls", "keyboard", {})
+		stored_keys = {}
+		if legacy is Dictionary:
+			for action in LEGACY_KEYBOARD:
+				if legacy.has(action):
+					stored_keys[LEGACY_KEYBOARD[action]] = int(legacy[action])
+	if stored_keys is Dictionary:
+		for entry in stored_keys:
+			if key_bindings.has(entry) and can_bind_key(int(stored_keys[entry])):
+				key_bindings[entry] = int(stored_keys[entry])
+	var stored_pad: Variant = file.get_value("controls", "pad", {})
+	if stored_pad is Dictionary:
+		for entry in stored_pad:
+			if pad_bindings.has(entry) and control_bindings.pad_names.has(int(stored_pad[entry])):
+				pad_bindings[entry] = int(stored_pad[entry])
 
 func _apply() -> void:
 	for group in BUSES:
@@ -490,8 +484,9 @@ func _save() -> bool:
 	file.set_value("audio", "reverse_stereo", reverse_stereo)
 	for setting in IMAGE_DEFAULTS:
 		file.set_value("video", setting, image_values[setting])
-	file.set_value("controls", "keyboard", keyboard_bindings)
-	file.set_value("controls", "controller", controller_bindings)
+	if control_bindings != null:
+		file.set_value("controls", "keys", key_bindings)
+		file.set_value("controls", "pad", pad_bindings)
 	var error := file.save(FILE_PATH)
 	if error != OK:
 		push_warning("Could not save Hype preferences: " + error_string(error))

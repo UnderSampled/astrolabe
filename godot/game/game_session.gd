@@ -1030,9 +1030,11 @@ func _process(delta: float) -> void:
 func configure_crossbow_inputs() -> void:
     for action in ["BT_Camera_Look", "BT_Camera_LookLeft", "BT_Camera_LookRight", "BT_Camera_LookUp", "BT_Camera_LookDown", "BT_Camera_TireArbalete"]:
         if not InputMap.has_action(action): InputMap.add_action(action)
-    bind_physical_key("BT_Camera_Look", KEY_KP_0)
-    bind_physical_key("BT_Camera_Look", KEY_INSERT)
     var preferences := get_node_or_null("/root/UserSettings")
+    # The Controls page's look binding (source default Numpad0) owns freelook.
+    if preferences == null or preferences.call("get_control_bindings") == null:
+        bind_physical_key("BT_Camera_Look", KEY_KP_0)
+        bind_physical_key("BT_Camera_Look", KEY_INSERT)
     if preferences != null:
         preferences.call("configure_gameplay_inputs", false)
 

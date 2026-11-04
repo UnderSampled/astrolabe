@@ -5118,6 +5118,22 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::level::menu::tests::controls_page_matches_the_original_layout_defaults_and_actions",
+      "areas": [
+        "source",
+        "scene"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "English Fix 18:0 Controls root and Fix 7:0 entry actions, defaults and key names",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::level::reference_tests::brigand_actor_brain_keeps_opaque_designer_fields_and_bindings",
       "areas": [
         "source",

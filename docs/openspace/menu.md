@@ -99,23 +99,48 @@ QOA and non-WAV streams keep their original channels. This is a usable
 Godot-side equivalent for the project's WAV output, not a recreation of the
 external source sound-system API.
 
-The Controls page provides native remapping for the five source actions that the
-current Godot session actually consumes: left, right, up, down and hit. It
-persists physical keyboard keys and generic Godot joypad buttons/axis directions
-in `user://hype-settings.cfg`; the current binding transfers to another action
-when the same input is selected, matching the decompiled remapper's occupied-key
-transfer path. Escape cancels an active capture before closing configuration.
-Reset restores Astrolabe's current arrow/Space keyboard defaults and clears
-generic joypad bindings. These are the port's present defaults, not values
-recovered from the game's source options file.
+The Options `Controls` item opens a separate root, `Menu/control_back.bmp`
+(`FUN_00414b00` → `FUN_00413ad0(DAT_0075240c)`), traced in
+[the Controls page research](../../notes/research/controls-menu-original.md) and
+checked once on a disposable original copy. `configuration()`'s sibling
+`controls()` imports it: the stained-glass title tiles, keyboard and gamepad
+pictures and `SelectBox` from the root's sprite list; the Keyboard/Gamepad tabs;
+and the two up/down rings of `KeyStrokes` rows (16 keyboard, 10 gamepad, each
+ending in `DefaultValues`) with the options-entry names at record +0xba
+(keyboard) and +0xda (pad). From Fix 7:0 it reads the options-named entry
+actions with their defaults, the English key-name table, and for every
+script-facing action (`Button_*`, `BT_Camera_*`, ...) the options entries its
+expression ORs together. A negated guard narrows without adding input; a chord
+of two positive terms (the pad side step) and raw keys outside the options
+entries are left out. Labels and every key name are baked with the source
+fonts like the other items: alignment 0 and 2 put the first or last glyph
+centre at the anchor.
 
-`FUN_00414b00`, `FUN_004123b0` and `IPT_fn_bChangeIPTValue` show separate source
-Keyboard and Paddle/Joystick paths. The generic controller tab deliberately
-uses Godot JoypadButton/JoypadMotion events and does not claim support for the
-source Paddle or Joystick device modes. The source KeyStrokes route displays
-current bindings; the native action rows show those values directly. Other
-source controls are not exposed until their gameplay actions exist in this
-session.
+Godot output is `menu/controls/en/menu.tscn` plus `bindings.tres`
+(`game/control_bindings.gd`): defaults as Godot physical keys (DirectInput
+scancodes mapped by US position; Ctrl/Shift/Alt keep their side in the id),
+pad buttons by index, the action composition and the key-name textures.
+`UserSettings` owns the bindings: it gives every action in the composition the
+events of its entries, saves them to `user://hype-settings.cfg` and loads them at
+startup, so compiled AI `adopt_input` defaults no longer apply. The
+`game/controls_menu.gd` page follows the source: fixed menu keys (arrows,
+Enter/keypad Enter/Space, Escape; D-pad and pad button 0), Enter on a tab
+opens its list, Enter on a row shows `???` and the next key with a display
+name is bound, an entry of the same kind that held it receives the old input
+(all 25 keyboard entries, including Save, Load, Map, Shield and the others with
+no row), the first Escape after confirming only disarms and the second closes
+the list, and reset restores every binding. The page has no mouse support,
+as in the source.
+
+Port departures: the Inventory row feeds the authored inventory host, and
+`TestInventoryMode`/`InventoryExit` stay unbound (stand-in 4-334 keeps that
+screen with the host). Bindings are saved at once rather than on resume or quit.
+F1, F5 and R stay reserved for the port session's panel, save and reload.
+The InputMap events for Ctrl/Shift/Alt match either side, because synthesized
+and replayed input carries no side. Pad buttons use the source index as the
+Godot button index, and pad directions are the D-pad; the source Paddle and
+Joystick device modes and the analog axes are not emulated. The F1 help popup
+is not drawn; its text is kept as `metadata/source_hint`.
 
 The same dispatcher sends `Credits` to mode `0x16`; `FUN_00403fc0` enters credits
 mode `0x17`. `FUN_0040f3f0` loads `credits.ini`, selects `Playmo_Font2_0`, and

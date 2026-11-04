@@ -370,5 +370,5 @@ the checklist says 383.
 - [x] Sector surface and stream lists are empty in every Manoir and Brigand sector. Surfaces are height planes (SRF 004ffde0), if needed later.
 - [ ] Designer types 9 (byte), 13 (link pointer), 19 (link array) and 26 (no size) need codecs: 7 Brigand fields, possibly including the comport variables behind the 22 dynamic behavior requests.
 - [ ] Branching dialogue answers: entry layout and result mapping from 0056c690 / 0056e3b0. Brigand has 9 two-answer items (6 wellet_*, 3 zatila_speak_4..6).
-- [ ] Controls page: read the original's action list and default scancodes from Fix 7:0. User bindings are in the scrambled Options/Default.cfg (004a7330).
+- [x] Controls page: the action list, defaults and key names are read from Fix 7:0 (`controls()` in menu.rs, 2026-11-04; notes/research/controls-menu-original.md). Up_Key is 0xc8.
 - [ ] Sector activation: implement FUN_00437b10's sleep rule at the main actor's sector change, plus the StandardGame +0x1b/+0x20/+0x24 exemptions. Wake via 00449cd0/00449c60.

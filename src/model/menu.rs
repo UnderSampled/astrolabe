@@ -31,6 +31,100 @@ pub struct MenuConfiguration {
     pub items: Vec<MenuItem>,
     /// Slider1..3 source positions before applying persisted option values.
     pub slider_positions: [[f32; 3]; 3],
+    /// The separate `Menu/control_back.bmp` root reached from the Controls item.
+    #[serde(default)]
+    pub controls: Option<MenuControls>,
+}
+/// Original key-remapping page: Fix 18:0 layout plus the input module's
+/// user-facing entry actions, defaults and key names from Fix 7:0.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MenuControls {
+    pub path: AssetPath,
+    pub background: AssetRef<super::texture::Texture>,
+    /// The root's F1 help text.
+    pub hint: String,
+    /// Keyboard then Gamepad; left/right linked, no up/down.
+    pub tabs: Vec<MenuItem>,
+    pub keyboard: Vec<ControlRow>,
+    pub gamepad: Vec<ControlRow>,
+    /// DisplayWithKeyboard, DisplayWithGamepad and SelectBox sprites.
+    pub pictures: Vec<MenuPicture>,
+    /// SelectBox centre on the first row, set by FUN_00414b00 when a list opens.
+    pub select_first_y: f32,
+    /// Lowercased key/button names drawn right-aligned left of each row label.
+    pub input_names: Vec<ControlInputName>,
+    /// The "???" shown while the focused row waits for a key.
+    pub capture: MenuItem,
+    /// Every options-named entry in table order (saved by the source options file).
+    pub entries: Vec<ControlEntry>,
+    /// Script-facing actions and the options entries their expressions OR together.
+    pub actions: Vec<ControlAction>,
+}
+impl MenuControls {
+    /// Tabs, rows, key names and the capture marker: every baked label.
+    pub fn items(&self) -> impl Iterator<Item = &MenuItem> {
+        self.tabs
+            .iter()
+            .chain(
+                self.keyboard
+                    .iter()
+                    .chain(&self.gamepad)
+                    .map(|row| &row.item),
+            )
+            .chain(self.input_names.iter().map(|name| &name.artwork))
+            .chain(std::iter::once(&self.capture))
+    }
+    pub fn items_mut(&mut self) -> impl Iterator<Item = &mut MenuItem> {
+        self.tabs
+            .iter_mut()
+            .chain(
+                self.keyboard
+                    .iter_mut()
+                    .chain(&mut self.gamepad)
+                    .map(|row| &mut row.item),
+            )
+            .chain(self.input_names.iter_mut().map(|name| &mut name.artwork))
+            .chain(std::iter::once(&mut self.capture))
+    }
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ControlRow {
+    /// `KeyStrokes` rows bind `entry`; `DefaultValues` has none.
+    pub item: MenuItem,
+    pub entry: Option<String>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MenuPicture {
+    pub name: String,
+    pub texture: AssetRef<super::texture::Texture>,
+    /// Centre and size in the 640x480 canvas.
+    pub center: [f32; 2],
+    pub size: [f32; 2],
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ControlInput {
+    /// DirectInput scancode.
+    Key(u16),
+    /// Source pad button index (PadButton0 is "b1").
+    PadButton(u8),
+    /// Fixed pad direction 0..3 (up, down, left, right); not remappable.
+    PadDirection(u8),
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ControlEntry {
+    pub name: String,
+    pub default: Option<ControlInput>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ControlInputName {
+    pub input: ControlInput,
+    /// Artwork right-aligned at the key column, positioned on the first row.
+    pub artwork: MenuItem,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ControlAction {
+    pub name: String,
+    pub entries: Vec<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MenuItem {

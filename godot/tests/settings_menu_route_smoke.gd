@@ -57,9 +57,9 @@ func run() -> void:
 		missing.append("explicitly unsupported source texture-swapping control")
 	if settings.get_node_or_null("Canvas/ImagesPage/Textures") != null:
 		missing.append("unrelated filtering slider presented as source Textures")
-	for action in ["Button_Left", "Button_Right", "Button_Up", "Button_Down", "Button_Hit"]:
-		if settings.get_node_or_null("Canvas/ControlsPage/Binding_" + action) == null:
-			missing.append("%s binding" % action)
+	var controls_scene := str(settings.get_node("Canvas/ControlsPage").get_meta("controls_scene", ""))
+	if not ResourceLoader.exists(controls_scene, "PackedScene"):
+		missing.append("converted Controls page scene")
 	for action in ["StereoTest", "ReverseStereo"]:
 		if settings.get_node_or_null("Canvas/SoundPage/" + action) == null:
 			missing.append("%s sound action" % action)
@@ -76,6 +76,17 @@ func run() -> void:
 	settings.call("focus_initial")
 	if bool(settings.call("cancel_input_capture")):
 		fail("cancel_input_capture() reported an active capture before one started")
+		return
+	# The Controls item opens the original page; hosts leave Escape to it.
+	settings.call("open_controls")
+	var controls_page := settings.get("controls_page") as Control
+	if controls_page == null or not bool(settings.call("cancel_input_capture")) or settings.get_node("Canvas").visible:
+		fail("The Controls item did not open the original Controls page")
+		return
+	controls_page.emit_signal("closed")
+	await process_frame
+	if settings.get("controls_page") != null or not settings.get_node("Canvas").visible or bool(settings.call("cancel_input_capture")):
+		fail("Closing the Controls page did not return to Configure")
 		return
 	settings.call("_show_page", &"Sound")
 	var reverse_button := settings.get_node("Canvas/SoundPage/ReverseStereo") as Button

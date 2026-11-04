@@ -139,8 +139,9 @@ func _use_consumable(item_id: int, kind: String) -> bool:
     return true
 
 func _input(event: InputEvent) -> void:
-    var key := event as InputEventKey
-    if key == null or not key.pressed or key.echo or key.physical_keycode != inventory_key: return
+    # The pause menu (and its Controls page) owns input while it pauses play.
+    if get_tree().paused and not owns_pause: return
+    if not _inventory_pressed(event): return
     # Tab is also Godot's focus-next key. Consume its non-echo press before GUI
     # focus navigation; release/echo events never toggle the modal a second time.
     get_viewport().set_input_as_handled()
@@ -150,3 +151,12 @@ func _input(event: InputEvent) -> void:
 func _exit_tree() -> void:
     if owns_pause: get_tree().paused = false
     owns_pause = false
+
+## The Controls page's inventory row (source Inventory_Key/Inventory_Pad);
+## inventory_key applies when the converted bindings are absent.
+func _inventory_pressed(event: InputEvent) -> bool:
+    var preferences := get_node_or_null("/root/UserSettings")
+    if preferences != null and preferences.call("get_control_bindings") != null:
+        return bool(preferences.call("entry_event_pressed", event, ["Inventory_Key", "Inventory_Pad"]))
+    var key := event as InputEventKey
+    return key != null and key.pressed and not key.echo and key.physical_keycode == inventory_key

@@ -97,11 +97,20 @@ through bindings and sprite lookups.
 
 ## Controls rebinding
 
-- [x] The port's Controls page rebinds five actions (move left, right,
-  forward, back; use/attack) for keyboard and controller, as a Godot UI.
-- [ ] Match the original's rebinding UI: layout, the action list and order,
-  how a key is captured and shown, and its defaults. The original's controls page
-  data is in the Options root (menu.rs:844); the port replaces its controls.
-- [ ] The rest of the original's actions (jump, run, sword, crossbow, magic,
-  object, freelook and the camera keys) are not rebindable in the port. Stephen
-  bound freelook to V in the original during the linear take.
+- [x] The original Controls page (`Menu/control_back.bmp` root, reached from the
+  Configure "controls" item) with its title tiles, keyboard/gamepad pictures,
+  tabs, 15 keyboard and 9 gamepad rows plus reset, source labels and key names.
+  Compared with the original at 1024x768: RMSE 0.052 in every state (tab level,
+  list, `???` capture, swap, reset, gamepad), against 0.280 for the old page.
+  See [the research](../../notes/research/controls-menu-original.md) and
+  [docs/openspace/menu.md](../openspace/menu.md).
+- [x] Capture, swap, double Escape and reset as in the original (checked live on
+  a disposable copy); the source defaults from Fix 7:0 (look is Numpad0).
+- [x] Every script action takes its inputs from the bindings through the source
+  composition, so shield (P), choose magic (Delete), side steps (A/S), map (End),
+  look and the rest are bound; inventory goes to the authored host (4-334).
+  `godot/tests/controls_rebind_probe.gd` rebinds through the menu, plays with the
+  new keys, rebinds from the pause menu and checks the bindings after a restart.
+- [ ] The Configure page's own stained-glass title (`config_ta..td` tiles) is not
+  drawn; the Controls page shows how to read them.
+- [ ] F1 help popup, pad capture on real hardware, and analog axes.
