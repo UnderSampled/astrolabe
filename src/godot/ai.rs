@@ -4217,6 +4217,21 @@ fn statements(
                         anyhow::bail!("array assignment requires a native designer array property")
                     }
                 };
+                if matches!(
+                    model.variables[usize::from(variable)].default,
+                    DesignerValue::WaypointArray(_)
+                ) {
+                    // A waypoint array holds waypoint Resources (Array[Resource]):
+                    // store the Resource; a non-object value stores null, as the
+                    // scalar waypoint assignment does.
+                    let index = guarded_expression(out, index, model, depth, flow)?;
+                    let value = guarded_expression(out, value, model, depth, flow)?;
+                    writeln!(
+                        out,
+                        "{pad}dsg_{variable}[int({index})] = {value} if {value} is Object else null"
+                    )?;
+                    continue;
+                }
                 let kind = match &model.variables[usize::from(variable)].default {
                     DesignerValue::IntegerArray(_) | DesignerValue::ActionArray(_) => "int",
                     DesignerValue::RealArray(_) => "float",

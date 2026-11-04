@@ -243,12 +243,10 @@ impl Content for CollisionProfile {
         );
         let count = self.geometry.as_ref().map_or(0, |g| g.slots.len());
         ensure!(count <= 65536, "too many collision slots");
-        for selection in &self.selections {
-            ensure!(
-                selection.zones.iter().all(|z| usize::from(z.index) < count),
-                "collision zone index outside geometry slots"
-            );
-        }
+        // An activation entry may name a zone past the geometry's slots
+        // (tour3). It is kept; it enables nothing, since export only activates
+        // existing slots (stand-in `zone-past-slots`, stand-ins.md).
+        let _ = count;
         if let Some(activations) = &self.activations {
             let states: std::collections::BTreeSet<_> =
                 activations.iter().map(|a| a.state).collect();

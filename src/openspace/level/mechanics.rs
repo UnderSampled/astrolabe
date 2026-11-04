@@ -58,6 +58,18 @@ pub(super) fn size(kind: u32) -> Result<usize> {
         // copier memcpys 0x10 whole). Retained until their meaning is read.
         16 => 52,
         17 => 100,
+        // The remaining 00591464 allocations; DNM_fn_vIdentityCardCopy
+        // (00593eaf) copies every kind flat, so all are pointer-free.
+        1 => 72,
+        2 => 80,
+        5 => 100,
+        8 => 8,
+        10 => 28,
+        12 => 52,
+        13 => 40,
+        14 => 24,
+        15 => 32,
+        20 => 12,
         _ => anyhow::bail!("unsupported Hype mechanics kind {kind}"),
     })
 }

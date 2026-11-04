@@ -231,6 +231,19 @@ fn movement_collision(
     let Some(geometry) = &profile.geometry else {
         return Ok(());
     };
+    let past_slots = profile
+        .selections
+        .iter()
+        .flat_map(|s| &s.zones)
+        .filter(|z| usize::from(z.index) >= geometry.slots.len())
+        .count();
+    if past_slots > 0 {
+        project.diagnostic(format!(
+            "{}: {past_slots} zone activation entries name zones past the {} geometry slots and enable nothing (stand-in zone-past-slots)",
+            profile.path,
+            geometry.slots.len()
+        ));
+    }
     let selected = |id| -> BTreeSet<_> {
         profile
             .selections

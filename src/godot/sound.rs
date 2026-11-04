@@ -395,16 +395,9 @@ fn export_theme_voice(
     }
     validate_native_theme_shape(theme, &identity(reference))?;
     let (order, cycle) = theme_natural_sequence(parts, *start_loop as usize)?;
-    let plain = order.len() == parts.len()
-        && order.iter().enumerate().all(|(step, part)| step == *part)
-        && cycle == *start_loop as usize;
+    // Above the interactive stream's 63 clips, one PCM stream plays the same
+    // unrolled order and loops from the cycle's first step.
     if order.len() > 63 {
-        ensure!(
-            plain,
-            "{}: theme loop groups unroll to {} clips, above the interactive stream's 63",
-            identity(reference),
-            order.len()
-        );
         return export_flat_theme_voice(project, source, reference, theme);
     }
     let stream = resource_path(project, reference, "streams");
@@ -505,10 +498,13 @@ fn flatten_theme_samples(
     else {
         unreachable!()
     };
+    // The source's natural part order (repeat groups unrolled), looping from
+    // the cycle's first step.
+    let (order, cycle) = theme_natural_sequence(parts, *start_loop as usize)?;
     let mut samples = Vec::new();
     let mut format = None;
     let mut loop_begin = 0;
-    for (index, part) in parts.iter().enumerate() {
+    for (step, part) in order.iter().map(|&index| &parts[index]).enumerate() {
         let definitions = source.load(&part.resource.definitions)?;
         let resource = definitions.resource(part.resource.id)?;
         let SoundResourceData::Sample {
@@ -536,7 +532,7 @@ fn flatten_theme_samples(
                 "{label}: mixed sample rates/channels require resampling"
             );
             ensure!(!sound.samples.is_empty(), "{label}: empty theme part");
-            if index == *start_loop as usize {
+            if step == cycle {
                 loop_begin = (samples.len() / usize::from(sound.channels)) as u64;
             }
             match &sound.samples {
