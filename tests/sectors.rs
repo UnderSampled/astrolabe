@@ -20,6 +20,7 @@ fn fixture() -> Result<Scene> {
         inventory: None,
         map_names: None,
         hud: None,
+        loading: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "Sectors".into(),

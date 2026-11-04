@@ -5,6 +5,7 @@ pub mod audio;
 pub mod compression;
 pub mod content;
 pub mod level;
+pub mod loading;
 pub mod save_game;
 pub mod texture;
 

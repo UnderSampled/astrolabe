@@ -253,6 +253,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
                 .collect(),
         ),
         hud: None,
+        loading: None,
         global_actors: vec![],
         nodes: vec![
             SceneNode {

@@ -5958,6 +5958,80 @@
       "release": true
     },
     {
+      "binary": "astrolabe",
+      "test": "openspace::loading::tests::manoir_name_rule_matches_source_bytes",
+      "areas": [
+        "source",
+        "loading"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::loading::tests::reads_meaning_and_rebuilds_bytes",
+      "areas": [
+        "source",
+        "loading"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::loading::tests::rejects_trailing_bytes",
+      "areas": [
+        "source",
+        "loading"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::loading::tests::installed_level_vignettes_rebuild_and_select_era_art",
+      "areas": [
+        "source",
+        "loading"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "supplied Hype en: all 37 level pgb.bin vignettes",
+      "timeout_seconds": 10,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::loading_service",
+      "test": "production_loading_presenter_draws_source_vignette_or_status",
+      "areas": [
+        "runtime",
+        "loading"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "actual loading presenter with a synthetic vignette resource, fill extents, 16:9 fit, status fallback and failure",
+      "timeout_seconds": 20,
+      "ignored": false,
+      "release": true
+    },
+    {
       "binary": "astrolabe::loading_service",
       "test": "production_loading_limit_restores_on_terminal_cancel_and_exit",
       "areas": [

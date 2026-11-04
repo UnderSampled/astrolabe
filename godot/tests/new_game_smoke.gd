@@ -153,31 +153,27 @@ func _watch_session_node(node: Node) -> void:
 
 func _record_session_stage(stage_name: String, elapsed_ms: float, session: Node) -> void:
     var presenter := _loading_screen()
-    var phase := presenter.get_node_or_null("Viewport/Center/Content/Phase") as Label if presenter != null else null
-    var progress := presenter.get_node_or_null("Viewport/Center/Content/Progress") as ProgressBar if presenter != null else null
     var actor := session.get("actor") as CharacterBody3D
     session_stage_events.append({"session_scene":session.scene_file_path,"new_game":bool(session.get("new_game")),
         "stage":stage_name,"elapsed_ms":elapsed_ms,"observed_at_ms":Time.get_ticks_msec(),"presenter_visible":bool(presenter.get("visible")) if presenter != null else false,
-        "phase":phase.text if phase != null else "","progress_visible":progress.visible if progress != null else false,
-        "progress_value":progress.value if progress != null else -1.0,
+        "phase":str(presenter.get("phase_text")) if presenter != null else "","progress_visible":bool(presenter.get("progress_shown")) if presenter != null else false,
+        "progress_value":float(presenter.get("progress_value")) if presenter != null else -1.0,
         "actor_position":[actor.global_position.x, actor.global_position.y, actor.global_position.z] if actor != null and actor.is_inside_tree() else [],
         "actor_physics_enabled":actor.is_physics_processing() if actor != null else false,
         "hype_brain":_actor_brain_snapshot(actor),"gogoud_brain_dialogue":_gogoud_session_snapshot(session)})
 
 func _record_transition_started(from_level: String, to_level: String, entry: String) -> void:
     var presenter := _loading_screen()
-    var progress := presenter.get_node_or_null("Viewport/Center/Content/Progress") as ProgressBar if presenter != null else null
     transition_events.append({"event":"started","from":from_level,"level":to_level,"entry":entry,"observed_at_ms":Time.get_ticks_msec(),
         "presenter_visible":bool(presenter.get("visible")) if presenter != null else false,
-        "progress_visible":progress.visible if progress != null else false,
-        "progress_value":progress.value if progress != null else -1.0})
+        "progress_visible":bool(presenter.get("progress_shown")) if presenter != null else false,
+        "progress_value":float(presenter.get("progress_value")) if presenter != null else -1.0})
 
 func _record_transition_progress(level: String, fraction: float, phase: String) -> void:
     var presenter := _loading_screen()
-    var progress := presenter.get_node_or_null("Viewport/Center/Content/Progress") as ProgressBar if presenter != null else null
     transition_events.append({"event":"progress","level":level,"fraction":fraction,"phase":phase,
-        "observed_at_ms":Time.get_ticks_msec(),"progress_visible":progress.visible if progress != null else false,
-        "progress_value":progress.value if progress != null else -1.0})
+        "observed_at_ms":Time.get_ticks_msec(),"progress_visible":bool(presenter.get("progress_shown")) if presenter != null else false,
+        "progress_value":float(presenter.get("progress_value")) if presenter != null else -1.0})
 
 func _record_transition_completed(level: String, entry: String) -> void:
     var session := current_scene

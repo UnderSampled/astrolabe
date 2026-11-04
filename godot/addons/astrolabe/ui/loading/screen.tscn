@@ -1,7 +1,13 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://addons/astrolabe/ui/loading/screen.gd" id="1_screen"]
 [ext_resource type="Theme" path="res://addons/astrolabe/ui/theme.tres" id="2_theme"]
+
+[sub_resource type="AtlasTexture" id="FrameStrip"]
+region = Rect2(0, 0, 512, 60)
+
+[sub_resource type="AtlasTexture" id="FillStrip"]
+region = Rect2(0, 60, 512, 60)
 
 [node name="LoadingPresentation" type="CanvasLayer"]
 visible = false
@@ -18,6 +24,66 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 0
 theme = ExtResource("2_theme")
+
+[node name="Surround" type="ColorRect" parent="Viewport"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="Canvas" type="Control" parent="Viewport"]
+visible = false
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 480.0
+mouse_filter = 2
+
+[node name="Backdrop" type="TextureRect" parent="Viewport/Canvas"]
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 480.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 0
+
+[node name="Bar" type="Control" parent="Viewport/Canvas"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 410.0
+offset_right = 572.0
+offset_bottom = 470.0
+mouse_filter = 2
+
+[node name="Frame" type="TextureRect" parent="Viewport/Canvas/Bar"]
+layout_mode = 0
+offset_right = 512.0
+offset_bottom = 60.0
+mouse_filter = 2
+texture = SubResource("FrameStrip")
+expand_mode = 1
+stretch_mode = 0
+
+[node name="Fill" type="Control" parent="Viewport/Canvas/Bar"]
+clip_contents = true
+layout_mode = 0
+offset_left = 50.0
+offset_right = 50.0
+offset_bottom = 60.0
+mouse_filter = 2
+
+[node name="Strip" type="TextureRect" parent="Viewport/Canvas/Bar/Fill"]
+layout_mode = 0
+offset_left = -50.0
+offset_right = 462.0
+offset_bottom = 60.0
+mouse_filter = 2
+texture = SubResource("FillStrip")
+expand_mode = 1
+stretch_mode = 0
 
 [node name="Center" type="CenterContainer" parent="Viewport"]
 layout_mode = 1

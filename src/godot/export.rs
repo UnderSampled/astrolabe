@@ -97,6 +97,9 @@ pub fn export<R: ContentSource>(
                     armor.validate_reference(&reference.path)?;
                     super::armor::export(&mut project, source, &armor)?;
                 }
+                if let Some(loading) = &scene.loading {
+                    super::loading::export(&mut project, source, loading, &mut written)?;
+                }
                 if let Some(reference) = &scene.hud {
                     let hud = source.load(reference)?;
                     hud.validate_reference(&reference.path)?;

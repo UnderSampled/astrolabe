@@ -73,6 +73,7 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
     let mut imported = Imported::new(selection.clone());
     let mut scene = level::import_scene(game, &selection)?;
     bind_ai_vignettes(&mut imported, &mut scene.ai_models, game, &selection)?;
+    scene.scene.loading = import_loading_vignette(&mut imported, game, &selection)?;
     let sound_graph = super::audio::graph::SoundGraph::import(
         game,
         &selection,
@@ -375,6 +376,44 @@ pub fn import_textures(game: &Path, selection: Selection) -> Result<Imported> {
         )?;
     }
     Ok(imported)
+}
+
+/// The level's `<level>pgb.bin` loading vignette, bound to Vignette.cnt.
+/// Levels without the file have no source loading screen.
+fn import_loading_vignette(
+    imported: &mut Imported,
+    game: &Path,
+    selection: &Selection,
+) -> Result<Option<crate::model::loading::LoadingVignette>> {
+    let path = game
+        .join("Gamedata/World/Levels")
+        .join(&selection.level)
+        .join(format!("{}pgb.bin", selection.level));
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let mut value = codec::ProgressBarScript
+        .read(&read(&path)?)
+        .with_context(|| format!("read {}", path.display()))?;
+    let archive = codec::Cnt {
+        usage: TextureUsage::Screen,
+    }
+    .read(&read(&game.join("Gamedata/Vignette.cnt"))?)?;
+    let mut bind = |reference: &mut AssetRef<crate::model::texture::Texture>| -> Result<()> {
+        let entry = archive
+            .find_entry(reference.path.file())
+            .with_context(|| format!("loading vignette image absent: {}", reference.path))?;
+        *reference = entry.texture.clone();
+        if !imported.assets.contains(&entry.texture.path) {
+            imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+        }
+        Ok(())
+    };
+    bind(&mut value.image)?;
+    if let Some(bar) = &mut value.bar {
+        bind(&mut bar.image)?;
+    }
+    Ok(Some(value))
 }
 
 /// Resolve presentation artwork as content dependencies before the AI models

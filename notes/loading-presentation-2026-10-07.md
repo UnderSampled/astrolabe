@@ -1,5 +1,10 @@
 # Loading presentation — 2026-10-07
 
+> Superseded on 2026-11-04: the original does draw in-frame loading art. Each
+> level's `<level>pgb.bin` selects an era vignette and a bitmap bar; see
+> [the loading-vignette research](research/loading-vignette-2026-11-04.md). The
+> caption evidence below remains correct for the window title.
+
 ## Ownership and implementation
 
 `godot/addons/astrolabe/ui/loading/screen.tscn` supplies a persistent native

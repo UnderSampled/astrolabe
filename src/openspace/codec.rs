@@ -2,6 +2,7 @@
 pub use super::{
     ai::AiScriptCodec,
     audio::{Apm, Bnm, SoundScript},
+    loading::ProgressBarScript,
     texture::{Cnt, Gf},
 };
 use crate::model::{io::FormatSupport, texture::TextureUsage};
@@ -37,6 +38,7 @@ pub fn catalogue() -> Vec<FormatSupport> {
         }
         .support(),
         AiScriptCodec::default().support(),
+        ProgressBarScript.support(),
         FormatSupport {
             format: "SNA/RT/GPT/PTX",
             reads: true,

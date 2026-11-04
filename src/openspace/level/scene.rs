@@ -148,6 +148,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             inventory: None,
             map_names: None,
             hud: None,
+            loading: None,
             global_actors: Vec::new(),
             nodes: Vec::new(),
         },

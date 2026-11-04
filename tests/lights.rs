@@ -90,6 +90,7 @@ fn godot_signed_lights_and_sector_sharing() -> Result<()> {
         inventory: None,
         map_names: None,
         hud: None,
+        loading: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "Lights".into(),

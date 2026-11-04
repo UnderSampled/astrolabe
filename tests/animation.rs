@@ -492,6 +492,7 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         inventory: None,
         map_names: None,
         hud: None,
+        loading: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "AnimationTest".into(),

@@ -82,6 +82,7 @@ mod character;
 mod sprite;
 
 mod light;
+mod loading;
 
 mod sector;
 mod sound;

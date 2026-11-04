@@ -274,6 +274,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         inventory: None,
         map_names: None,
         hud: None,
+        loading: None,
         nodes: vec![SceneNode {
             id: "walker".into(),
             name: "Walker".into(),

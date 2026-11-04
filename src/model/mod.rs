@@ -19,6 +19,7 @@ pub mod dialogue;
 pub mod route;
 
 pub mod light;
+pub mod loading;
 pub mod mechanics;
 
 pub mod environment;

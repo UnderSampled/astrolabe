@@ -88,3 +88,65 @@ fn production_loading_limit_restores_on_terminal_cancel_and_exit() -> Result<()>
     }
     Ok(())
 }
+
+#[test]
+fn production_loading_presenter_draws_source_vignette_or_status() -> Result<()> {
+    let temporary = tempfile::tempdir()?;
+    let project = temporary.path();
+    fs::write(project.join("project.godot"), "config_version=5\n")?;
+    for (path, bytes) in [
+        (
+            "addons/astrolabe/ui/loading/screen.gd",
+            &include_bytes!("../godot/addons/astrolabe/ui/loading/screen.gd")[..],
+        ),
+        (
+            "addons/astrolabe/ui/loading/screen.tscn",
+            include_bytes!("../godot/addons/astrolabe/ui/loading/screen.tscn"),
+        ),
+        (
+            "addons/astrolabe/ui/loading/vignette.gd",
+            include_bytes!("../godot/addons/astrolabe/ui/loading/vignette.gd"),
+        ),
+        (
+            "addons/astrolabe/ui/theme.tres",
+            include_bytes!("../godot/addons/astrolabe/ui/theme.tres"),
+        ),
+        (
+            "check.gd",
+            include_bytes!("../godot/tests/check_loading_vignette.gd"),
+        ),
+    ] {
+        let path = project.join(path);
+        fs::create_dir_all(path.parent().context("parent")?)?;
+        fs::write(path, bytes)?;
+    }
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    for (name, mode) in [("parser", "--check-only"), ("runtime", "--headless")] {
+        let log = project.join(format!("{name}.log"));
+        let output = godot::run_godot(
+            &engine,
+            project,
+            &[
+                "--headless",
+                mode,
+                "--log-file",
+                log.to_str().context("log path")?,
+                "--script",
+                "res://check.gd",
+            ],
+            Duration::from_secs(15),
+        )?;
+        let diagnostics = fs::read_to_string(log)?;
+        ensure!(
+            !diagnostics.contains("ERROR:"),
+            "loading presenter diagnostics: {diagnostics}"
+        );
+        if name == "runtime" {
+            ensure!(
+                output.contains("LOADING_VIGNETTE_OK"),
+                "missing presenter evidence: {output}"
+            );
+        }
+    }
+    Ok(())
+}

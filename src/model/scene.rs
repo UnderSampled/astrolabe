@@ -26,6 +26,9 @@ pub struct Scene {
     /// Source-derived Fix HUD projected into this level's saved screen scene.
     #[serde(default)]
     pub hud: Option<AssetRef<super::hud::HudPresentation>>,
+    /// This level's source loading vignette, shown before its scene is loaded.
+    #[serde(default)]
+    pub loading: Option<super::loading::LoadingVignette>,
     /// Shared source actors referenced by AI but not rooted in this level's scene tree.
     /// These are useful assets with source identity, not fabricated scene nodes.
     #[serde(default)]
@@ -173,6 +176,9 @@ impl Content for Scene {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
+        if let Some(loading) = &self.loading {
+            loading.validate()?;
+        }
         if let Some(names) = &self.map_names {
             ensure!(
                 names.len() == 60,

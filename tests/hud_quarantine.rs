@@ -137,6 +137,7 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
         inventory: None,
         map_names: None,
         hud: Some(AssetRef::from_path(hud_path.clone())),
+        loading: None,
         global_actors: vec![],
         nodes: vec![SceneNode {
             properties: SceneNodeProperties {

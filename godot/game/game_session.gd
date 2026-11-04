@@ -1185,15 +1185,10 @@ func _show_initial_restore_phase(message: String) -> void:
     var presenter := get_node_or_null(LOADING_SCREEN_PATH)
     if presenter == null or not bool(presenter.get("visible")):
         return
-    var phase := presenter.get_node_or_null("Viewport/Center/Content/Phase") as Label
-    var progress := presenter.get_node_or_null("Viewport/Center/Content/Progress") as ProgressBar
-    if phase != null:
-        phase.text = message
     # ResourceLoader's fraction describes scene dependencies only. Once state
-    # restoration begins, leave an indeterminate phase label instead of
-    # presenting that fraction as total route progress.
-    if progress != null:
-        progress.hide()
+    # restoration begins, stop presenting that fraction as total route progress.
+    if presenter.has_method("show_phase"):
+        presenter.call("show_phase", message, false)
 
 func _return_to_menu_after_initial_failure() -> void:
     # Capture the persistent service/presenter before yielding. This coroutine

@@ -231,6 +231,7 @@ fn compiled_armor_setup_uses_saved_level_selected_definition() -> Result<()> {
         inventory: None,
         map_names: None,
         hud: None,
+        loading: None,
         global_actors: vec![],
         nodes: vec![SceneNode {
             id: "world".into(),

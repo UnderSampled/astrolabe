@@ -10,26 +10,37 @@ manor and the source Astrolabe location title; the main menu and level-loading p
 
 `loading/screen.tscn` is a native `CanvasLayer` with editable `Control` nodes.
 The persistent `LevelTransition` owner instances it once and emits lifecycle
-signals; the presenter displays only the observed resource-loading fraction for
-the requested destination `PackedScene` and its dependencies. It does not
-smooth or extrapolate that fraction to cover scene replacement, state transfer,
-entry placement or gameplay readiness. Completion and cancellation hide the
-screen immediately. A load error remains visible with the supplied message
-until dismissed; scene recovery stays with the transition owner.
+signals. On `transition_started` the presenter loads the destination's
+converted vignette, `generated/hype/levels/<level>/loading.tres`
+(`loading/vignette.gd`), before the level scene itself loads.
 
-The local decompilation source at `reference/decompilation/functions/` shows
-`FUN_00401395` forwarding status text to `CWnd::SetWindowTextA`. The level-load
-routine `FUN_0043c8e0` updates that caption for map, always, waypoints,
-characters, dialogues, paths, stencils, game interfaces, highlight data and map
-processing. This evidence shows no in-frame loading artwork, animation,
-percentage bar or minimum presentation lifetime in that build. The whole
-decompilation input and current private installed executable have different
-SHA-256 hashes, but their machine code matches byte-for-byte across the relevant
-loader ranges (`0x401395`, `0x402b60–0x4038af`, and `0x43c8e0–0x43cfff`). The
-caption behavior is therefore confirmed for the installed executable. No
-guessed background image is used. See the
-[dated loading-presentation record](../../notes/loading-presentation-2026-10-07.md)
-for paths, hashes and validation limits.
+Each level's source loading screen is its `<level>pgb.bin` Vignette section
+(read by 0050ef30; see the [loading-vignette research](../../notes/research/loading-vignette-2026-11-04.md)).
+It names a full-screen era image from `Vignette.cnt` (`epoque1`–`epoque4`; manoir,
+brigand and toras use `epoque1`) and the bitmap bar `Bar.gf`: a 512x60 frame
+state above a fill state. All 37 installed levels place the bar at (60,410) on
+the 640x480 screen with a fill track from bar x 50 to 461. Pixels equal to the
+GF colour key (black) are transparent for both states, so the backdrop shows
+through the bar's corners. The presenter draws the backdrop, the frame strip and
+the fill strip clipped left to right, on a 640x480 canvas fitted uniformly and
+centred like the main menu, with a black surround. There is no in-frame text,
+fade or minimum display time in the source module, and none is added.
+
+The source fill counts loader chunks against the level's `MaxValueBar`. The
+port has no such chunk count, so the fill shows the observed fraction of the
+requested `PackedScene` and its dependencies, which is the same observable
+meaning: how much of the level is loaded. Each source step also over-draws
+about one step ahead (asm of 0050d6b0); this is not reproduced, because
+Godot's fraction arrives in a few large jumps and would draw far ahead.
+`show_phase()` records the session's later restoration phase; with a vignette
+it draws no text and leaves the bar as drawn.
+
+Levels without a vignette resource use the editable status group: the
+requested level name, phase text and the resource fraction. A load error
+remains visible with the supplied message and a dismiss action until dismissed;
+scene recovery stays with the transition owner. The window-caption stages of
+0043c8e0 are separate from the in-frame art; the
+[earlier loading record](../../notes/loading-presentation-2026-10-07.md) covers them.
 
 ## Composition and layout
 

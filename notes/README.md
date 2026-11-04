@@ -157,8 +157,10 @@ Start with the [[notes/implementation-progress|implementation report]] for curre
 The [[notes/intro-initialization-2026-10-07|intro initialization checkpoint]] records the source-backed Hype armor selection implementation and the distinct camera/statue blockers still open.
 
 The [loading-presentation checkpoint](loading-presentation-2026-10-07.md)
-records the decompiled window-caption stages, the missing dedicated loading art,
-the observed threaded-resource progress contract, and native Control ownership.
+records the decompiled window-caption stages, the observed threaded-resource
+progress contract, and native Control ownership; the
+[loading-vignette research](research/loading-vignette-2026-11-04.md) replaces its
+missing-art conclusion with the per-level `pgb.bin` vignette and bar.
 The [AI audio fade trace](ai-audio-fade-static-trace-2026-10-08.md) records the
 source-reached voice/effects procedures, matching executable ranges, and the
 Godot channel and lifetime mapping.
