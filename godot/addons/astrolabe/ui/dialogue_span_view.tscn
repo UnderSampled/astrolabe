@@ -1,7 +1,20 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
-[sub_resource type="CanvasItemMaterial" id="premultiplied"]
-blend_mode = 4
+[sub_resource type="Shader" id="premultiplied_text"]
+code = "// The source atlas stores edge colour premultiplied by coverage, but its
+// transparent cell padding keeps RGB 0x11. Premultiplied blending needs
+// colour no greater than coverage, or every glyph cell lightens the scene.
+shader_type canvas_item;
+render_mode blend_premul_alpha;
+
+void fragment() {
+	COLOR.rgb = min(COLOR.rgb, vec3(COLOR.a));
+}
+"
+
+[sub_resource type="ShaderMaterial" id="premultiplied"]
+shader = SubResource("premultiplied_text")
+
 [node name="Span" type="Label"]
 layout_mode = 0
 mouse_filter = 2

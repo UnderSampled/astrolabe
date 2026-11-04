@@ -135,3 +135,9 @@ DAT_00735060), +0x10 font ON (default DAT_00735064), +0x18 next item ("AnswerNex
   centred at x offset 1.8. 0056c2d0 types the current line with 0056cc70 (period 2 ms, one
   step per draw); the take shows about two characters per 30 Hz frame and the centred title
   re-centring on its prefix.
+- Text blend: the atlas's transparent cell padding keeps RGB 0x11, so plain premultiplied
+  blending lit a +17 grey rectangle per glyph (measured in-game: 2946 px exactly +17 on
+  Wellet's answer page). The span label shader clamps colour to coverage before the
+  premultiplied blend; over a Manoir game frame the faint changes away from glyph ink fell
+  from 3650 px to 1. The reviewer's glyph-count pairing (2, 5, 9 glyphs) matches the take's
+  title centre within about 1 px; the earlier full-title screenshot was taken later.
