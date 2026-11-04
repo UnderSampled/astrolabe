@@ -11,6 +11,7 @@ usage: take_route.py TAKE_DIR OUT.json [--until SECONDS]
 """
 import argparse
 import json
+import math
 from pathlib import Path
 
 # X11 keysym -> Godot keycode. Arrows are steering, not replayed.
@@ -66,8 +67,12 @@ def main():
             affine = data['actor']['global_transform']
             affine = affine.get('Affine', affine)
             x, y, z = affine['translation']
+            basis = affine['basis']
+            # Facing in the source ground plane, the angle the route bot's
+            # heading() uses: the sampled yaw is 90 degrees ahead of it.
+            facing = math.atan2(basis[0][1], basis[0][0]) - math.pi / 2
             track.append([round(t, 3), round(x, 3), round(y, 3), round(z, 3),
-                          data['normal_behavior']['current'], level])
+                          data['normal_behavior']['current'], level, round(facing, 4)])
         elif kind == 'input' and level:
             if data['keysym'] in ARROWS:
                 continue

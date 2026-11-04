@@ -11,6 +11,13 @@ var started := 0
 func _initialize() -> void:
 	call_deferred("run")
 
+## Wall time, or the fixed-step clock under Movie Maker (--write-movie), where
+## frames are rendered slower or faster than real time.
+func now_ms() -> int:
+	if not Engine.get_write_movie_path().is_empty():
+		return Engine.get_physics_frames() * 1000 / Engine.physics_ticks_per_second
+	return Time.get_ticks_msec()
+
 func key(name: String, pressed: bool) -> void:
 	var event := InputEventKey.new()
 	event.keycode = KEYS[name]
@@ -53,7 +60,7 @@ func snapshot(note: String) -> void:
 	var at := actor().global_position
 	var brain: Node = game.get("brain")
 	var life: Resource = actor().get("source_hit_points")
-	var row := {"ms": Time.get_ticks_msec() - started, "note": note, "yaw": snappedf(rad_to_deg(heading()), 0.1), "position": [at.x, -at.z, at.y], "action": int(actor().get("current_state")), "normal": int(brain.get("current_normal")), "running": bool(brain.get("running")), "life": int(life.get("current")) if life != null else -1, "gold": actor().get("source_inventory").get("gold")}
+	var row := {"ms": now_ms() - started, "note": note, "yaw": snappedf(rad_to_deg(heading()), 0.1), "position": [at.x, -at.z, at.y], "action": int(actor().get("current_state")), "normal": int(brain.get("current_normal")), "running": bool(brain.get("running")), "life": int(life.get("current")) if life != null else -1, "gold": actor().get("source_inventory").get("gold")}
 	var camera := get_root().get_viewport().get_camera_3d()
 	if camera != null:
 		row["camera"] = [camera.global_position.x, -camera.global_position.z, camera.global_position.y]
@@ -62,12 +69,12 @@ func snapshot(note: String) -> void:
 	print("ROUTE ", JSON.stringify(row))
 
 func go(target: Vector2, tolerance: float, timeout: float, follow: Node3D = null) -> bool:
-	var end := Time.get_ticks_msec() + int(timeout * 1000.0)
+	var end := now_ms() + int(timeout * 1000.0)
 	var held := ""
 	var turn := ""
 	var last := position()
-	var last_check := Time.get_ticks_msec()
-	while Time.get_ticks_msec() < end:
+	var last_check := now_ms()
+	while now_ms() < end:
 		await physics_frame
 		# A followed actor moves: aim at where it is now.
 		if follow != null and is_instance_valid(follow): target = Vector2(follow.global_position.x, -follow.global_position.z)
@@ -84,10 +91,10 @@ func go(target: Vector2, tolerance: float, timeout: float, follow: Node3D = null
 			if not held.is_empty(): key(held, false)
 			if not want_move.is_empty(): key(want_move, true)
 			held = want_move
-		if Time.get_ticks_msec() - last_check > 2500:
+		if now_ms() - last_check > 2500:
 			if position().distance_to(last) < 0.3 and absf(error) < 0.35: break
 			last = position()
-			last_check = Time.get_ticks_msec()
+			last_check = now_ms()
 	for name in [held, turn]:
 		if not name.is_empty(): key(name, false)
 	await create_timer(0.25).timeout
@@ -153,10 +160,10 @@ func watch(seconds: float, names: Array, press: String, fields: Array = []) -> v
 	for body in game.get("level").find_children("*", "CharacterBody3D", true, false):
 		if names.has(str(body.get_meta("source_perso_name", ""))): bodies[str(body.get_meta("source_perso_name"))] = body
 	var seen := {}
-	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
-	var next_press := Time.get_ticks_msec() + 2000
+	var end := now_ms() + int(seconds * 1000.0)
+	var next_press := now_ms() + 2000
 	var screen: Node = game.get("level").get_node_or_null("AstrolabeUI")
-	while Time.get_ticks_msec() < end:
+	while now_ms() < end:
 		await physics_frame
 		if not is_instance_valid(game) or not is_instance_valid(actor()): return
 		var row := {"hype": [int(actor().get("current_state")), int(game.get("brain").get("current_normal"))]}
@@ -177,9 +184,9 @@ func watch(seconds: float, names: Array, press: String, fields: Array = []) -> v
 		var text := JSON.stringify(row)
 		if text != seen.get("last", ""):
 			seen["last"] = text
-			print("WATCH ", Time.get_ticks_msec() - started, " ", text)
-		if not press.is_empty() and Time.get_ticks_msec() > next_press:
-			next_press = Time.get_ticks_msec() + 2000
+			print("WATCH ", now_ms() - started, " ", text)
+		if not press.is_empty() and now_ms() > next_press:
+			next_press = now_ms() + 2000
 			key(press, true)
 			await physics_frame
 			await physics_frame
@@ -193,7 +200,7 @@ func perf_monitor() -> void:
 	while true:
 		await create_timer(0.5).timeout
 		tick += 1
-		var row := {"t": Time.get_ticks_msec(), "fps": Engine.get_frames_per_second(),
+		var row := {"t": now_ms(), "fps": Engine.get_frames_per_second(),
 			"process_ms": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
 			"physics_ms": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
 			"objects": Performance.get_monitor(Performance.OBJECT_COUNT),
@@ -362,16 +369,16 @@ func run() -> void:
 	else:
 		root.set_meta(load("res://game/save_state.gd").LOAD_SOURCE_META, route["start"])
 		menu.call("open_game", "res://game/game_session.tscn", menu.get("load_game"))
-	var opened := Time.get_ticks_msec()
-	var deadline := Time.get_ticks_msec() + int(float(route.get("start_timeout", 60.0)) * 1000.0)
-	var next_report := Time.get_ticks_msec() + 5000
-	while (current_scene == null or current_scene == menu or not bool(current_scene.get("ready_to_play"))) and Time.get_ticks_msec() < deadline:
-		if Time.get_ticks_msec() >= next_report:
+	var opened := now_ms()
+	var deadline := now_ms() + int(float(route.get("start_timeout", 60.0)) * 1000.0)
+	var next_report := now_ms() + 5000
+	while (current_scene == null or current_scene == menu or not bool(current_scene.get("ready_to_play"))) and now_ms() < deadline:
+		if now_ms() >= next_report:
 			next_report += 5000
 			_report_load_progress(str(current_scene.get("level_path")) if current_scene != null and current_scene != menu else "")
 		await process_frame
 	game = current_scene
-	started = Time.get_ticks_msec()
+	started = now_ms()
 	print("LOADTIME ", JSON.stringify({"start": route.get("start", "new"), "ms": started - opened}))
 	for step: Dictionary in route["steps"]:
 		var ok := true
@@ -453,8 +460,8 @@ func run() -> void:
 				actor().source_turn_to_heading(atan2(to.x, -to.y))
 				await physics_frame
 		elif step.has("until_item"):
-			var end := Time.get_ticks_msec() + int(step.get("timeout", 30.0) * 1000.0)
-			while int(actor().get("source_inventory").call("quantity", int(step["until_item"]))) <= 0 and Time.get_ticks_msec() < end: await physics_frame
+			var end := now_ms() + int(step.get("timeout", 30.0) * 1000.0)
+			while int(actor().get("source_inventory").call("quantity", int(step["until_item"]))) <= 0 and now_ms() < end: await physics_frame
 			ok = int(actor().get("source_inventory").call("quantity", int(step["until_item"]))) > 0
 		elif step.has("dialog_check"):
 			var ui: Node = game.get("level").get_node_or_null("AstrolabeUI")
@@ -477,25 +484,25 @@ func run() -> void:
 			var target_body := body_of(str(step["sample"][0]))
 			var target_brain := brain_of(str(step["sample"][0]))
 			var hype_brain := brain_of("hype")
-			var sample_end := Time.get_ticks_msec() + int(float(step["sample"][1]) * 1000.0)
+			var sample_end := now_ms() + int(float(step["sample"][1]) * 1000.0)
 			if target_body == null: ok = false
 			var brain_states := {}
 			var recent := []
 			var last_56: Variant = hype_brain.get("dsg_56") if hype_brain != null else null
-			while ok and Time.get_ticks_msec() < sample_end:
+			while ok and now_ms() < sample_end:
 				await physics_frame
 				# Which actors changed behavior just before Hype's dsg_56 flips.
 				for brain in game.get("level").find_children("Brain", "", true, false):
 					var key := str(brain.get_parent().get_meta("source_perso_name", brain.get_parent().name))
 					var state := [brain.get("current_normal"), brain.get("current_reflex")]
 					if brain_states.has(key) and brain_states[key] != state:
-						recent.append({"ms": Time.get_ticks_msec(), "actor": key, "from": brain_states[key], "to": state})
+						recent.append({"ms": now_ms(), "actor": key, "from": brain_states[key], "to": state})
 					brain_states[key] = state
-				recent = recent.filter(func(row): return Time.get_ticks_msec() - int(row["ms"]) < 300)
+				recent = recent.filter(func(row): return now_ms() - int(row["ms"]) < 300)
 				if hype_brain != null and hype_brain.get("dsg_56") != last_56:
-					print("FLIP56 ", JSON.stringify({"ms": Time.get_ticks_msec(), "to": hype_brain.get("dsg_56"), "recent": recent}))
+					print("FLIP56 ", JSON.stringify({"ms": now_ms(), "to": hype_brain.get("dsg_56"), "recent": recent}))
 					last_56 = hype_brain.get("dsg_56")
-				print("SAMPLE ", JSON.stringify({"ms": Time.get_ticks_msec(), "dsg_17": hype_brain.get("dsg_17") if hype_brain != null else null, "dsg_114": hype_brain.get("dsg_114") if hype_brain != null else null, "dsg_55": hype_brain.get("dsg_55") if hype_brain != null else null, "dsg_56": hype_brain.get("dsg_56") if hype_brain != null else null, "dsg_48": hype_brain.get("dsg_48") if hype_brain != null else null, "dsg_70": hype_brain.get("dsg_70") if hype_brain != null else null, "dsg_97": hype_brain.get("dsg_97") if hype_brain != null else null, "dsg_42": hype_brain.get("dsg_42") if hype_brain != null else null, "dsg_81": hype_brain.get("dsg_81") if hype_brain != null else null, "dsg_80": hype_brain.get("dsg_80") if hype_brain != null else null, "ref0_dsg_26": _linked_field(target_brain, "dsg_26"), "nothing": target_body.call("source_collide_with_nothing") if target_body.has_method("source_collide_with_nothing") else null, "z": snappedf(target_body.global_position.y, 0.01), "floor": target_body.is_on_floor() if target_body is CharacterBody3D else null, "hype_normal": hype_brain.get("current_normal") if hype_brain != null else null,
+				print("SAMPLE ", JSON.stringify({"ms": now_ms(), "dsg_17": hype_brain.get("dsg_17") if hype_brain != null else null, "dsg_114": hype_brain.get("dsg_114") if hype_brain != null else null, "dsg_55": hype_brain.get("dsg_55") if hype_brain != null else null, "dsg_56": hype_brain.get("dsg_56") if hype_brain != null else null, "dsg_48": hype_brain.get("dsg_48") if hype_brain != null else null, "dsg_70": hype_brain.get("dsg_70") if hype_brain != null else null, "dsg_97": hype_brain.get("dsg_97") if hype_brain != null else null, "dsg_42": hype_brain.get("dsg_42") if hype_brain != null else null, "dsg_81": hype_brain.get("dsg_81") if hype_brain != null else null, "dsg_80": hype_brain.get("dsg_80") if hype_brain != null else null, "ref0_dsg_26": _linked_field(target_brain, "dsg_26"), "nothing": target_body.call("source_collide_with_nothing") if target_body.has_method("source_collide_with_nothing") else null, "z": snappedf(target_body.global_position.y, 0.01), "floor": target_body.is_on_floor() if target_body is CharacterBody3D else null, "hype_normal": hype_brain.get("current_normal") if hype_brain != null else null,
 					"zone1": target_body.call("source_collide_perso_zde_no_with_type_zde", 1, 2), "zone2": target_body.call("source_collide_perso_zde_no_with_type_zde", 2, 2),
 					"normal": target_brain.get("current_normal") if target_brain != null else null, "reflex": target_brain.get("current_reflex") if target_brain != null else null, "claimed": target_brain.get("reflex_rule_claimed") if target_brain != null else null, "dsg_0": target_brain.get("dsg_0") if target_brain != null else null, "clock": int(target_brain.get("clock_milliseconds")) if target_brain != null else null, "hp": int(target_body.get("source_hit_points").get("current")) if target_body.get("source_hit_points") != null else -1, "distance": snappedf(actor().global_position.distance_to(target_body.global_position), 0.01)}))
 		elif step.has("get"):
@@ -526,9 +533,9 @@ func run() -> void:
 			for definition in actor().get("source_inventory").get("definitions"):
 				print("DEF ", definition.get("item_id"), " ", definition.get("kind"), " q ", definition.get("quantity"), " max ", definition.get("maximum"), " avail ", definition.get("availability"), " ", definition.get("source_key"))
 		elif step.has("until_owned"):
-			var end := Time.get_ticks_msec() + int(step.get("timeout", 60.0) * 1000.0)
+			var end := now_ms() + int(step.get("timeout", 60.0) * 1000.0)
 			var wanted := int(step["until_owned"])
-			while not actor().get("source_inventory").call("presentation_quantities").has(wanted) and Time.get_ticks_msec() < end:
+			while not actor().get("source_inventory").call("presentation_quantities").has(wanted) and now_ms() < end:
 				await physics_frame
 			ok = actor().get("source_inventory").call("presentation_quantities").has(wanted)
 		elif step.has("object"):
@@ -612,8 +619,8 @@ func run() -> void:
 		elif step.has("zone_trace"):
 			# Every physics frame, the world position of each ZDE shape of bodies
 			# whose name starts with the given prefix: {"zone_trace": "Object_template", "seconds": 1.5}
-			var zone_end := Time.get_ticks_msec() + int(step.get("seconds", 1.5) * 1000.0)
-			while Time.get_ticks_msec() < zone_end:
+			var zone_end := now_ms() + int(step.get("seconds", 1.5) * 1000.0)
+			while now_ms() < zone_end:
 				for body in game.get("level").find_children(str(step["zone_trace"]) + "*", "CharacterBody3D", true, false):
 					var zone_area: Node = body.get_node_or_null("ZDE")
 					if zone_area == null: continue
@@ -621,14 +628,14 @@ func run() -> void:
 					for shape in zone_area.find_children("*", "CollisionShape3D", true, false):
 						var p: Vector3 = shape.global_position
 						rows.append([int(shape.get_meta("source_zone", -1)), snappedf(p.x, 0.01), snappedf(-p.z, 0.01), snappedf(p.y, 0.01), snappedf(shape.shape.get("radius") if shape.shape is SphereShape3D else -1.0, 0.01), shape.disabled])
-					print("ZONES ", Time.get_ticks_msec() - started, " ", body.name, " state=", body.get("current_state"), " ", JSON.stringify(rows))
+					print("ZONES ", now_ms() - started, " ", body.name, " state=", body.get("current_state"), " ", JSON.stringify(rows))
 				await physics_frame
 		elif step.has("act"):
 			# Force an action on Hype and sample his heading: {"act": 370, "seconds": 8}
 			print("ACT ", step["act"], " accepted=", actor().call("request_action", int(step["act"]), true))
-			var act_end := Time.get_ticks_msec() + int(step.get("seconds", 6.0) * 1000.0)
-			while Time.get_ticks_msec() < act_end:
-				print("ACT_YAW ", Time.get_ticks_msec() - started, " ", int(actor().get("current_state")), " ", snappedf(rad_to_deg(heading()), 0.1))
+			var act_end := now_ms() + int(step.get("seconds", 6.0) * 1000.0)
+			while now_ms() < act_end:
+				print("ACT_YAW ", now_ms() - started, " ", int(actor().get("current_state")), " ", snappedf(rad_to_deg(heading()), 0.1))
 				await create_timer(0.25).timeout
 		elif step.has("hp"):
 			actor().get("source_hit_points").set("current", int(step["hp"]))
@@ -649,9 +656,9 @@ func run() -> void:
 			print("TRAVEL ", step["travel"], " requested=", ok)
 		elif step.has("meters"):
 			# Enemy health bar rows over time: {"meters": 6} seconds.
-			var meter_end := Time.get_ticks_msec() + int(float(step["meters"]) * 1000.0)
+			var meter_end := now_ms() + int(float(step["meters"]) * 1000.0)
 			var last := ""
-			while Time.get_ticks_msec() < meter_end:
+			while now_ms() < meter_end:
 				var screen_node: Node = game.get("level").get_node_or_null("AstrolabeUI")
 				var hud_node: Node = screen_node.get("hud") if screen_node != null else null
 				var rows := []
@@ -662,17 +669,17 @@ func run() -> void:
 				var text := JSON.stringify(rows)
 				if text != last:
 					last = text
-					print("METERS ", Time.get_ticks_msec() - started, " ", text)
+					print("METERS ", now_ms() - started, " ", text)
 				await physics_frame
 		elif step.has("drops"):
 			# Generated objects of a family over time: {"drops": "fix:/families/23", "seconds": 6}.
-			var drop_end := Time.get_ticks_msec() + int(step.get("seconds", 6.0) * 1000.0)
-			while Time.get_ticks_msec() < drop_end:
+			var drop_end := now_ms() + int(step.get("seconds", 6.0) * 1000.0)
+			while now_ms() < drop_end:
 				for body in game.get("level").find_children("*", "CharacterBody3D", true, false):
 					if str(body.get_meta("source_family", "")).begins_with(str(step["drops"])):
 						var p: Vector3 = body.global_position
 						var b: Node = body.get_node_or_null("Brain")
-						print("DROP ", Time.get_ticks_msec() - started, " ", body.name, " ", JSON.stringify({"at": [snappedf(p.x, 0.01), snappedf(-p.z, 0.01), snappedf(p.y, 0.01)], "motion": body.get("motion_enabled"), "floor": body.is_on_floor(), "v": snappedf(body.velocity.y, 0.01), "ext": snappedf(body.get("external_velocity").y, 0.01), "visible": body.is_visible_in_tree(), "normal": b.get("current_normal") if b else -1, "dsg_0": b.get("dsg_0") if b else null, "contacts": body.get_slide_collision_count(), "layer": body.collision_layer, "mask": body.collision_mask}))
+						print("DROP ", now_ms() - started, " ", body.name, " ", JSON.stringify({"at": [snappedf(p.x, 0.01), snappedf(-p.z, 0.01), snappedf(p.y, 0.01)], "motion": body.get("motion_enabled"), "floor": body.is_on_floor(), "v": snappedf(body.velocity.y, 0.01), "ext": snappedf(body.get("external_velocity").y, 0.01), "visible": body.is_visible_in_tree(), "normal": b.get("current_normal") if b else -1, "dsg_0": b.get("dsg_0") if b else null, "contacts": body.get_slide_collision_count(), "layer": body.collision_layer, "mask": body.collision_mask}))
 				await create_timer(0.25).timeout
 		elif step.has("watch"):
 			await watch(float(step["watch"]), step.get("actors", []), step.get("press", ""), step.get("fields", []))
@@ -684,28 +691,28 @@ func run() -> void:
 		elif step.has("wait"):
 			await create_timer(step["wait"]).timeout
 		elif step.has("until_level"):
-			var end := Time.get_ticks_msec() + int(step.get("timeout", 60.0) * 1000.0)
+			var end := now_ms() + int(step.get("timeout", 60.0) * 1000.0)
 			var load_began := -1
-			var travel_report := Time.get_ticks_msec() + 5000
-			while (str(game.get("level").get_meta("source_level_name", "")) != str(step["until_level"]) or not bool(game.get("ready_to_play"))) and Time.get_ticks_msec() < end:
-				if load_began < 0 and bool(game.get("loading")): load_began = Time.get_ticks_msec()
-				if load_began >= 0 and Time.get_ticks_msec() >= travel_report:
-					travel_report = Time.get_ticks_msec() + 5000
+			var travel_report := now_ms() + 5000
+			while (str(game.get("level").get_meta("source_level_name", "")) != str(step["until_level"]) or not bool(game.get("ready_to_play"))) and now_ms() < end:
+				if load_began < 0 and bool(game.get("loading")): load_began = now_ms()
+				if load_began >= 0 and now_ms() >= travel_report:
+					travel_report = now_ms() + 5000
 					_report_load_progress("res://generated/hype/levels/%s/level.tscn" % step["until_level"])
 				await physics_frame
 			ok = str(game.get("level").get_meta("source_level_name", "")) == str(step["until_level"])
 			# From the session's loading flag to play in the new level: the exit fade and the load.
-			if ok and load_began >= 0: print("LOADTIME ", JSON.stringify({"level": step["until_level"], "ms": Time.get_ticks_msec() - load_began}))
+			if ok and load_began >= 0: print("LOADTIME ", JSON.stringify({"level": step["until_level"], "ms": now_ms() - load_began}))
 		elif step.has("save"):
 			game.call("save_game")
 			await process_frame
 		elif step.has("until_normal"):
-			var end := Time.get_ticks_msec() + int(step.get("timeout", 30.0) * 1000.0)
-			while int(game.get("brain").get("current_normal")) != int(step["until_normal"]) and Time.get_ticks_msec() < end: await physics_frame
+			var end := now_ms() + int(step.get("timeout", 30.0) * 1000.0)
+			while int(game.get("brain").get("current_normal")) != int(step["until_normal"]) and now_ms() < end: await physics_frame
 			ok = int(game.get("brain").get("current_normal")) == int(step["until_normal"])
 		elif step.has("until_handoff"):
-			var end := Time.get_ticks_msec() + 280000
-			while not bool(game.get("opening_finished")) and Time.get_ticks_msec() < end: await physics_frame
+			var end := now_ms() + 280000
+			while not bool(game.get("opening_finished")) and now_ms() < end: await physics_frame
 			ok = bool(game.get("opening_finished"))
 		if not is_instance_valid(game) or not is_instance_valid(actor()):
 			print("ROUTE SESSION ENDED at ", step.get("note", step), " scene ", current_scene.name if current_scene != null else "none")
@@ -764,7 +771,7 @@ func _report_load_progress(path: String) -> void:
 	if path.is_empty(): return
 	var fraction: Array = []
 	var status := ResourceLoader.load_threaded_get_status(path, fraction)
-	print("LOADPROGRESS ", JSON.stringify({"path": path.get_file(), "status": status, "fraction": fraction[0] if not fraction.is_empty() else -1.0, "ms": Time.get_ticks_msec()}))
+	print("LOADPROGRESS ", JSON.stringify({"path": path.get_file(), "status": status, "fraction": fraction[0] if not fraction.is_empty() else -1.0, "ms": now_ms()}))
 
 func _linked_field(brain: Node, field: String) -> Variant:
 	if brain == null or not ("actor_brain_0_path" in brain): return "n/a"
@@ -783,7 +790,7 @@ func follow(plan: Dictionary) -> bool:
 	var until: float = float(plan["until"])
 	# Port time zero is New Game; the take reached the Manoir at take_zero.
 	var shift: float = float(plan["take_zero"]) + 1.0
-	var origin := Time.get_ticks_msec()
+	var origin := now_ms()
 	var next_key := 0
 	var cursor := 0
 	var held := {}
@@ -792,9 +799,15 @@ func follow(plan: Dictionary) -> bool:
 	var load_began := 0.0
 	var next_report := 0.0
 	var clock := 0.0
+	# {"from": t} starts mid-take (after a load or an earlier follow step):
+	# the clock begins at take time t and earlier keys are dropped.
+	if plan.has("from"):
+		shift = float(plan["from"])
+		while next_key < keys.size() and float(keys[next_key][0]) < shift: next_key += 1
+		while cursor + 1 < track.size() and float(track[cursor + 1][0]) <= shift: cursor += 1
 	while clock < until:
 		await physics_frame
-		var now := (Time.get_ticks_msec() - origin) / 1000.0
+		var now := (now_ms() - origin) / 1000.0
 		if bool(game.get("loading")) or game.get("level") == null:
 			if not loading:
 				loading = true
@@ -835,15 +848,25 @@ func follow(plan: Dictionary) -> bool:
 				next_key += 1
 				continue
 			if wanted != "menu": _follow_menu_saved = false
+			# The reverse case: the take plays on, but the port still shows a
+			# dialogue; its Space waits while the port's pages are advanced.
+			if bool(row[2]) and int(row[1]) == KEY_SPACE and wanted == "play" and _port_mode() == "dialogue" and _follow_hold < 6.0:
+				_follow_hold += 1.0 / Engine.physics_ticks_per_second
+				shift -= 1.0 / Engine.physics_ticks_per_second
+				break
 			if bool(row[2]) and wanted != "play" and _port_mode() != wanted and _follow_hold < 6.0:
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
 				shift -= 1.0 / Engine.physics_ticks_per_second
 				break
-			if bool(row[2]) and int(row[1]) in ACTION_KEYS and _follow_gap > 1.0 and _follow_hold < 12.0:
+			if bool(row[2]) and int(row[1]) in ACTION_KEYS and (_follow_gap > 1.0 or (_follow_facing_off and wanted == "play")) and _follow_hold < 12.0:
+				# An action waits for Hype to reach and face the take's spot;
+				# facing makes him settle to a stand and turn (aimed casts).
+				_follow_aiming = _follow_facing_off and wanted == "play"
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
 				shift -= 1.0 / Engine.physics_ticks_per_second
 				break
 			_follow_hold = 0.0
+			_follow_aiming = false
 			# Inventory choices go by item identity: the take's cursor moves are
 			# dropped with its arrows, so its Enter becomes a request for the item.
 			if bool(row[2]) and int(row[1]) == KEY_ENTER and _port_mode() == "inventory" and _follow_select(plan.get("select", []), float(row[0])):
@@ -856,14 +879,28 @@ func follow(plan: Dictionary) -> bool:
 			_follow_key(int(row[1]), bool(row[2]))
 			if bool(row[2]) and (int(row[1]) in ACTION_KEYS or int(row[1]) in [KEY_TAB, KEY_ESCAPE]):
 				var inv: Resource = actor().get("source_inventory")
-				print("KEY ", JSON.stringify({"take": float(row[0]), "port_clock": snappedf(clock, 0.01), "code": int(row[1]), "gap": snappedf(_follow_gap, 0.1), "mode": _port_mode(), "normal": brain_of("hype").get("current_normal"), "object": inv.call("selected_object_value") if inv != null else null}))
+				print("KEY ", JSON.stringify({"take": float(row[0]), "port_clock": snappedf(clock, 0.01), "code": int(row[1]), "gap": snappedf(_follow_gap, 0.1), "mode": _port_mode(), "heading": snappedf(heading(), 0.01), "take_facing": snappedf(_follow_facing, 0.01), "pos": [snappedf(position().x, 0.1), snappedf(position().y, 0.1)], "normal": brain_of("hype").get("current_normal"), "object": inv.call("selected_object_value") if inv != null else null}))
 			if bool(row[2]): held[int(row[1])] = true
 			else: held.erase(int(row[1]))
 			next_key += 1
+		for code in _follow_key_release.keys():
+			_follow_key_release[code] -= 1.0 / Engine.physics_ticks_per_second
+			if _follow_key_release[code] <= 0.0:
+				_follow_key(int(code), false)
+				_follow_key_release.erase(code)
+		var watch := []
+		for watched in ["i_Gogood_MasterYoda", "i_Mannequin_Magie"]:
+			var watched_brain := brain_of(watched)
+			watch.append([watched_brain.get("dsg_0"), watched_brain.get("dsg_1"), watched_brain.get("dsg_2"), watched_brain.get("current_normal")] if watched_brain != null else null)
+		var watch_hype := brain_of("hype")
+		watch.append([watch_hype.get("dsg_17"), watch_hype.get("dsg_70"), watch_hype.get("dsg_97"), _held(actor().get("source_inventory"))])
+		if watch != _watch:
+			print("WATCH ", JSON.stringify({"take": snappedf(clock, 0.01), "gogoud": watch[0], "mannequin": watch[1], "hype_17_70_97_held": watch[2]}))
+			_watch = watch
 		# A dialogue the take has already left is advanced with Space.
 		if _port_mode() == "dialogue" and _take_mode(track, landmarks, clock) == "play":
 			_follow_linger += 1.0 / Engine.physics_ticks_per_second
-			if _follow_linger > 0.6:
+			if _follow_linger > 0.35:
 				_follow_linger = 0.0
 				_follow_key(KEY_SPACE, true)
 				_follow_space_release = 0.1
@@ -876,7 +913,9 @@ func follow(plan: Dictionary) -> bool:
 		# goes round corners instead of cutting them), never past its clock.
 		var here := position()
 		var horizon := clock + 0.5
-		while cursor + 1 < track.size() and float(track[cursor][0]) < clock - 3.0: cursor += 1
+		# The proximity cursor only moves forward. It is not forced to the
+		# clock: a Hype held back (a longer port dialogue) retraces the take's
+		# path instead of cutting across to where the take is now.
 		var best := cursor
 		var best_distance := INF
 		var probe := cursor
@@ -888,8 +927,19 @@ func follow(plan: Dictionary) -> bool:
 					best = probe
 			probe += 1
 		cursor = best
+		# Facing comes from the take's clock, not the proximity cursor, which
+		# stays on the first sample of a spot where the take stood and turned.
+		var facing_row := cursor
+		while facing_row + 1 < track.size() and float(track[facing_row + 1][0]) <= clock: facing_row += 1
+		_follow_facing = float(track[facing_row][6]) if track[facing_row].size() > 6 else NAN
+		# Pure pursuit by arc length: walk 1.2 m along the take's path from the
+		# closest sample (never across a bend), bounded by its clock, plus a
+		# second when Hype is already at the clock's point (walk on, not stop).
 		var ahead := cursor
-		while ahead + 1 < track.size() and float(track[ahead + 1][0]) <= horizon and str(track[ahead + 1][5]) == level and _track_point(track[ahead]).distance_to(here) < 1.5:
+		var travelled := 0.0
+		var limit := horizon + (1.0 if _track_point(track[cursor]).distance_to(here) < 1.0 else 0.0)
+		while ahead + 1 < track.size() and float(track[ahead + 1][0]) <= limit and str(track[ahead + 1][5]) == level and travelled < 1.2:
+			travelled += _track_point(track[ahead]).distance_to(_track_point(track[ahead + 1]))
 			ahead += 1
 		var sample: Array = track[ahead]
 		var playable := str(sample[5]) == level
@@ -905,18 +955,52 @@ func follow(plan: Dictionary) -> bool:
 				shift -= 1.0 / Engine.physics_ticks_per_second
 		var to := target - position()
 		var error := wrapf(to.angle() - heading(), -PI, PI)
-		# Stand still where the take stood (stand attacks stay stand attacks).
-		var take_still := _track_moved(track, cursor, clock) < 0.3
-		var moving := playable and to.length() > (1.5 if take_still else 0.7)
+		# Gait ladder (run, walk, stand): follow the take's speed, run to catch
+		# up, walk rather than stop when ahead of its clock, and stand only
+		# where the take stands and only from a walk, so Hype never runs
+		# straight into a stop or stutters.
+		var take_speed := _track_moved(track, cursor, clock)
+		var dt := 1.0 / Engine.physics_ticks_per_second
 		_follow_gap = to.length() if playable else 0.0
-		_follow_steer("ArrowUp", moving and absf(error) < 0.5)
-		# Run to catch up when behind; otherwise the take's own Shift edges rule.
-		var run := _follow_take_shift or (moving and to.length() > 2.0)
+		var want := "stand"
+		if playable:
+			if (take_speed < 0.3 or _follow_aiming) and to.length() < 1.5: want = "stand"
+			elif to.length() > 2.0 or take_speed > 3.5: want = "run"
+			else: want = "walk"
+		if want == "stand" and _gait == "run": want = "walk"
+		if want == "stand" and _gait == "walk" and _gait_time < 0.4: want = "walk"
+		if not playable: want = "stand"
+		if want != _gait:
+			_gait = want
+			_gait_time = 0.0
+		_gait_time += dt
+		var turning_hard := absf(error) > 1.2
+		_follow_steer("ArrowUp", _gait != "stand" and not turning_hard)
+		var run := _gait == "run"
 		if run != bool(_steer_state.get("run", false)):
 			_steer_state["run"] = run
 			_follow_key(KEY_SHIFT, run)
-		_follow_steer("ArrowLeft", moving and error > 0.12)
-		_follow_steer("ArrowRight", moving and error < -0.12)
+		# Steering with hysteresis; hold the heading when the target is close
+		# (Hype is ahead of the take), so he walks on instead of circling.
+		var left := bool(_steer_state.get("ArrowLeft", false))
+		var right := bool(_steer_state.get("ArrowRight", false))
+		var facing_error := 0.0 if is_nan(_follow_facing) else wrapf(_follow_facing - heading(), -PI, PI)
+		# Moving, an action only waits when Hype faces well away from the take.
+		_follow_facing_off = absf(facing_error) > 0.35
+		if _gait == "stand":
+			# Standing: face where the take faced (aimed shots and talks).
+			_follow_facing_off = absf(facing_error) > 0.1 or to.length() > 0.5
+			left = facing_error > 0.15 or (left and facing_error > 0.05)
+			right = facing_error < -0.15 or (right and facing_error < -0.05)
+		else:
+			left = error > 0.2 or (left and error > 0.08)
+			right = error < -0.2 or (right and error < -0.08)
+		if left != bool(_steer_state.get("ArrowLeft", false)) or right != bool(_steer_state.get("ArrowRight", false)):
+			_follow_metrics["turn_toggles"] += 1
+		_follow_steer("ArrowLeft", left)
+		_follow_steer("ArrowRight", right)
+		_follow_measure(here, take_speed, track, cursor, playable, dt)
+		if int(_measure_clock) / 60 != int(_measure_clock - dt) / 60: _follow_report_metrics()
 		var hype_brain := brain_of("hype")
 		if hype_brain != null and int(hype_brain.get("current_normal")) != _follow_last_normal:
 			print("NORMAL ", JSON.stringify({"take": snappedf(clock, 0.01), "from": _follow_last_normal, "to": int(hype_brain.get("current_normal")), "dsg_56": hype_brain.get("dsg_56"), "action": actor().get("current_state"), "pos": [snappedf(position().x, 0.1), snappedf(position().y, 0.1)]}))
@@ -928,7 +1012,8 @@ func follow(plan: Dictionary) -> bool:
 			shots.pop_front()
 		if clock >= next_report:
 			next_report = clock + float(plan.get("report", 5.0))
-			print("FOLLOW ", JSON.stringify({"take": snappedf(clock, 0.1), "level": level, "gap": snappedf(to.length(), 0.1), "pos": [snappedf(position().x, 0.1), snappedf(position().y, 0.1)], "target": [snappedf(target.x, 0.1), snappedf(target.y, 0.1)], "err": snappedf(rad_to_deg(error), 1), "state": actor().get("current_state"), "action": actor().get("requested_action_state"), "complete": actor().get("action_complete"), "normal": brain_of("hype").get("current_normal") if brain_of("hype") != null else -1, "take_normal": sample[4], "life": int(actor().get("source_hit_points").get("current")) if actor().get("source_hit_points") != null else -1}))
+			print("FOLLOW ", JSON.stringify({"take": snappedf(clock, 0.1), "level": level, "gap": snappedf(to.length(), 0.1), "pos": [snappedf(position().x, 0.1), snappedf(position().y, 0.1)], "target": [snappedf(target.x, 0.1), snappedf(target.y, 0.1)], "err": snappedf(rad_to_deg(error), 1), "face_err": snappedf(rad_to_deg(wrapf(float(sample[6]) - heading(), -PI, PI)), 1) if sample.size() > 6 else null, "state": actor().get("current_state"), "action": actor().get("requested_action_state"), "complete": actor().get("action_complete"), "normal": brain_of("hype").get("current_normal") if brain_of("hype") != null else -1, "take_normal": sample[4], "life": int(actor().get("source_hit_points").get("current")) if actor().get("source_hit_points") != null else -1}))
+	_follow_report_metrics()
 	for code in held.keys(): _follow_key(code, false)
 	_follow_key(KEY_SHIFT, false)
 	for name in ["ArrowUp", "ArrowLeft", "ArrowRight"]: _follow_steer(name, false)
@@ -989,23 +1074,107 @@ func _follow_select(selections: Array, t: float) -> bool:
 		var kind := ""
 		for definition in inventory.get("definitions"):
 			if definition != null and int(definition.item_id) == item: kind = str(definition.kind)
-		print("SELECT ", JSON.stringify({"take": t, "item": item, "kind": kind}))
+		var before := int(inventory.call("quantity", item))
 		view.emit_signal("item_requested", item, kind)
+		print("SELECT ", JSON.stringify({"take": t, "item": item, "kind": kind, "quantity": before, "selected_object": inventory.call("selected_object_value"), "failure": str(inventory.get("last_failure")), "same": inventory == actor().get("source_inventory"), "initialized": inventory.get("source_initialized"), "held": _held(inventory), "report": str(view.get_node_or_null("Canvas/Status").text) if view.get_node_or_null("Canvas/Status") != null else ""}))
 		return true
 	return false
+
+func _held(inventory: Resource) -> Dictionary:
+	var held := {}
+	for definition in inventory.get("definitions"):
+		if definition != null and int(definition.quantity) > 0: held[int(definition.item_id)] = int(definition.quantity)
+	return held
 
 func _port_mode() -> String:
 	var inventory_host: Node = game.get("inventory_host")
 	if inventory_host != null and is_instance_valid(inventory_host.get("view")) and inventory_host.get("view").visible: return "inventory"
 	var pause_host: Node = game.get("pause_host")
 	if pause_host != null and bool(pause_host.get("owns_pause")): return "menu"
+	# A port dialogue is one actually on screen (normal 48 is also Hype's
+	# ordinary return-to-idle state).
 	var brain := brain_of("hype")
-	return "dialogue" if brain != null and int(brain.get("current_normal")) in DIALOGUE_NORMALS else "play"
+	var screen: Node = brain.call("source_ui") if brain != null else null
+	if screen != null:
+		var box: Control = screen.get("dialogue")
+		if box != null and box.visible and not bool(box.call("is_over")): return "dialogue"
+	return "play"
 
 var _follow_gap := 0.0
+var _watch := []
+var _follow_facing := NAN
+var _follow_key_release := {}
+var _follow_facing_off := false
+var _follow_aiming := false
 var _follow_take_shift := false
 var _follow_hold := 0.0
 var _steer_state := {}
+var _gait := "stand"
+var _gait_time := 0.0
+var _follow_metrics := {"turn_toggles": 0, "port_starts": 0, "port_stops": 0, "take_starts": 0, "take_stops": 0, "spurious": 0, "frames": 0, "straight_frames": 0, "yaw_rate_sq": 0.0, "moving_seconds": 0.0}
+var _port_moving := false
+var _port_moving_time := 0.0
+var _take_moving := false
+var _last_take_change := -100.0
+var _last_heading := 0.0
+var _last_here := Vector2.ZERO
+var _measure_clock := 0.0
+var _port_changes: Array = []
+var _take_changes: Array = []
+
+## Starts/stops of the port against the take's, and heading jitter: the RMS
+## yaw rate while the take's own heading is steady and Hype is moving.
+func _follow_measure(here: Vector2, take_speed: float, track: Array, cursor: int, playable: bool, dt: float) -> void:
+	_measure_clock += dt
+	var m := _follow_metrics
+	var brain := brain_of("hype")
+	var controllable := brain != null and int(brain.get("current_normal")) in [4, 5, 6, 30] and _port_mode() == "play"
+	if not playable or not controllable:
+		_last_here = here
+		_last_heading = heading()
+		return
+	m["frames"] += 1
+	var speed := here.distance_to(_last_here) / dt
+	_last_here = here
+	var take_now := take_speed > 0.5
+	if take_now != _take_moving:
+		_take_moving = take_now
+		m["take_starts" if take_now else "take_stops"] += 1
+		_last_take_change = _measure_clock
+		_take_changes.append(_measure_clock)
+	# Debounced port motion (0.25 s), so a single slow frame is not a stop.
+	var port_now := speed > 0.5
+	if port_now != _port_moving:
+		_port_moving_time += dt
+		if _port_moving_time > 0.4:
+			_port_moving = port_now
+			_port_moving_time = 0.0
+			m["port_starts" if port_now else "port_stops"] += 1
+			_port_changes.append(_measure_clock)
+	else:
+		_port_moving_time = 0.0
+	var yaw := wrapf(heading() - _last_heading, -PI, PI) / dt
+	_last_heading = heading()
+	if _port_moving:
+		m["moving_seconds"] += dt
+		var a := cursor
+		var b := mini(cursor + 2, track.size() - 1)
+		var c := mini(cursor + 4, track.size() - 1)
+		var h1 := (_track_point(track[b]) - _track_point(track[a])).angle()
+		var h2 := (_track_point(track[c]) - _track_point(track[b])).angle()
+		if absf(wrapf(h2 - h1, -PI, PI)) < deg_to_rad(10.0) and _track_point(track[a]).distance_to(_track_point(track[c])) > 1.0:
+			m["straight_frames"] += 1
+			m["yaw_rate_sq"] += pow(rad_to_deg(yaw), 2)
+
+func _follow_report_metrics() -> void:
+	var m := _follow_metrics
+	# A port start or stop is spurious when the take has none within 1.5 s.
+	var spurious := 0
+	for t in _port_changes:
+		if not _take_changes.any(func(u): return absf(float(u) - float(t)) < 1.5): spurious += 1
+	m["spurious"] = spurious
+	var minutes := maxf(float(m["frames"]) / Engine.physics_ticks_per_second / 60.0, 0.001)
+	print("MOTION ", JSON.stringify({"minutes": snappedf(minutes, 0.01), "port_starts": m["port_starts"], "port_stops": m["port_stops"], "take_starts": m["take_starts"], "take_stops": m["take_stops"], "spurious_start_stop": m["spurious"], "controlled_minutes": snappedf(minutes, 0.01), "turn_toggles_per_min": snappedf(m["turn_toggles"] / minutes, 0.1), "straight_yaw_rms_deg_s": snappedf(sqrt(m["yaw_rate_sq"] / maxf(m["straight_frames"], 1)), 0.1)}))
 func _follow_steer(name: String, pressed: bool) -> void:
 	if bool(_steer_state.get(name, false)) == pressed: return
 	_steer_state[name] = pressed
@@ -1024,16 +1193,16 @@ func _trace56(seconds: float) -> void:
 	var brain_states := {}
 	var recent := []
 	var last_56: Variant = hype_brain.get("dsg_56")
-	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
-	while Time.get_ticks_msec() < end:
+	var end := now_ms() + int(seconds * 1000.0)
+	while now_ms() < end:
 		await physics_frame
 		for brain in game.get("level").find_children("Brain", "", true, false):
 			var name_key := str(brain.get_parent().get_meta("source_perso_name", brain.get_parent().name))
 			var state := [brain.get("current_normal"), brain.get("current_reflex")]
 			if brain_states.has(name_key) and brain_states[name_key] != state:
-				recent.append({"ms": Time.get_ticks_msec(), "actor": name_key, "from": brain_states[name_key], "to": state})
+				recent.append({"ms": now_ms(), "actor": name_key, "from": brain_states[name_key], "to": state})
 			brain_states[name_key] = state
-		recent = recent.filter(func(row): return Time.get_ticks_msec() - int(row["ms"]) < 300)
+		recent = recent.filter(func(row): return now_ms() - int(row["ms"]) < 300)
 		if hype_brain.get("dsg_56") != last_56:
-			print("FLIP56 ", JSON.stringify({"ms": Time.get_ticks_msec(), "to": hype_brain.get("dsg_56"), "hype_normal": hype_brain.get("current_normal"), "recent": recent}))
+			print("FLIP56 ", JSON.stringify({"ms": now_ms(), "to": hype_brain.get("dsg_56"), "hype_normal": hype_brain.get("current_normal"), "recent": recent}))
 			last_56 = hype_brain.get("dsg_56")
