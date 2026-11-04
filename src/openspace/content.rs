@@ -865,6 +865,9 @@ fn hud_warning(imported: &mut Imported, asset: Option<crate::model::AssetPath>, 
     });
 }
 
+/// The live name behind the engine's "ViseurInitial" pointer texture.
+const ENGINE_LASER_POINTER_TEXTURE: &str = "fixtex/gen_viseur/laserpointer.tga";
+
 fn import_hud_assets(
     imported: &mut Imported,
     game: &Path,
@@ -910,6 +913,26 @@ fn import_hud_assets(
         {
             textures.push((entry.texture.clone(), archive.image(entry)?.clone()));
         }
+    }
+    // 0x421759: "ViseurInitial" (0x5e7f10) names the pointer's default
+    // texture; live, its handle 0x7508b0 is this Fix texture (32 by 32).
+    let pointer = archive
+        .find_entry(ENGINE_LASER_POINTER_TEXTURE)
+        .context("engine laser pointer texture absent from Textures.cnt")?;
+    ensure!(
+        [
+            archive.image(pointer)?.width(),
+            archive.image(pointer)?.height()
+        ] == [32, 32],
+        "engine laser pointer texture changed size"
+    );
+    presentation.laser_pointer_texture = Some(pointer.texture.path.clone());
+    if !imported.assets.contains(&pointer.texture.path)
+        && !textures
+            .iter()
+            .any(|(seen, _): &(_, _)| seen.path == pointer.texture.path)
+    {
+        textures.push((pointer.texture.clone(), archive.image(pointer)?.clone()));
     }
     let font = presentation
         .currency_font

@@ -79,7 +79,8 @@ func update_target() -> void:
     query.exclude = [actor.get_rid()]
     var hit := actor.get_world_3d().direct_space_state.intersect_ray(query)
     var target := hit["position"] as Vector3 if not hit.is_empty() else origin + direction * 2000.0
-    actor.call("source_set_laser_pointer_target", target)
+    var surface_hit := not hit.is_empty() and origin.distance_to(target) <= 100.0 # source pointer range, 0x420b90
+    actor.call("source_set_laser_pointer_target", target, surface_hit)
 
 func teardown() -> void:
     if not configured: return

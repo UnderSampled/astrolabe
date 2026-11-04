@@ -84,6 +84,16 @@ func _ready() -> void:
     if not actor_path.is_empty():
         hud.bind_actor(get_node_or_null(actor_path))
         hud_slots.bind_actor(get_node_or_null(actor_path))
+        _bind_laser_pointer(get_node_or_null(actor_path))
+
+## The generated HUD carries the engine's default pointer texture.
+func _bind_laser_pointer(actor: Node) -> void:
+    if actor == null or not "source_laser_pointer" in actor or not hud.has_meta("laser_pointer_texture"): return
+    if actor.get_node_or_null("LaserPointer") != null: return
+    var view := (load("res://addons/astrolabe/rendering/laser_pointer_view.gd") as GDScript).new() as Sprite3D
+    actor.add_child.call_deferred(view)
+    view.top_level = true
+    view.call("bind", actor, hud.get_meta("laser_pointer_texture"))
 
 func adopt_level(level: Node, items: Array[Resource], actor: Node) -> bool:
     # Authored scene composition chooses one active level. Never steal another
@@ -95,6 +105,7 @@ func adopt_level(level: Node, items: Array[Resource], actor: Node) -> bool:
     _register_catalogues()
     hud.bind_actor(actor)
     hud_slots.bind_actor(actor)
+    _bind_laser_pointer(actor)
     return true
 
 func release_level(level: Node) -> void:

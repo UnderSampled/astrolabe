@@ -153,6 +153,7 @@ fn emit(
     images: &BTreeMap<u8, String>,
     panel_paths: &[(AssetPath, String)],
     font_path: &str,
+    laser_pointer: Option<&str>,
     selection: &crate::model::Selection,
 ) -> Result<(String, String)> {
     let script_path = disk_path(selection, &value.path, "gd");
@@ -195,9 +196,21 @@ fn emit(
         "[ext_resource type=\"FontFile\" path={} id=\"counter_font\"]",
         quoted(&format!("res://{font_path}"))
     )?;
+    if let Some(laser_pointer) = laser_pointer {
+        writeln!(
+            scene,
+            "[ext_resource type=\"Texture2D\" path={} id=\"laser_pointer\"]",
+            quoted(laser_pointer)
+        )?;
+    }
     writeln!(
         scene,
-        "\n[node name=\"FixHud\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\nscript = ExtResource(\"script\")\n\n[node name=\"Source\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture_filter = 2"
+        "\n[node name=\"FixHud\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\nscript = ExtResource(\"script\")\n{}\n[node name=\"Source\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture_filter = 2",
+        if laser_pointer.is_some() {
+            "metadata/laser_pointer_texture = ExtResource(\"laser_pointer\")\n"
+        } else {
+            ""
+        }
     )?;
     // Spell slots and the magic-points arc (0043a450, 00439e50) are drawn by
     // hud_slots.gd from these source inputs and the active rectangle table.
@@ -554,6 +567,12 @@ pub(super) fn export(
         .as_ref()
         .expect("validated HUD currency font");
     let font_atlas = font_atlas_image(project, source, font)?;
+    // The engine's default laser pointer texture (0x421759, "ViseurInitial").
+    let laser_pointer = value
+        .laser_pointer_texture
+        .as_ref()
+        .map(|asset| texture_image(project, source, asset, [32, 32], 0))
+        .transpose()?;
     let directory = disk_path(&project.selection, &value.path, "");
     let directory = directory.trim_end_matches('.');
     let font_path = format!("{directory}/counter.font.tres");
@@ -571,7 +590,14 @@ pub(super) fn export(
             outline: None,
         },
     )?;
-    let (scene, script) = emit(value, &images, &panel_paths, &font_path, &project.selection)?;
+    let (scene, script) = emit(
+        value,
+        &images,
+        &panel_paths,
+        &font_path,
+        laser_pointer.as_deref(),
+        &project.selection,
+    )?;
     project.write(
         disk_path(&project.selection, &value.path, "gd"),
         script.as_bytes(),

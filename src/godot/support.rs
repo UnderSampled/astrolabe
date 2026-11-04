@@ -144,6 +144,7 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/ui/theme.tres",
     "addons/astrolabe/version.json",
     "addons/astrolabe/README.md",
+    "addons/astrolabe/rendering/laser_pointer_view.gd",
     "addons/astrolabe/rendering/sprite.gd",
     "addons/astrolabe/rendering/sprite.gd.uid",
     "addons/astrolabe/rendering/sector_lighting.gd",

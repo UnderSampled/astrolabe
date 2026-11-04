@@ -111,3 +111,32 @@ character tree/level whose global position is within 0.1 of the target, and that
 today (no such node exists). Add a converter check that `generated/hype/textures/FixTex/gen_viseur`
 exists. A second assertion: moving the target farther yields a smaller on-screen size from a fixed
 Camera3D (world-space check).
+
+## Outcome (owner, 2026-11-04)
+
+- Texture, live: in a private original, the pointer handle 0x7508b0 (looked up at 0x421759 by the
+  engine default "ViseurInitial") is fixtex/gen_viseur/laserpointer.tga, 32 by 32. It is the red cross
+  in a ring, not viseur1_alpha.
+- Converter: the HUD importer joins that texture as HudPresentation.laser_pointer_texture (serde
+  default, so older Rete values still read). The FixHud scene carries it as
+  metadata/laser_pointer_texture.
+- Runtime:
+  - rendering/laser_pointer_view.gd is a depth-tested, unshaded, billboard Sprite3D at the aim ray's
+    hit, offset 3 cm toward the eye.
+  - The screen binds it to the main actor and reads the actor's pointer state each frame.
+  - It is visible only while Proc337 has activated the pointer and the ray met a surface within the
+    source's 100 range.
+  - The session and crossbow_input rays only add that hit flag; the targeting itself is unchanged.
+- Probe `crossbow_reticle_probe.gd`: exported Manoir level, saved English fixture, crossbow selected
+  through `change_weapon`, the real aim component with the held look binding.
+  - Sprite within 3 cm of each hit, at screen centre, from 19.3 m to 2.1 m after a turn.
+  - Hidden after Proc338.
+  - Screenshot: the ring shows on the grass at 19 m.
+- Limits:
+  - Hype's fix/28 activation during a genuine aim was not reproduced: the start state calls Proc337
+    itself, because fix/28 needs aim flags dsg_59/71/7/72/57 from real input.
+  - The world size of 0.25 is derived from the take's frames (the source scale 2.5 has no verified
+    unit). At 19 m the cross is not legible, only the ring.
+  - Orientation (camera-facing versus along the surface) is unverified.
+  - The aim ray remains the screen-centre stand-in.
+  - Procs 339 to 341 are still unparsed.

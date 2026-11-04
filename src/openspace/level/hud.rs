@@ -583,6 +583,7 @@ pub(crate) fn import(
         currency_source_object: Some(session.source_identity(currency_source)?),
         currency_item_id: Some(currency_item_id),
         currency_font: Some(currency_font),
+        laser_pointer_texture: None,
         rectangle_tables,
         source_words,
         text_offsets,

@@ -35,6 +35,11 @@ pub struct HudPresentation {
     /// FON's named InventoryFont used by the HUD stats text handle.
     #[serde(default)]
     pub currency_font: Option<HudCounterFont>,
+    /// The laser pointer's texture when no Proc_SetLaserPointerTexture names
+    /// one: the engine looks up "ViseurInitial" (0x421759), live the Fix
+    /// texture fixtex/gen_viseur/laserpointer.tga.
+    #[serde(default)]
+    pub laser_pointer_texture: Option<AssetPath>,
     /// Fix.sda's default and active 24-entry screen rectangles.
     pub rectangle_tables: [Vec<[f32; 6]>; 2],
     /// The two source thresholds read before the layout tables.

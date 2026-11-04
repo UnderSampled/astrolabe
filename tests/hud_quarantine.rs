@@ -27,6 +27,7 @@ fn legacy_hud() -> Result<HudPresentation> {
         currency_source_object: None,
         currency_item_id: None,
         currency_font: None,
+        laser_pointer_texture: None,
         rectangle_tables: [Vec::new(), Vec::new()],
         source_words: [0; 2],
         text_offsets: [[0.0; 2]; 2],

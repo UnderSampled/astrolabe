@@ -1156,10 +1156,11 @@ func source_set_laser_pointer_fly_mode(enabled: bool) -> bool:
         source_laser_pointer.set("sniper_mode", false)
     return true
 
-func source_set_laser_pointer_target(target: Vector3) -> void:
+func source_set_laser_pointer_target(target: Vector3, surface_hit: bool = false) -> void:
     assert(source_laser_pointer != null and target.is_finite())
     source_laser_pointer.set("target_position", target)
     source_laser_pointer.set("target_valid", true)
+    source_laser_pointer.set("target_hit", surface_hit)
 
 func source_set_display_visible(display_visible: bool) -> void:
     source_rendering.set_display_visible(self, display_visible)
