@@ -28,6 +28,11 @@ static func mode() -> String:
 		_allowed = OS.get_environment("ASTROLABE_STRICT_ALLOW").split(",", false)
 	return _mode
 
+## A harness's own quit code, unless strict exit mode already halted the game:
+## then 70, so a later quit does not hide the stand-in.
+static func exit_code(code: int) -> int:
+	return EXIT_CODE if halted and mode() == "exit" else code
+
 static func strict() -> bool:
 	return mode() != "off"
 

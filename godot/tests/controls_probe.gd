@@ -1,4 +1,5 @@
 extends SceneTree
+const StandInReport = preload("res://addons/astrolabe/behavior/stand_in_report.gd")
 ## Actual bootstrap -> Load Game -> physical input. Part of tools/gate.py.
 ## Asserts the things that make this a game: the player answers the controls,
 ## keeps a running Brain, and the frame rate holds on real hardware.
@@ -23,7 +24,7 @@ func finish(message: String) -> void:
 	file.store_string(JSON.stringify(report, "\t") + "\n")
 	file.close()
 	print("CONTROLS_PROBE ", JSON.stringify({"outcome": report["outcome"], "message": message, "failed": failed}))
-	quit(0 if report["outcome"] == "passed" else 1)
+	quit(StandInReport.exit_code(0 if report["outcome"] == "passed" else 1))
 
 func check(name: String, passed: bool, detail: Variant) -> void:
 	report["checks"].append({"name": name, "passed": passed, "detail": detail})

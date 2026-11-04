@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import re
 import subprocess
 import sys
 import time
@@ -25,7 +26,9 @@ harness = root.parent/'hype-harness/local'
 def gpu_prefix():
     """Render on real hardware without opening a window on the desktop."""
     if shutil.which('gamescope') and shutil.which('nvidia-smi'):
+        # gamescope exits 0 whatever its child returns, so the child echoes its code.
         return ['gamescope', '--backend', 'headless', '-w', '1024', '-h', '768', '-W', '1024', '-H', '768', '--',
+                'sh', '-c', '"$@"; echo ASTROLABE_EXIT=$?', 'sh',
                 'env', '__NV_PRIME_RENDER_OFFLOAD=1', '__GLX_VENDOR_LIBRARY_NAME=nvidia']
     return ['xvfb-run', '-a', '-s', '-screen 0 1024x768x24']
 
@@ -55,7 +58,12 @@ def run(name, command, cwd, environment, limit):
                 os.killpg(child.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-    return child.returncode
+    echoed = re.findall(rb'^ASTROLABE_EXIT=(\d+)$', log.read_bytes(), re.MULTILINE)
+    code = int(echoed[-1]) if echoed else child.returncode
+    if code == 70:
+        strict = [line for line in log.read_text(errors='replace').splitlines() if line.startswith('STRICT_STAND_IN')]
+        print(f'    {name}: strict stand-in mode stopped the game: {strict[0][:300] if strict else "(no line)"}')
+    return code
 
 
 def godot_check(name, script, report, environment, limit):

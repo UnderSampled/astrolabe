@@ -1,4 +1,5 @@
 extends SceneTree
+const StandInReport = preload("res://addons/astrolabe/behavior/stand_in_report.gd")
 ## Closed-loop route driver through the real game. Args: <route.json> <output.json>
 ## Route steps: {"go": [x, y, tolerance]} steers in source axes, {"key": name,
 ## "hold": s}, {"wait": s}, {"until_normal": n, "timeout": s}, {"until_handoff": true},
@@ -716,12 +717,12 @@ func run() -> void:
 			ok = bool(game.get("opening_finished"))
 		if not is_instance_valid(game) or not is_instance_valid(actor()):
 			print("ROUTE SESSION ENDED at ", step.get("note", step), " scene ", current_scene.name if current_scene != null else "none")
-			quit()
+			quit(StandInReport.exit_code(0))
 			return
 		snapshot(str(step.get("note", step)) + ("" if ok else " FAILED"))
 		if not ok and step.get("required", false):
 			print("ROUTE ABORT ", step.get("note", step))
-			quit(3)
+			quit(StandInReport.exit_code(3))
 			return
 		if step.get("census", false): _census(step.get("census"))
 		if step.get("blame", false): await blame_physics()
@@ -731,7 +732,7 @@ func run() -> void:
 	var file := FileAccess.open(args[1], FileAccess.WRITE)
 	file.store_string(JSON.stringify(log_rows))
 	file.close()
-	quit()
+	quit(StandInReport.exit_code(0))
 
 ## Saved designer variables that the live Brain does not hold after Load Game.
 func _save_diff(path: String) -> void:
