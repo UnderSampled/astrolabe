@@ -800,6 +800,13 @@ pub enum Expression {
     /// 0053ba40: report+0xa0) read a normal of the caller's dynamics
     /// collision report (0052ec80); zero without one.
     CollideNormal { ground: bool },
+    /// Cond_CollideMovingZDM (1-30, 00533c90 -> 00430930): the caller's
+    /// 1-based ZDM zone, moved to the actor matrix with translation M*offset,
+    /// collides with its surroundings; also true when the zone is missing.
+    CollideMovingZdm {
+        zone: Box<Expression>,
+        offset: Box<Expression>,
+    },
     /// Func_GetGameState returns the shared session selector (0..8).
     /// Unrecognized combined masks leave the source result stale; targets must
     /// diagnose that unrepresented case rather than return the raw mask.

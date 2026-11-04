@@ -1555,6 +1555,34 @@ func source_collide_normal(ground: bool) -> Vector3:
     if normal == Vector3.ZERO: return Vector3.ZERO
     return Vector3(normal.x, -normal.z, normal.y)
 
+## Cond_CollideMovingZDM (00533c90 -> 00430930): the 1-based ZDM zone (slot
+## zone-1; zone 0 wraps) placed at this actor's matrix with translation M*offset
+## collides with its surroundings; true when the zone is missing, as the
+## source's null ZDM returns. Native: a shape query against the actor's own
+## collision mask (stand-in moving-zdm-contacts: the source's sector-limited
+## static and type 0xb/0x14 collide-set scan is not reproduced exactly).
+func source_collide_moving_zdm(zone: int, offset: Vector3) -> bool:
+    var slot := (zone - 1) & 0xffff
+    var shapes: Array[CollisionShape3D] = []
+    for child in get_children():
+        if child is CollisionShape3D and child.shape != null and int(child.get_meta("source_zone", -1)) == slot:
+            shapes.append(child)
+    if shapes.is_empty(): return true
+    var moved := global_transform
+    moved.origin = global_transform * Vector3(offset.x, offset.z, -offset.y)
+    var space := get_world_3d().direct_space_state
+    var exclude: Array[RID] = [get_rid()]
+    for exception in get_collision_exceptions():
+        if exception is CollisionObject3D: exclude.append(exception.get_rid())
+    for shape in shapes:
+        var query := PhysicsShapeQueryParameters3D.new()
+        query.shape = shape.shape
+        query.transform = moved * shape.transform
+        query.collision_mask = collision_mask
+        query.exclude = exclude
+        if not space.intersect_shape(query, 1).is_empty(): return true
+    return false
+
 func source_collide_with_nothing() -> bool:
     # 00533d20 reads the actor's dynamics collision report (0052ec80); an actor
     # without one answers false to every collision condition, Nothing included.

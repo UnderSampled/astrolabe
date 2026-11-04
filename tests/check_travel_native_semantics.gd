@@ -211,6 +211,7 @@ func check_point_requests() -> bool:
     var sphere := SphereShape3D.new()
     sphere.radius = 0.1
     shape.shape = sphere
+    shape.set_meta("source_zone", 0)
     actor.add_child(shape)
     var motion := Node3D.new()
     motion.name = "RootMotion"
@@ -231,6 +232,11 @@ func check_point_requests() -> bool:
     ticket = actor.source_begin_point_motion(Vector3(1,0,0.101),0.03)
     for _tick in 60: await physics_frame
     if not require(ticket > 0 and not actor.source_point_motion_finished(ticket) and actor.is_on_floor() and actor.is_on_wall() and actor.global_position.x < 0.41, "point steering bypassed Character native contact"): return false
+    # Cond_CollideMovingZDM: the actor's zone 1 moved into the wall hits it;
+    # moved back away from the wall it does not; a missing zone reads true.
+    var into: Vector3 = source_position(actor.global_basis.inverse() * Vector3(0.5, 0, 0))
+    var away: Vector3 = source_position(actor.global_basis.inverse() * Vector3(-0.3, 0.3, 0))
+    if not require(actor.source_collide_moving_zdm(1, into) and not actor.source_collide_moving_zdm(1, away) and actor.source_collide_moving_zdm(9, Vector3.ZERO), "moving ZDM query does not report wall contact, clearance and a missing zone"): return false
     var ground_normal: Vector3 = actor.source_collide_normal(true)
     var wall_normal: Vector3 = actor.source_collide_normal(false)
     if not require(ground_normal.z > 0.99 and wall_normal.x < -0.9 and absf(wall_normal.z) < 0.01, "collide normals are not the floor and wall contact normals in source axes: ground=%s wall=%s" % [ground_normal, wall_normal]): return false

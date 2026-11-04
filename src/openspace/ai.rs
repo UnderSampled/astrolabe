@@ -2042,6 +2042,10 @@ impl Parser<'_> {
             }
             (1, 68) => Expression::RouteWaypointCount(self.route_slot(indent + 1, at)?),
             (3, 41) => Expression::GameTime,
+            (1, 30) => Expression::CollideMovingZdm {
+                zone: Box::new(self.expression(indent + 1)?),
+                offset: Box::new(self.expression(indent + 1)?),
+            },
             (3, 153 | 174) => Expression::CollideNormal {
                 ground: id == 174,
             },
@@ -3794,6 +3798,11 @@ impl Writer<'_> {
                 self.expression(sector, indent + 1)?;
             }
             Expression::GameTime => self.node(3, 41, indent),
+            Expression::CollideMovingZdm { zone, offset } => {
+                self.node(1, 30, indent);
+                self.expression(zone, indent + 1)?;
+                self.expression(offset, indent + 1)?;
+            }
             Expression::CollideNormal { ground } => {
                 self.node(3, if *ground { 174 } else { 153 }, indent)
             }

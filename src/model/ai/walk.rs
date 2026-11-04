@@ -453,6 +453,10 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Multiply(left, right)
                 | Expression::Plus(left, right)
                 | Expression::VectorPlus(left, right)
+                | Expression::CollideMovingZdm {
+                    zone: left,
+                    offset: right,
+                }
                 | Expression::VectorMinus(left, right)
                 | Expression::VectorScale(left, right)
                 | Expression::SeePositionWithOffset {

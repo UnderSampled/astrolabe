@@ -2244,6 +2244,11 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         }
         Expression::WaypointPosition(reference) => waypoint_constant(reference),
         Expression::GameTime => "character().source_game_time()".into(),
+        Expression::CollideMovingZdm { zone, offset } => format!(
+            "character().source_collide_moving_zdm(int({}), Vector3({}))",
+            expression(zone, model)?,
+            expression(offset, model)?
+        ),
         Expression::CollideNormal { ground } => format!(
             "character().source_collide_normal({})",
             if *ground { "true" } else { "false" }
