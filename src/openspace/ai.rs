@@ -352,7 +352,11 @@ impl Parser<'_> {
                         out.push(Statement::Unsupported(self.unsupported(
                             at,
                             format!(
-                                "add assignment target is not a designer variable at node {at}"
+                                "add assignment target is not a designer variable at node {at} ({})",
+                                self.nodes
+                                    .get(self.at)
+                                    .map(|n| format!("kind {} parameter {}", n.kind, n.parameter))
+                                    .unwrap_or_default()
                             ),
                         )?));
                         continue;
@@ -660,9 +664,13 @@ impl Parser<'_> {
                         Statement::CameraResetTargetedPerso { camera }
                     } else {
                         let (target_at, target) = self.take(indent + 1)?;
+                        // 00548070 evaluates the new target as any actor
+                        // expression (00524fa0), so a designer actor variable
+                        // is a target too.
                         let target = match (target.kind, target.parameter) {
                             (0, 4) => Some(ActorTarget::Keyword(ActorKeyword::SelfActor)),
                             (0, 5) => Some(ActorTarget::Keyword(ActorKeyword::MainActor)),
+                            (11, variable) => Some(ActorTarget::Variable(variable.try_into()?)),
                             (24, _) => self
                                 .codec
                                 .actors
@@ -674,9 +682,16 @@ impl Parser<'_> {
                         if let Some(target) = target {
                             Statement::CameraChangeTargetedPerso { camera, target }
                         } else {
-                            Statement::Unsupported(
-                                self.unsupported(at, "unbound camera target actor".into())?,
-                            )
+                            Statement::Unsupported(self.unsupported(
+                                at,
+                                format!(
+                                    "unbound camera target actor ({})",
+                                    self.nodes
+                                        .get(target_at)
+                                        .map(|n| format!("kind {} parameter {}", n.kind, n.parameter))
+                                        .unwrap_or_default()
+                                ),
+                            )?)
                         }
                     }
                 }
@@ -1752,6 +1767,7 @@ impl Parser<'_> {
                         )?));
                     }
                 };
+                let operation_at = self.at;
                 match self.expression(indent + 1)? {
                     Expression::SelfPosition => Expression::ActorPosition(receiver),
                     Expression::SelfSighting => Expression::ActorSighting(receiver),
@@ -1820,9 +1836,14 @@ impl Parser<'_> {
                         }
                     },
                     _ => {
+                        let shape = self
+                            .nodes
+                            .get(operation_at)
+                            .map(|n| format!("kind {} parameter {}", n.kind, n.parameter))
+                            .unwrap_or_default();
                         let mut fragment = self.unsupported(
                             at,
-                            "Ultra operation is unsupported for this receiver".into(),
+                            format!("Ultra operation is unsupported for this receiver ({shape})"),
                         )?;
                         fragment.receiver = Some(receiver);
                         Expression::Unsupported(fragment)
@@ -4544,6 +4565,22 @@ mod partial_tests {
                 variable: 45,
                 group: BehaviorGroup::Normal,
                 pause_after: false
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn camera_target_from_designer_variable_reconstructs() -> Result<()> {
+        // brigand 715: Procedure_Camera_ChangeTargetedPerso(Self, dsg 7).
+        let (codec, bytes) = partial(&[(4, 160, 1), (0, 4, 2), (11, 7, 2), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements[0],
+            Statement::CameraChangeTargetedPerso {
+                camera: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                target: ActorTarget::Variable(7)
             }
         ));
         assert_eq!(codec.write(&script)?, bytes);
