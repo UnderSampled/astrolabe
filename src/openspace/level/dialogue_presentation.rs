@@ -190,9 +190,19 @@ pub(super) fn import(
     game: &std::path::Path,
     normal: Address,
     emphasis: Address,
+    selection: Address,
 ) -> Result<DialoguePresentation> {
     let font = font(s, normal)?;
     let other = self::font(s, emphasis)?;
+    // 0056dd50 draws a selected answer's halo copies in the third root font
+    // with the normal font's metrics; only its colour differs.
+    let selected = self::font(s, selection)?;
+    ensure!(
+        font.tracking == selected.tracking
+            && font.glyphs == selected.glyphs
+            && font.atlas == selected.atlas,
+        "answer selection font needs the normal metrics"
+    );
     ensure!(
         font.tracking == other.tracking && font.glyphs == other.glyphs && font.atlas == other.atlas,
         "normal/emphasis fonts need distinct metrics"
@@ -224,6 +234,14 @@ pub(super) fn import(
         .context("Fix GPT continuation stencil root lacks RTP binding")?;
     let material = s.resolve(Owner::Fix, key, word)?;
     let continuation = texture(s, s.required(material, 72)?)?;
+    // 0056bbe0 writes the bullet material after red_arrow; 0056c8e0 draws it
+    // (stencil 5) beside each row of the selected answer.
+    let word = u32_at(&gpt, 18084 + 5 * 4)?;
+    let key = *refs
+        .get(&word)
+        .context("Fix GPT bullet stencil root lacks RTP binding")?;
+    let material = s.resolve(Owner::Fix, key, word)?;
+    let bullet = texture(s, s.required(material, 72)?)?;
     let value = DialoguePresentation {
         path: AssetPath::new("level:/dialogue/presentation/en")?,
         font_name: font.name,
@@ -234,6 +252,8 @@ pub(super) fn import(
         emphasis_color: other.color,
         frame: frame.try_into().unwrap(),
         continuation,
+        selection_color: selected.color,
+        bullet,
     };
     value.validate()?;
     Ok(value)

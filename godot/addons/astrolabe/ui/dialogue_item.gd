@@ -11,6 +11,8 @@ extends Resource
 @export var completion_model: String
 @export var completion_normal: int = -1
 @export var allow_skip: bool = true
+## Choices drawn after the last body row (0056dd50); empty for ordinary items.
+@export var answers: Array[Resource] = []
 
 func lines_per_page() -> int:
     return 2 if box in [3, 4] else 6

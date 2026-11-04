@@ -15,6 +15,28 @@ pub struct Dialogue {
     pub voice: Option<SoundEventLink>,
     pub completion: Option<BehaviorRef>,
     pub presentation: Option<AssetRef<DialoguePresentation>>,
+    /// Choices of a question item (DLG answers with text, 0056dd50). Empty for
+    /// the ordinary single-answer item, whose callback is `completion`.
+    #[serde(default)]
+    pub answers: Vec<DialogueAnswer>,
+}
+
+/// One drawn choice: its own text rows, the owner's normal behavior stored as
+/// the pending callback when it is selected (0056e3b0), the speech then played
+/// on MainActor (answer+0x3c), and AnswerDelete (answer+0x08).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DialogueAnswer {
+    pub lines: Vec<DialogueLine>,
+    pub completion: Option<BehaviorRef>,
+    pub voice: Option<SoundEventLink>,
+    pub one_shot: bool,
+    /// Answer+0x48: gold added (>= 0) or spent (< 0) on selection (0056e0e0).
+    pub gold: i32,
+    /// AnswerNext: the item drawing continues with (0056c700), by name.
+    pub next: Option<String>,
+    /// AnswerBad: items shown instead when the cost check fails, by failure
+    /// code (0056e2c0 returns 1 when Hype lacks the gold).
+    pub shortfall: Vec<(u8, String)>,
 }
 /// Shared localized UI inputs. Authored layout and native controls remain in Godot.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -30,6 +52,11 @@ pub struct DialoguePresentation {
     pub frame: [DialogueTexture; 4],
     /// The shared red_arrow stencil used to indicate a completed nonfinal page.
     pub continuation: DialogueTexture,
+    /// Third DLG root font (snapshot word 16): the four offset copies drawn
+    /// under a selected answer (0056dd50).
+    pub selection_color: [f32; 4],
+    /// Stencil 5 (`DLG_bullet`), drawn beside each selected answer row.
+    pub bullet: DialogueTexture,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DialogueTexture {
@@ -102,12 +129,13 @@ impl Content for DialoguePresentation {
             self.normal_color
                 .iter()
                 .chain(&self.emphasis_color)
+                .chain(&self.selection_color)
                 .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
             "invalid dialogue font color"
         );
         for texture in std::iter::once(&self.atlas)
             .chain(&self.frame)
-            .chain(std::iter::once(&self.continuation))
+            .chain([&self.continuation, &self.bullet])
         {
             ensure!(
                 texture.size.iter().all(|&n| n > 0 && n <= 4096),
@@ -218,6 +246,29 @@ impl Content for Dialogue {
         }
         if let Some(voice) = &self.voice {
             voice.validate()?;
+        }
+        if !self.answers.is_empty() {
+            ensure!(
+                self.box_style == 1
+                    && (2..=16).contains(&self.answers.len())
+                    && self.completion.is_none()
+                    && self.presentation.is_some(),
+                "unsupported dialogue answer semantics"
+            );
+            for answer in &self.answers {
+                ensure!(
+                    !answer.lines.is_empty()
+                        && answer.lines.len() <= 16
+                        && answer
+                            .lines
+                            .iter()
+                            .all(|line| line.layout.is_none() && line.spans.len() <= 64),
+                    "invalid dialogue answer text"
+                );
+                if let Some(voice) = &answer.voice {
+                    voice.validate()?;
+                }
+            }
         }
         Ok(())
     }

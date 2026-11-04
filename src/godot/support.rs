@@ -124,6 +124,8 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/ui/dialogue_frame.gd.uid",
     "addons/astrolabe/ui/dialogue_frame.tscn",
     "addons/astrolabe/ui/dialogue_span_view.tscn",
+    "addons/astrolabe/ui/dialogue_answer.gd",
+    "addons/astrolabe/ui/dialogue_answer.gd.uid",
     "addons/astrolabe/ui/dialogue_item.gd",
     "addons/astrolabe/ui/dialogue_item.gd.uid",
     "addons/astrolabe/ui/dialogue_line.gd",

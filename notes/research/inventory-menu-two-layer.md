@@ -122,7 +122,7 @@ Abbreviations: `inv.rs` = src/openspace/level/inventory.rs, `invg.rs` = inventor
 | D4 | Framed boxes 1 and 5 | [x] box 1 rows 25-313, columns 497-990; box 5 panel 461x256, 30 px inset | [x] fade +0.1 alpha per drawn frame after 10 ms |
 | D5 | Box 1 text after the anchor fix, page timing | [x] anchor read | [ ] not re-captured or compared |
 | D6 | Gaps between font and frame records | [ ] 520 and 508 B gaps in 19:1, probably frame or box parameters | n/a |
-| D7 | Branching answers, item icons, channel effects | [ ] answer entry +0x08 one-shot, +0x18 branch, +0x28 lines, +0x3c speech, +0x44 mapping; condition ids 120-122 unknown (0056c690, 0056e3b0) | [ ] 16 of 48 Brigand items unsupported; coverage debt in the 67-item catalogue |
+| D7 | Question answers, item icons, channel effects | [x] answer +0x08 one-shot, +0x18 next item, +0x1c callback, +0x28 text, +0x3c speech, +0x44 AnswerBad, +0x48 gold (notes/research/dialogue-answers.md); icons, states, channels and inventory costs rejected | [x] 47 of 48 Brigand items import (the plaque's centred layout remains); Wellet/Zatila questions run in Godot |
 | D8 | GPI images (4-349..357, 3-216, 3-217) | [x] handlers 0053ef50, 005374c0 (3-216/217 rewritten) | [ ] 4-350, 4-349, 4-357 are stand-ins (4 Brigand sites each) |
 | D9 | Fade texture and value (4-317..322) | [x] 00544180 (rewritten in src/render/snapshot_fade.c) | [x] `source_execute_fade`, `source_set_fade_texture` |
 

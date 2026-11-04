@@ -32,56 +32,68 @@ pub(super) fn export(
         .map(|v| super::sound::export_event(project, source, v, written))
         .transpose()?;
     let mut resources = String::new();
-    let mut ids = Vec::new();
     let mut count = 0;
-    // Debug uses round-trippable float literals, including an exponent for the
-    // 3.4e38 untimed sentinel. Display can produce an integer-looking decimal
-    // that Godot attempts to parse as an overflowing signed 64-bit integer.
-    for (i, line) in value.lines.iter().enumerate() {
-        let mut spans = Vec::new();
-        for (j, span) in line.spans.iter().enumerate() {
-            let key = format!(
-                "hype.dialogue.{}.{}.line{i}.span{j}",
-                value.name, value.locale
-            );
-            writeln!(
-                project.builder,
-                "    dialogue_translation_{n}.add_message({}, {})",
-                quoted(&key),
-                quoted(span.text.as_deref().unwrap_or_default())
-            )?;
-            let id = format!("span_{i}_{j}");
-            spans.push(format!("SubResource(\"{id}\")"));
-            count += 1;
-            writeln!(
-                resources,
-                "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"span\")\nkey = {}\ntext_present = {}\nsource_offset = {:?}\nemphasis = {}\n",
-                quoted(&key),
-                span.text.is_some(),
-                span.offset,
-                span.emphasis
-            )?;
-        }
-        let layout = line
-            .layout
-            .as_ref()
-            .map(|layout| {
-                format!(
-                    "alignment = Vector2i({}, {})\ndraw_offset = Vector2({:?}, {:?})\n",
-                    layout.alignment[0], layout.alignment[1], layout.offset[0], layout.offset[1]
-                )
-            })
-            .unwrap_or_default();
-        let id = format!("line_{i}");
-        ids.push(format!("SubResource(\"{id}\")"));
+    let prefix = format!("hype.dialogue.{}.{}", value.name, value.locale);
+    let ids = lines(
+        project,
+        n,
+        &mut resources,
+        &mut count,
+        &value.lines,
+        &prefix,
+        "",
+    )?;
+    let mut answers = Vec::new();
+    let mut voices = String::new();
+    for (a, answer) in value.answers.iter().enumerate() {
+        let line_ids = lines(
+            project,
+            n,
+            &mut resources,
+            &mut count,
+            &answer.lines,
+            &format!("{prefix}.answer{a}"),
+            &format!("a{a}_"),
+        )?;
+        let voice = match &answer.voice {
+            Some(v) => {
+                let path = super::sound::export_event(project, source, v, written)?;
+                writeln!(
+                    voices,
+                    "[ext_resource type=\"Resource\" path={} id=\"answer_voice_{a}\"]",
+                    quoted(&path)
+                )?;
+                count += 1;
+                format!("voice = ExtResource(\"answer_voice_{a}\")\n")
+            }
+            None => String::new(),
+        };
+        let id = format!("answer_{a}");
+        answers.push(format!("SubResource(\"{id}\")"));
         count += 1;
         writeln!(
             resources,
-            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"line\")\nspans = Array[Resource]([{}])\njustification = {}\nend_seconds = {:?}\nflags = {}\n{layout}",
-            spans.join(", "),
-            GodotReal(line.justification),
-            line.end_seconds,
-            line.flags
+            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"answer\")\nlines = Array[Resource]([{}])\ncompletion_normal = {}\n{voice}one_shot = {}\ngold = {}\nnext = {}\nshortfall_codes = PackedInt32Array({})\nshortfall_items = PackedStringArray({})\n",
+            line_ids.join(", "),
+            answer
+                .completion
+                .as_ref()
+                .map_or(-1, |c| i64::from(c.behavior)),
+            answer.one_shot,
+            answer.gold,
+            quoted(answer.next.as_deref().unwrap_or("")),
+            answer
+                .shortfall
+                .iter()
+                .map(|(code, _)| code.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+            answer
+                .shortfall
+                .iter()
+                .map(|(_, item)| quoted(item))
+                .collect::<Vec<_>>()
+                .join(", ")
         )?;
     }
     writeln!(
@@ -89,7 +101,10 @@ pub(super) fn export(
         "    if ResourceSaver.save(dialogue_translation_{n}, {}) != OK:\n        push_error(\"Cannot save dialogue Translation\")\n        quit(1)\n        return",
         quoted(&format!("res://{translation}"))
     )?;
-    let callback = value.completion.as_ref();
+    let callback = value
+        .completion
+        .as_ref()
+        .or_else(|| value.answers.iter().find_map(|a| a.completion.as_ref()));
     let voice_ext = voice
         .as_ref()
         .map(|p| {
@@ -114,8 +129,8 @@ pub(super) fn export(
         ""
     };
     let text = format!(
-        "[gd_resource type=\"Resource\" load_steps={} format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_item.gd\" id=\"item\"]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_line.gd\" id=\"line\"]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_span.gd\" id=\"span\"]\n[ext_resource type=\"Translation\" path={} id=\"translation\"]\n{voice_ext}{presentation_ext}\n{resources}\n[resource]\nscript = ExtResource(\"item\")\nidentity = {}\nlocale = {}\ntranslation = ExtResource(\"translation\")\nbox = {}\nlines = Array[Resource]([{}])\nowner_identity = {}\ncompletion_model = {}\ncompletion_normal = {}\n{presentation_value}{}",
-        count + 5 + usize::from(voice.is_some()) + usize::from(presentation.is_some()),
+        "[gd_resource type=\"Resource\" load_steps={} format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_item.gd\" id=\"item\"]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_line.gd\" id=\"line\"]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_span.gd\" id=\"span\"]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_answer.gd\" id=\"answer\"]\n[ext_resource type=\"Translation\" path={} id=\"translation\"]\n{voice_ext}{presentation_ext}{voices}\n{resources}\n[resource]\nscript = ExtResource(\"item\")\nidentity = {}\nlocale = {}\ntranslation = ExtResource(\"translation\")\nbox = {}\nlines = Array[Resource]([{}])\nowner_identity = {}\ncompletion_model = {}\ncompletion_normal = {}\nanswers = Array[Resource]([{}])\n{presentation_value}{}",
+        count + 6 + usize::from(voice.is_some()) + usize::from(presentation.is_some()),
         quoted(&format!("res://{translation}")),
         quoted(&value.name),
         quoted(&value.locale),
@@ -123,7 +138,11 @@ pub(super) fn export(
         ids.join(", "),
         quoted(value.owner.path.as_str()),
         quoted(callback.map(|c| c.model.path.as_str()).unwrap_or("")),
-        callback.map_or(-1, |c| i64::from(c.behavior)),
+        value
+            .completion
+            .as_ref()
+            .map_or(-1, |c| i64::from(c.behavior)),
+        answers.join(", "),
         if voice.is_some() {
             "voice = ExtResource(\"voice\")\n"
         } else {
@@ -136,10 +155,75 @@ pub(super) fn export(
     if value.box_style == 4 {
         project.diagnostic(format!("{}: native style4 two-line title; compiled source AI owns entry/waits/end; original pixel parity remains unverified", value.path));
     }
+    if !value.answers.is_empty() {
+        project.diagnostic(format!("{}: native question page with {} answers: wrapping scroll, gold cost, AnswerBad and AnswerNext chaining; the SoundEffects:Dialog scroll/cash sounds are a reported stand-in", value.path, value.answers.len()));
+    }
     if value.box_style == 5 {
         project.diagnostic(format!("{}: native center-only style5; one flags3 page bypasses letter reveal, counts null padding, and waits for accepted selection before the existing owner callback; source pixel/control-release parity remains unverified", value.path));
     }
     Ok(())
+}
+
+/// Writes an ItemText or AnswerText line list as span/line sub-resources and
+/// Translation messages, returning the line references.
+fn lines(
+    project: &mut Project,
+    n: usize,
+    resources: &mut String,
+    count: &mut usize,
+    lines: &[crate::model::dialogue::DialogueLine],
+    prefix: &str,
+    id_prefix: &str,
+) -> Result<Vec<String>> {
+    let mut ids = Vec::new();
+    // Debug uses round-trippable float literals, including an exponent for the
+    // 3.4e38 untimed sentinel. Display can produce an integer-looking decimal
+    // that Godot attempts to parse as an overflowing signed 64-bit integer.
+    for (i, line) in lines.iter().enumerate() {
+        let mut spans = Vec::new();
+        for (j, span) in line.spans.iter().enumerate() {
+            let key = format!("{prefix}.line{i}.span{j}");
+            writeln!(
+                project.builder,
+                "    dialogue_translation_{n}.add_message({}, {})",
+                quoted(&key),
+                quoted(span.text.as_deref().unwrap_or_default())
+            )?;
+            let id = format!("{id_prefix}span_{i}_{j}");
+            spans.push(format!("SubResource(\"{id}\")"));
+            *count += 1;
+            writeln!(
+                resources,
+                "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"span\")\nkey = {}\ntext_present = {}\nsource_offset = {:?}\nemphasis = {}\n",
+                quoted(&key),
+                span.text.is_some(),
+                span.offset,
+                span.emphasis
+            )?;
+        }
+        let layout = line
+            .layout
+            .as_ref()
+            .map(|layout| {
+                format!(
+                    "alignment = Vector2i({}, {})\ndraw_offset = Vector2({:?}, {:?})\n",
+                    layout.alignment[0], layout.alignment[1], layout.offset[0], layout.offset[1]
+                )
+            })
+            .unwrap_or_default();
+        let id = format!("{id_prefix}line_{i}");
+        ids.push(format!("SubResource(\"{id}\")"));
+        *count += 1;
+        writeln!(
+            resources,
+            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"line\")\nspans = Array[Resource]([{}])\njustification = {}\nend_seconds = {:?}\nflags = {}\n{layout}",
+            spans.join(", "),
+            GodotReal(line.justification),
+            line.end_seconds,
+            line.flags
+        )?;
+    }
+    Ok(ids)
 }
 
 /// A float in Godot text-resource syntax: `{:?}` when finite, else Godot's own

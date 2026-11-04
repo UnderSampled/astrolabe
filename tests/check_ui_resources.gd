@@ -136,7 +136,7 @@ func check() -> void:
             var labels: Array[Node] = dialogue.source_text.get_children()
             if not require(not labels.is_empty() and labels[0] is Label, "native span controls"): return
             var label: Label = labels[0]
-            var expected_origin: Vector2 = style.text_origin(dialogue.position,item.box) + Vector2(style.span_origin(item.message(span.key),span.source_offset),0.0)
+            var expected_origin: Vector2 = style.text_origin(dialogue.position,item.box) + Vector2(style.chain_span_origin(span.source_offset),0.0)
             if not require(label.position.is_equal_approx(expected_origin) and label.text == item.message(span.key) and label.get_theme_font("font") == font, "source span offsets and literal native text"): return
             var panel: Control = dialogue.panel
             if not require(panel.size == Vector2(320,192) and panel.get_node("Top").stretch_mode == TextureRect.STRETCH_TILE and panel.get_node("Left").stretch_mode == TextureRect.STRETCH_TILE and panel.get_node("Center").stretch_mode == TextureRect.STRETCH_SCALE and not panel.get_node("Fallback").visible, "authored frame repeats edges/stretch center"): return

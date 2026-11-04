@@ -84,8 +84,10 @@ in that take.
 
 ## Wellet's race
 
-- [ ] Wellet (wellet_depart, wellet_refus, wellet_refus2, wellet_plastyksinsuffisants):
-  refuses until Hype has enough money, then starts the race. The race is in Brigand, after the
+- [ ] Wellet (wellet_intro and its questions, wellet_depart, wellet_refus, wellet_refus2,
+  wellet_plastyksinsuffisants): refuses until Hype has enough money, then starts the race.
+  The question dialogues now run (No to wellet_refus, Yes short of 100 to
+  wellet_plastyksinsuffisants, checked in Godot); Yes with the money and the race are not. The race is in Brigand, after the
   toras round trip.
 - [ ] Race course: 37 markers (iCourse_Brigand1_*), the kid (iKid_CourseBrigand) and the fire
   bottles (iMagic_Bottles_FeuCourse). Not checked.

@@ -199,7 +199,7 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
     if let Some(mut presentation) = scene.dialogue_presentation.take() {
         for texture in std::iter::once(&mut presentation.atlas)
             .chain(&mut presentation.frame)
-            .chain(std::iter::once(&mut presentation.continuation))
+            .chain([&mut presentation.continuation, &mut presentation.bullet])
         {
             let found = archive
                 .find_entry(texture.texture.file())

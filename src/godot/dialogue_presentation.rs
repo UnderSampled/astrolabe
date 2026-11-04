@@ -63,7 +63,7 @@ pub(super) fn export(
         },
     )?;
     let mut text = format!(
-        "[gd_resource type=\"Resource\" load_steps=8 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_presentation.gd\" id=\"script\"]\n[ext_resource type=\"FontFile\" path={} id=\"font\"]\n",
+        "[gd_resource type=\"Resource\" load_steps=9 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_presentation.gd\" id=\"script\"]\n[ext_resource type=\"FontFile\" path={} id=\"font\"]\n",
         quoted(&format!("res://{font_path}"))
     );
     for (texture, name) in value
@@ -84,9 +84,15 @@ pub(super) fn export(
         "[ext_resource type=\"Texture2D\" path={} id=\"continuation\"]",
         quoted(&format!("res://{continuation}"))
     )?;
+    let (bullet, _) = image(project, source, &value.bullet, "dialogue.png")?;
     writeln!(
         text,
-        "\n[resource]\nscript = ExtResource(\"script\")\nfont = ExtResource(\"font\")\nnormal_color = Color({},{},{},{})\nemphasis_color = Color({},{},{},{})\ncorner = ExtResource(\"corner\")\nborder = ExtResource(\"border\")\ncenter = ExtResource(\"center\")\nside = ExtResource(\"side\")\ncontinuation = ExtResource(\"continuation\")",
+        "[ext_resource type=\"Texture2D\" path={} id=\"bullet\"]",
+        quoted(&format!("res://{bullet}"))
+    )?;
+    writeln!(
+        text,
+        "\n[resource]\nscript = ExtResource(\"script\")\nfont = ExtResource(\"font\")\nnormal_color = Color({},{},{},{})\nemphasis_color = Color({},{},{},{})\ncorner = ExtResource(\"corner\")\nborder = ExtResource(\"border\")\ncenter = ExtResource(\"center\")\nside = ExtResource(\"side\")\ncontinuation = ExtResource(\"continuation\")\nselection_color = Color({},{},{},{})\nbullet = ExtResource(\"bullet\")",
         value.normal_color[0],
         value.normal_color[1],
         value.normal_color[2],
@@ -94,7 +100,11 @@ pub(super) fn export(
         value.emphasis_color[0],
         value.emphasis_color[1],
         value.emphasis_color[2],
-        value.emphasis_color[3]
+        value.emphasis_color[3],
+        value.selection_color[0],
+        value.selection_color[1],
+        value.selection_color[2],
+        value.selection_color[3]
     )?;
     project.write(path.clone(), text.as_bytes())?;
     Ok(format!("res://{path}"))

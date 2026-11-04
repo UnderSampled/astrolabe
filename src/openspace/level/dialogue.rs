@@ -9,6 +9,7 @@ use super::{
 use crate::model::{
     AssetPath, AssetRef, Selection,
     ai::{BehaviorGroup, BehaviorRef},
+    audio::SoundEventLink,
     character::Perso,
     dialogue::*,
     io::{Content, Diagnostic, Severity},
@@ -43,19 +44,38 @@ struct ItemWire {
 // words remain unclassified; no pointer is traversed from those placeholders.
 #[derive(BinRead)]
 #[br(little)]
+/// Answer record, laid out by the AnswerSection parser 0056fec0 and read by
+/// 0056dd50 (draw), 0056f3a0 (scroll) and 0056e3b0 (select).
 struct AnswerWire {
+    /// +0/+4: inventory gobject/tobject cost (AnswerBad path when unmet).
     stock_lists: [u32; 2],
-    _unknown_prefix: [u8; 16],
-    _text: u32,
-    _completion: u32,
-    _used: u32,
+    /// +8: AnswerDelete; the selected answer leaves the item.
+    one_shot: u8,
+    _padding: [u8; 3],
+    /// +0xc/+0x10: FontOFF (the drawn font) and FontON (parsed, never drawn).
+    _font_off: u32,
+    _font_on: u32,
     _unknown_word: u32,
-    branch: u32,
-    actions: [u32; 2],
-    modules: [u32; 2],
-    voice: u32,
+    /// +0x18: AnswerNext, the item InitDraw restarts on.
+    next: u32,
+    /// +0x1c: AnswerComportment, stored as the pending callback.
+    _completion: u32,
+    /// +0x20: runtime selected flag.
+    _selected: u32,
+    _unknown_word2: u32,
+    /// +0x28: AnswerText line list.
+    text: u32,
+    /// +0x2c/+0x30: AnswerState refs applied on scroll/select.
+    states: [u32; 2],
+    /// +0x34/+0x38: channel activate/deactivate lists.
+    channels: [u32; 2],
+    /// +0x3c: AnswerSound, played on MainActor when selected.
+    _voice: u32,
+    /// +0x40/+0x44: AnswerBad {code, item} mapping.
     result_mapping: [u32; 2],
-    signed_word: i32,
+    /// +0x48: gold cost.
+    gold: i32,
+    /// +0x4c: icon, -2 for none.
     icon: i32,
 }
 #[derive(BinRead)]
@@ -233,7 +253,9 @@ pub(super) fn import(
     };
     let normal_font = resolve(8)?;
     let emphasis = resolve(12)?;
-    let presentation = super::dialogue_presentation::import(s, game, normal_font, emphasis)?;
+    let selection_font = resolve(16)?;
+    let presentation =
+        super::dialogue_presentation::import(s, game, normal_font, emphasis, selection_font)?;
     let presentation_ref = AssetRef::from_path(presentation.path.clone());
     result.dialogue_presentation = Some(presentation);
     // +0 is the text-name table; +4 is the circular dialogue catalogue.
@@ -259,7 +281,7 @@ pub(super) fn import(
         }
         .read(item, name.clone())?;
         match decoded {
-            ItemImport::Supported(value) => result.dialogues.push(value),
+            ItemImport::Supported(value) => result.dialogues.push(*value),
             ItemImport::Unsupported(reason) => {
                 omitted += 1;
                 result.diagnostics.push(Diagnostic {
@@ -289,7 +311,7 @@ pub(super) fn import(
 /// cycle and record errors in the supported traversal remain fatal. An item
 /// rejected for unsupported semantics is not traversed further.
 enum ItemImport {
-    Supported(Dialogue),
+    Supported(Box<Dialogue>),
     Unsupported(String),
 }
 
@@ -307,7 +329,8 @@ impl ItemDecoder<'_> {
     fn read(&self, item: Address, name: String) -> Result<ItemImport> {
         let s = self.source;
         let h: ItemWire = wire(s.bytes(item, 52)?)?;
-        if h.answers != 1 || !matches!(h.box_style, 1 | 3 | 4 | 5) {
+        let question = h.answers > 1 && h.box_style == 1;
+        if !(h.answers == 1 || question) || !matches!(h.box_style, 1 | 3 | 4 | 5) {
             return Ok(ItemImport::Unsupported(format!(
                 "{name}: {} answers and box style {} require additional dialogue semantics",
                 h.answers, h.box_style
@@ -333,155 +356,124 @@ impl ItemDecoder<'_> {
                 "{name}: dialogue owner is outside the imported actor graph"
             )));
         };
-        let answer = s.required(s.required(item, 4)?, 0)?;
-        let answer_wire: AnswerWire = wire(s.bytes(answer, 80)?)?;
-        if s.pointer(answer, 24)?.is_some() || answer_wire.branch != 0 || answer_wire.icon != -2 {
-            return Ok(ItemImport::Unsupported(format!(
-                "{name}: answer text, branching or icon behavior is not represented"
-            )));
-        }
-        if h.box_style == 5
-            && (answer_wire.stock_lists != [0; 2]
-                || answer_wire.actions != [0; 2]
-                || answer_wire.modules != [0; 2]
-                || answer_wire.voice != 0
-                || answer_wire.result_mapping != [0; 2]
-                || answer_wire.signed_word != 0)
-        {
-            return Ok(ItemImport::Unsupported(format!(
-                "{name}: style5 answer side effects require additional dialogue semantics"
-            )));
-        }
-        let callback = if let Some(target) = s.pointer(answer, 28)? {
-            let brain = s.required(actor, 16)?;
-            let mind = s.required(brain, 0)?;
-            let model = s.required(mind, 0)?;
-            let set = s.required(model, 0)?;
-            let raw: SetWire = wire(s.bytes(set, 16)?)?;
-            let entries = s.required(set, 0)?;
-            ensure!(
-                target.owner == entries.owner
-                    && target.key == entries.key
-                    && target.offset >= entries.offset
-                    && (target.offset - entries.offset).is_multiple_of(12),
-                "dialogue callback misses normal behavior table"
-            );
-            let behavior = (target.offset - entries.offset) / 12;
-            ensure!(
-                behavior < raw.count as usize,
-                "dialogue behavior index out of range"
-            );
-            let Some(brain) = self
-                .scene
-                .persos
-                .iter()
-                .find(|p| p.path == owner.path)
-                .and_then(|p| p.brain.as_ref())
-            else {
-                return Ok(ItemImport::Unsupported(format!(
-                    "{name}: completion callback owner lacks an imported Brain"
-                )));
-            };
-            let reference = BehaviorRef {
-                model: brain.model.clone(),
-                group: BehaviorGroup::Normal,
-                behavior: behavior.try_into()?,
-            };
-            reference.validate_model(
-                self.scene
-                    .ai_models
-                    .iter()
-                    .find(|m| m.path == reference.model.path)
-                    .context("dialogue callback model missing")?,
-            )?;
-            Some(reference)
-        } else {
-            None
-        };
-        let box_style = h.box_style;
-        let mut lines = Vec::new();
-        let mut line = s.pointer(item, 12)?;
-        let mut line_seen = BTreeSet::new();
-        while let Some(a) = line {
-            ensure!(
-                line_seen.insert(a) && lines.len() < 1024,
-                "cyclic/excessive dialogue lines"
-            );
-            let h: LineWire = wire(s.bytes(a, 28)?)?;
-            ensure!(
-                h.ordinal as usize == lines.len(),
-                "{name}: dialogue line order differs"
-            );
-            if h.flags != 0 && !(box_style == 5 && h.flags == 3) {
-                return Ok(ItemImport::Unsupported(format!(
-                    "{name}: dialogue line {} requires additional behavior (flags {:#04x})",
-                    h.ordinal, h.flags
-                )));
-            }
-            let layout = s
-                .pointer(a, 16)?
-                .map(|address| -> Result<DialogueLineLayout> {
-                    let value: LineLayoutWire = wire(s.bytes(address, 16)?)?;
-                    Ok(DialogueLineLayout {
-                        alignment: value.alignment,
-                        offset: value.offset,
-                    })
-                })
-                .transpose()?;
-            if let Some(layout) = &layout
-                && (box_style != 4 || layout.alignment.iter().any(|v| *v > 2))
-            {
-                return Ok(ItemImport::Unsupported(format!(
-                    "{name}: unsupported line drawing layout {layout:?}"
-                )));
-            }
-            let mut spans = Vec::new();
-            let mut span = s.pointer(a, 4)?;
-            let mut span_seen = BTreeSet::new();
-            while let Some(a) = span {
-                ensure!(
-                    span_seen.insert(a) && spans.len() < 64,
-                    "cyclic/excessive dialogue spans"
-                );
-                let h: SpanWire = wire(s.bytes(a, 16)?)?;
-                let font = s.required(a, 12)?;
-                if !self.fonts.contains(&font) {
+        let answer_table = s.required(item, 4)?;
+        let mut callback = None;
+        let mut answers = Vec::new();
+        if question {
+            for index in 0..usize::from(h.answers) {
+                let answer = s.required(answer_table, index * 4)?;
+                let wire: AnswerWire = wire(s.bytes(answer, 80)?)?;
+                // Only plain choices: no cost/AnswerBad, state or channel
+                // effects, icon, chained item or substitute font.
+                let font = s.pointer(answer, 12)?;
+                let mut unsupported = Vec::new();
+                if wire.stock_lists != [0; 2] {
+                    unsupported.push("inventory cost");
+                }
+                if wire.states != [0; 2] {
+                    unsupported.push("state");
+                }
+                if wire.channels != [0; 2] {
+                    unsupported.push("channel");
+                }
+                if wire.icon != -2 {
+                    unsupported.push("icon");
+                }
+                if font.is_some_and(|font| font != self.fonts[0]) {
+                    unsupported.push("font");
+                }
+                if !unsupported.is_empty() {
                     return Ok(ItemImport::Unsupported(format!(
-                        "{name}: dialogue span uses an unpromoted font"
+                        "{name}: answer {index} {} behavior is not represented",
+                        unsupported.join("/")
                     )));
                 }
-                spans.push(DialogueSpan {
-                    text: s.pointer(a, 4)?.map(|a| string(s, a)).transpose()?,
-                    offset: h.offset,
-                    emphasis: font == self.fonts[1],
+                let lines = match self.lines(s.pointer(answer, 40)?, &name, h.box_style)? {
+                    Ok(lines) if !lines.is_empty() => lines,
+                    Ok(_) => {
+                        return Ok(ItemImport::Unsupported(format!(
+                            "{name}: textless answer {index} in a question is not represented"
+                        )));
+                    }
+                    Err(reason) => return Ok(ItemImport::Unsupported(reason)),
+                };
+                let completion = match self.callback(answer, actor, &owner, &name)? {
+                    Ok(value) => value,
+                    Err(reason) => return Ok(ItemImport::Unsupported(reason)),
+                };
+                let item_name =
+                    |address: Address| -> Result<String> { string(s, s.required(address, 24)?) };
+                let next = s.pointer(answer, 24)?.map(item_name).transpose()?;
+                let count = wire.result_mapping[0] as usize;
+                ensure!(count <= 16, "{name}: excessive AnswerBad mapping");
+                let mut shortfall = Vec::new();
+                if count > 0 {
+                    let table = s.required(answer, 68)?;
+                    for entry in 0..count {
+                        let code = s.bytes(add(table, entry * 8), 1)?[0];
+                        shortfall.push((code, item_name(s.required(table, entry * 8 + 4)?)?));
+                    }
+                }
+                answers.push(DialogueAnswer {
+                    lines,
+                    completion,
+                    voice: self.voice(s.pointer(answer, 60)?)?,
+                    one_shot: wire.one_shot != 0,
+                    gold: wire.gold,
+                    next,
+                    shortfall,
                 });
-                span = s.pointer(a, 0)?;
             }
-            lines.push(DialogueLine {
-                layout,
-                spans,
-                justification: h.justification,
-                end_seconds: h.end_seconds,
-                flags: h.flags,
-            });
-            line = s.pointer(a, 0)?;
+        } else {
+            let answer = s.required(answer_table, 0)?;
+            let answer_wire: AnswerWire = wire(s.bytes(answer, 80)?)?;
+            if answer_wire.next != 0 || answer_wire.text != 0 || answer_wire.icon != -2 {
+                return Ok(ItemImport::Unsupported(format!(
+                    "{name}: answer text, branching or icon behavior is not represented"
+                )));
+            }
+            if h.box_style == 5
+                && (answer_wire.stock_lists != [0; 2]
+                    || answer_wire.states != [0; 2]
+                    || answer_wire.channels != [0; 2]
+                    || answer_wire._voice != 0
+                    || answer_wire.result_mapping != [0; 2]
+                    || answer_wire.gold != 0)
+            {
+                return Ok(ItemImport::Unsupported(format!(
+                    "{name}: style5 answer side effects require additional dialogue semantics"
+                )));
+            }
+            callback = match self.callback(answer, actor, &owner, &name)? {
+                Ok(value) => value,
+                Err(reason) => return Ok(ItemImport::Unsupported(reason)),
+            };
         }
+        let lines = match self.lines(s.pointer(item, 12)?, &name, h.box_style)? {
+            Ok(lines) => lines,
+            Err(reason) => return Ok(ItemImport::Unsupported(reason)),
+        };
         if lines.is_empty() {
             return Ok(ItemImport::Unsupported(format!(
                 "{name}: textless dialogue behavior is not represented"
             )));
         }
-        let voice = s
-            .pointer(item, 48)?
-            .map(|a| {
-                self.sounds
-                    .events
-                    .get(&add(a, 12))
-                    .cloned()
-                    .context("dialogue voice lacks localized SND binding")
-            })
-            .transpose()?
-            .flatten();
+        if question {
+            // 0056cb10 appends the answers to the last page's rows (nothing
+            // guards a full page). A finite deadline there would let the
+            // speech clock select answer 0 (0056c2d0 mode 1 -> 0056c690).
+            let last = (lines.len() - 1) % 6 + 1;
+            let times: Vec<f32> = lines[lines.len() - last..]
+                .iter()
+                .map(|l| l.end_seconds)
+                .collect();
+            if times.iter().any(|t| *t < 3.0e38) {
+                return Ok(ItemImport::Unsupported(format!(
+                    "{name}: timed question page (times {times:?}) is not represented"
+                )));
+            }
+        }
+        let voice = self.voice(s.pointer(item, 48)?)?;
         // Style 5 pages at six rows, null padding included (dialogue_item.gd):
         // pickup messages such as potion_bleue run to two pages.
         if h.box_style == 5
@@ -522,9 +514,157 @@ impl ItemDecoder<'_> {
             voice,
             completion: callback,
             presentation: Some(self.presentation.clone()),
+            answers,
         };
         value.validate()?;
-        Ok(ItemImport::Supported(value))
+        Ok(ItemImport::Supported(Box::new(value)))
+    }
+
+    fn voice(&self, sound: Option<Address>) -> Result<Option<SoundEventLink>> {
+        Ok(sound
+            .map(|a| {
+                self.sounds
+                    .events
+                    .get(&add(a, 12))
+                    .cloned()
+                    .context("dialogue voice lacks localized SND binding")
+            })
+            .transpose()?
+            .flatten())
+    }
+
+    /// Answer+0x1c: the owner's normal behavior stored as the pending callback.
+    fn callback(
+        &self,
+        answer: Address,
+        actor: Address,
+        owner: &AssetRef<Perso>,
+        name: &str,
+    ) -> Result<std::result::Result<Option<BehaviorRef>, String>> {
+        let s = self.source;
+        let Some(target) = s.pointer(answer, 28)? else {
+            return Ok(Ok(None));
+        };
+        let brain = s.required(actor, 16)?;
+        let mind = s.required(brain, 0)?;
+        let model = s.required(mind, 0)?;
+        let set = s.required(model, 0)?;
+        let raw: SetWire = wire(s.bytes(set, 16)?)?;
+        let entries = s.required(set, 0)?;
+        ensure!(
+            target.owner == entries.owner
+                && target.key == entries.key
+                && target.offset >= entries.offset
+                && (target.offset - entries.offset).is_multiple_of(12),
+            "dialogue callback misses normal behavior table"
+        );
+        let behavior = (target.offset - entries.offset) / 12;
+        ensure!(
+            behavior < raw.count as usize,
+            "dialogue behavior index out of range"
+        );
+        let Some(brain) = self
+            .scene
+            .persos
+            .iter()
+            .find(|p| p.path == owner.path)
+            .and_then(|p| p.brain.as_ref())
+        else {
+            return Ok(Err(format!(
+                "{name}: completion callback owner lacks an imported Brain"
+            )));
+        };
+        let reference = BehaviorRef {
+            model: brain.model.clone(),
+            group: BehaviorGroup::Normal,
+            behavior: behavior.try_into()?,
+        };
+        reference.validate_model(
+            self.scene
+                .ai_models
+                .iter()
+                .find(|m| m.path == reference.model.path)
+                .context("dialogue callback model missing")?,
+        )?;
+        Ok(Ok(Some(reference)))
+    }
+
+    /// An ItemText or AnswerText line list.
+    fn lines(
+        &self,
+        head: Option<Address>,
+        name: &str,
+        box_style: u8,
+    ) -> Result<std::result::Result<Vec<DialogueLine>, String>> {
+        let s = self.source;
+        let mut lines = Vec::new();
+        let mut line = head;
+        let mut line_seen = BTreeSet::new();
+        while let Some(a) = line {
+            ensure!(
+                line_seen.insert(a) && lines.len() < 1024,
+                "cyclic/excessive dialogue lines"
+            );
+            let h: LineWire = wire(s.bytes(a, 28)?)?;
+            ensure!(
+                h.ordinal as usize == lines.len(),
+                "{name}: dialogue line order differs"
+            );
+            if h.flags != 0 && !(box_style == 5 && h.flags == 3) {
+                return Ok(Err(format!(
+                    "{name}: dialogue line {} requires additional behavior (flags {:#04x})",
+                    h.ordinal, h.flags
+                )));
+            }
+            let layout = s
+                .pointer(a, 16)?
+                .map(|address| -> Result<DialogueLineLayout> {
+                    let value: LineLayoutWire = wire(s.bytes(address, 16)?)?;
+                    Ok(DialogueLineLayout {
+                        alignment: value.alignment,
+                        offset: value.offset,
+                    })
+                })
+                .transpose()?;
+            if let Some(layout) = &layout
+                && (box_style != 4 || layout.alignment.iter().any(|v| *v > 2))
+            {
+                return Ok(Err(format!(
+                    "{name}: unsupported line drawing layout {layout:?}"
+                )));
+            }
+            let mut spans = Vec::new();
+            let mut span = s.pointer(a, 4)?;
+            let mut span_seen = BTreeSet::new();
+            while let Some(a) = span {
+                ensure!(
+                    span_seen.insert(a) && spans.len() < 64,
+                    "cyclic/excessive dialogue spans"
+                );
+                let h: SpanWire = wire(s.bytes(a, 16)?)?;
+                let font = s.required(a, 12)?;
+                if !self.fonts.contains(&font) {
+                    return Ok(Err(format!(
+                        "{name}: dialogue span uses an unpromoted font"
+                    )));
+                }
+                spans.push(DialogueSpan {
+                    text: s.pointer(a, 4)?.map(|a| string(s, a)).transpose()?,
+                    offset: h.offset,
+                    emphasis: font == self.fonts[1],
+                });
+                span = s.pointer(a, 0)?;
+            }
+            lines.push(DialogueLine {
+                layout,
+                spans,
+                justification: h.justification,
+                end_seconds: h.end_seconds,
+                flags: h.flags,
+            });
+            line = s.pointer(a, 0)?;
+        }
+        Ok(Ok(lines))
     }
 }
 

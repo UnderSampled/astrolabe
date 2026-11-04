@@ -15,6 +15,20 @@ const SOURCE_EMPHASIS_OFFSET: float = 0.009999999776482582
 @export var center: Texture2D
 @export var side: Texture2D
 @export var continuation: Texture2D
+## Third DLG root font: the four offset copies under a selected answer.
+@export var selection_color: Color = Color(0.1, 0.1, 0.8)
+## Stencil 5, beside each row of the selected answer.
+@export var bullet: Texture2D
+## 0056c8e0: answer rows are drawn 0.5 units right of the body text.
+const SOURCE_ANSWER_INDENT: float = 0.5
+
+func answer_indent() -> float:
+    return SOURCE_ANSWER_INDENT * SOURCE_SCALE
+
+## 0056c8e0 places the bullet sprite's top-left in screen pixels from the box
+## origin, with its own 20.5 px row step.
+func bullet_origin(row: int) -> Vector2:
+    return Vector2(40.0, row * 20.5 + 35.0)
 
 func continuation_origin(dialog_position: Vector2, box: int, viewport_size: Vector2) -> Vector2:
     # 0056d5c0 anchors cinematic arrows to the viewport, independently of

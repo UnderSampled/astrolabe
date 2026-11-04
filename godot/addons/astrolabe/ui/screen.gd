@@ -2,6 +2,7 @@ extends CanvasLayer
 ## One presentation owner per active level; authored parents may adopt content.
 signal widescreen_changed(enabled: bool)
 signal locale_fallback(requested: String, selected: String)
+const StandInReport = preload("res://addons/astrolabe/behavior/stand_in_report.gd")
 @export var dialogue_items: Array[Resource] = []
 @export var adopt_parent_screen: bool = true
 @export_node_path("Node") var actor_path: NodePath
@@ -74,6 +75,8 @@ func _ready() -> void:
                     return
             ancestor = ancestor.get_parent()
     dialogue.completed.connect(_dialogue_completed)
+    dialogue.answer_selected.connect(_answer_selected)
+    dialogue.chain_requested.connect(_chain_dialog)
     location_title.completed.connect(_dialogue_completed)
     get_viewport().size_changed.connect(_layout)
     _register_catalogues()
@@ -210,15 +213,9 @@ func source_position_dialog(x: float, y: float) -> void:
 
 func source_run_dialog(identity: String, run_mode: int, caller: Node = null) -> bool:
     if is_instance_valid(adopted_screen): return adopted_screen.source_run_dialog(identity, run_mode, caller)
-    var selected: Resource
-    var requested: String = TranslationServer.get_locale().get_slice("_", 0)
-    for value in dialogue_items:
-        if value.identity.to_lower() != identity.to_lower(): continue
-        if value.locale == requested:
-            selected = value
-            break
-        if value.locale == "en": selected = value
+    var selected := _dialogue_item(identity)
     if selected == null: return false
+    var requested: String = TranslationServer.get_locale().get_slice("_", 0)
     # 00543c00 overwrites the active DLG owner with the executing actor. The
     # saved owner remains useful conversion metadata and an authored default.
     var actor: Node = _actor(selected.owner_identity) if caller == null else caller.get_parent()
@@ -247,6 +244,32 @@ func source_run_dialog(identity: String, run_mode: int, caller: Node = null) -> 
     completion_normal = selected.completion_normal
     if selected.locale != requested: locale_fallback.emit(requested, selected.locale)
     return true
+
+func _dialogue_item(identity: String) -> Resource:
+    var selected: Resource
+    var requested: String = TranslationServer.get_locale().get_slice("_", 0)
+    for value in dialogue_items:
+        if value.identity.to_lower() != identity.to_lower(): continue
+        if value.locale == requested: return value
+        if value.locale == "en": selected = value
+    return selected
+
+## 0056e3b0 stores {owner, answer comportment} when an answer is chosen; a
+## following item's own completion replaces it when that item ends.
+func _answer_selected(answer: Resource) -> void:
+    completion_pending = false
+    completion_model = str(dialogue.item.completion_model)
+    completion_normal = int(answer.completion_normal)
+
+func _chain_dialog(identity: String) -> void:
+    var selected := _dialogue_item(identity)
+    if selected == null or not dialogue.chain(selected):
+        StandInReport.reached(self, "guard", "dialogue answer continues with unavailable item " + identity)
+        dialogue.end()
+        return
+    completion_pending = false
+    completion_model = selected.completion_model
+    completion_normal = selected.completion_normal
 
 func source_scroll_dialog(direction: int) -> void:
     if is_instance_valid(adopted_screen): adopted_screen.source_scroll_dialog(direction)

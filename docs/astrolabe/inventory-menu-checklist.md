@@ -83,8 +83,14 @@ through bindings and sprite lookups.
 - [ ] Box 1 text after the anchor fix not re-captured; page timing not compared.
 - [ ] The 520 and 508-byte gaps between font/frame records in 19:1: probably
   frame or box parameters we have not mapped.
-- [ ] Branching answers, item icons and channel effects in dialogue items:
-  coverage debt in the 67-item catalogue (see ui.md).
+- [x] Question items (Wellet, Zatila): answers follow the last body row, indented
+  0.5 units, the selected one in the third root font's blue halo with the bullet stencil;
+  Button_Up/Down scroll (wrapping, answer page only), Button_Hit chooses; gold cost,
+  AnswerBad and AnswerNext continue in the same box, which reopens with its fade
+  (notes/research/dialogue-answers.md; take 583-591 s). Scroll/cash sounds are the
+  `dialogue-ui-sound` stand-in; a faint dark fringe stays on the halo.
+- [ ] Item icons, channel/state effects, inventory costs and one-shot answers in real
+  data (none in Manoir or Brigand); the monastery plaque's centred layout.
 
 ## Main and pause menus
 
