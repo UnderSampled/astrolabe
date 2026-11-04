@@ -144,3 +144,19 @@ Corrections and conclusions:
     - 0x44edc0 is referenced as an immediate at VA 0x44ecd0.
     - 00449cd0's address is stored in .data at VA 0x5e9fe4, a callback table.
   - Who fills those counters and reads 0x5e9fe4 is the start/wake caller still to find.
+
+## Symptom 4: bulk live start flags at arrival (second pass)
+
+Private original, manor save, `navigate_level brigand`, 5 s later. The data is mind+0x10 for every
+perso with a brain: 136 brains, 27 started. Raw rows are in brigand-arrival-started-live.json.
+- Started: 0 Hype; 1 Global; 2 StdCamer; 3 IWorld_Brigand; 14 I_Brigand_Drawbridge; 22 iHypeStatue; 23 I_Brigand_Zatila_1; 42 iDummy_PourCercles; 43 I_Dummy_Brigand_Gogood_Load; 44 I_Brigand_Dummy_Dragon; 69 iDummy_PourBarils; 119 I_Brigand_PJ_Wolf2; 120 I_Brigand_PJ_Wolf1; 121 I_Dummy_Brigand_Gaurd_Fall_3; 123 iDummy_Brigand_Texte; 125 iNid_Abeilles_Brigand1_2; 127 iNid_Abeilles_Brigand1_1; 134 iHerbeVertes_Upgrade; 178 iKid_CourseBrigand; 179 iEcureuil_Brigand1; 192 i_Gogood_Brigand_Carte; 193 iEventPourHype; 194 iDummy_PourNids; 195 iDummyAmbSon_Brigand1; 196 iDummyAmbSon2_Brigand1; 197 iDummyAmbSon2_Brigand1_Vent; 198 I_sounddummy_brigand_Picbois.
+- Idle (never entered a behavior) include 181, all bats and their dummy 51, the boars, the logs,
+  Maliq and the thieves, the course markers and most hives.
+- Not sector: 123 (started) and the bats (idle) stand together in sector 11, and 178 (started)
+  and 122 (idle) share sector 18.
+- Not the StandardGame bytes (+0x1b to +0x29), and not the exported mechanics-card flag.
+- 123 and 178 have no external ChangeComport writer, so they started by themselves at load.
+- Remaining for the 181 fix: find the engine routine that starts a character's AI at level load
+  and the per-perso input it tests. Candidates are the 00443080 activation callers listed above.
+  Then export that input and gate Brain start on it. A sector or radius stand-in would contradict
+  this table.
