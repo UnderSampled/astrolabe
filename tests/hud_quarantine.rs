@@ -23,6 +23,7 @@ fn legacy_hud() -> Result<HudPresentation> {
         panels: Vec::new(),
         source_textures: std::array::from_fn(|_| None),
         artwork: Vec::new(),
+        magic: None,
         currency_source_object: None,
         currency_item_id: None,
         currency_font: None,

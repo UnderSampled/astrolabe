@@ -94,7 +94,12 @@ fn raw207_roundtrips_and_dispatches_to_the_bound_target_brain() -> Result<()> {
             .contains("str(change_brain_0.get(\"source_model_path\")) != \"fix:/ai/models/28\"")
     );
     assert!(generated.contains("change_brain_0.call(\"change_normal\", 50, false)"));
-    assert!(generated.contains("source control-status semantics are unresolved"));
+    // A self request for another model's behavior fails closed (e0bfdb7);
+    // one for this model's applies like ChangeBehavior.
+    assert!(
+        generated
+            .contains("requires a different target actor with a Brain using fix:/ai/models/28")
+    );
     assert!(!generated.contains("unsupported AI statement category 4 operation 207"));
     Ok(())
 }
@@ -198,7 +203,9 @@ fn self_target_raw207_stays_typed_but_codegen_fails_closed() -> Result<()> {
     let compiled = godot::ai::compile(&model(statement)?, &[])?;
     assert!(compiled.contains("if change_actor_0 == character():"));
     assert!(compiled.contains("fail_unsupported("));
-    assert!(compiled.contains("source control-status semantics are unresolved"));
+    assert!(
+        compiled.contains("requires a different target actor with a Brain using fix:/ai/models/28")
+    );
     assert!(compiled.contains("change_brain_0.call(\"change_normal\", 50, false)"));
     Ok(())
 }

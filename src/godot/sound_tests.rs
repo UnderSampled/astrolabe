@@ -905,10 +905,22 @@ fn theme_natural_sequence_follows_source_repeat_groups() -> Result<()> {
         loops,
         transition_duration: 0.0,
     };
-    let parts = [part(false, false, 0), part(true, false, 1), part(false, true, 0), part(false, false, 0)];
-    assert_eq!(theme_natural_sequence(&parts, 1)?, (vec![0, 1, 2, 1, 2, 3], 1));
+    let parts = [
+        part(false, false, 0),
+        part(true, false, 1),
+        part(false, true, 0),
+        part(false, false, 0),
+    ];
+    assert_eq!(
+        theme_natural_sequence(&parts, 1)?,
+        (vec![0, 1, 2, 1, 2, 3], 1)
+    );
     // No groups: the plain order, cycling to the loop entry.
-    let plain = [part(false, false, 0), part(false, false, 0), part(false, false, 0)];
+    let plain = [
+        part(false, false, 0),
+        part(false, false, 0),
+        part(false, false, 0),
+    ];
     assert_eq!(theme_natural_sequence(&plain, 1)?, (vec![0, 1, 2], 1));
     Ok(())
 }

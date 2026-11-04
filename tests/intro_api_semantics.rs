@@ -51,7 +51,7 @@ fn first_visit_actor_calls_and_signed_point_turn_reconstruct_source_and_rete() -
                 ])),
                 frames: Expression::Integer(-3),
             },
-            Statement::GoToNextWaypoint(1),
+            Statement::GoToNextWaypoint(astrolabe::model::ai::RouteSlot::Slot(1)),
             Statement::GoToPosition {
                 point: Expression::ActorPosition(ActorTarget::Reference(actor.clone())),
                 radius: Expression::Real(1.),

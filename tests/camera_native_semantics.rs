@@ -135,9 +135,17 @@ fn manor_connected_camera_slice_preserves_shots_and_handoff() -> Result<()> {
                             continue;
                         };
                         match statement {
-                            Statement::CameraChangeTargetedPerso { camera, .. }
-                            | Statement::CameraResetTargetedPerso { camera }
-                            | Statement::CameraChangeState { camera, .. } => {
+                            Statement::CameraChangeTargetedPerso {
+                                camera: astrolabe::model::ai::ActorTarget::Reference(camera),
+                                ..
+                            }
+                            | Statement::CameraResetTargetedPerso {
+                                camera: astrolabe::model::ai::ActorTarget::Reference(camera),
+                            }
+                            | Statement::CameraChangeState {
+                                camera: astrolabe::model::ai::ActorTarget::Reference(camera),
+                                ..
+                            } => {
                                 ensure!(camera.path.as_str() == "level:/persos/world/0/2");
                                 imported.load(camera)?;
                             }

@@ -83,14 +83,17 @@ func run() -> void:
     if not require(typeof(alpha) == TYPE_FLOAT and is_equal_approx(float(alpha), 0.375), "selector 0 did not read the same raw +0x44 value observed by selector 1"): return
     var nonzero_window_edge: Variant = camera.call("_source_clamp_mode_zero_angle", PI, 0.0, float(alpha))
     if not require(typeof(nonzero_window_edge) == TYPE_FLOAT and absf(float(nonzero_window_edge) - 0.3751) < 0.000001, "nonzero raw shift alpha did not reach the existing radians-window consumer unchanged"): return
-    camera.source_shift_alpha = 0.0
+    # 0053d300: selector 1 reads the current parameters, selector 0 the
+    # initial ones (78a8f4f); field 5 is the current +0x44 writer.
+    camera.call("_source_set_angle_field", 5, 0.0)
     alpha = actor.call("source_camera_get_shift_alpha", 1)
     if not require(typeof(alpha) == TYPE_FLOAT and float(alpha) == 0.0, "Function_Camera_GetShiftAlpha did not return source zero unchanged"): return
-    alpha = actor.call("source_camera_get_shift_alpha", 0)
-    if not require(typeof(alpha) == TYPE_FLOAT and float(alpha) == 0.0, "selector 0 did not return the raw zero +0x44 value"): return
     var zero_window_edge: Variant = camera.call("_source_clamp_mode_zero_angle", PI, 0.0, float(alpha))
     if not require(typeof(zero_window_edge) == TYPE_FLOAT and float(zero_window_edge) == 0.0, "zero raw shift alpha did not reach the existing radians-window consumer unchanged"): return
-    camera.source_shift_alpha = 0.375
+    var initial_alpha: Variant = actor.call("source_camera_get_shift_alpha", 0)
+    var expected_initial: float = camera.initial_framing.yaw_limits.y if camera.initial_framing != null else 0.0
+    if not require(typeof(initial_alpha) == TYPE_FLOAT and float(initial_alpha) == expected_initial, "selector 0 did not read the initial +0x44 value"): return
+    camera.call("_source_set_angle_field", 5, 0.375)
     if not require(actor.call("source_camera_get_shift_alpha", 2) == null, "unsupported camera selector did not fail closed"): return
     var original_shift_teta: float = camera.mode_zero_pitch_limits.y
     var shift_teta: Variant = actor.call("source_camera_get_shift_teta", 1)
@@ -98,13 +101,13 @@ func run() -> void:
     camera.mode_zero_pitch_limits.y = 0.375
     shift_teta = actor.call("source_camera_get_shift_teta", 1)
     if not require(typeof(shift_teta) == TYPE_FLOAT and is_equal_approx(float(shift_teta), 0.375), "Function_Camera_GetShiftTeta clamped or changed a nonzero +0x4c value"): return
-    shift_teta = actor.call("source_camera_get_shift_teta", 0)
-    if not require(typeof(shift_teta) == TYPE_FLOAT and is_equal_approx(float(shift_teta), 0.375), "selector 0 did not read the raw nonzero +0x4c value"): return
     camera.mode_zero_pitch_limits.y = 0.0
     shift_teta = actor.call("source_camera_get_shift_teta", 1)
     if not require(typeof(shift_teta) == TYPE_FLOAT and float(shift_teta) == 0.0, "Function_Camera_GetShiftTeta did not return source zero unchanged"): return
+    # Selector 0 reads the initial parameters, unchanged by these writes.
+    var expected_initial_teta: float = camera.initial_framing.pitch_limits.y if camera.initial_framing != null else 0.0
     shift_teta = actor.call("source_camera_get_shift_teta", 0)
-    if not require(typeof(shift_teta) == TYPE_FLOAT and float(shift_teta) == 0.0, "selector 0 did not return the raw zero +0x4c value"): return
+    if not require(typeof(shift_teta) == TYPE_FLOAT and float(shift_teta) == expected_initial_teta, "selector 0 did not read the initial +0x4c value"): return
     camera.mode_zero_pitch_limits.y = original_shift_teta
     if not require(actor.call("source_camera_get_shift_teta", 2) == null, "unsupported ShiftTeta selector did not fail closed"): return
     if not require(camera.global_position.is_equal_approx(Vector3(3,2,-4)), "saved camera placement differs"): return

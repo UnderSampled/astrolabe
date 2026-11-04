@@ -467,6 +467,7 @@ fn preserve_script(
     Ok(nodes)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn decode_script(
     s: &SourceSession,
     sounds: &SoundSites,
@@ -609,6 +610,7 @@ fn decode_script(
         }
     }
 }
+#[allow(clippy::too_many_arguments)]
 fn decode_set(
     s: &SourceSession,
     sounds: &SoundSites,
@@ -728,6 +730,7 @@ fn designer_layout(s: &SourceSession, model: Address) -> Result<DesignerLayout> 
         fields: infos,
     })
 }
+#[allow(clippy::too_many_arguments)]
 fn values(
     s: &SourceSession,
     states: &BTreeMap<Address, StateRef>,
@@ -797,14 +800,16 @@ fn values(
                         .transpose()
                 },
                 |target| {
-                    let Some(target) = target else { return Ok(None) };
+                    let Some(target) = target else {
+                        return Ok(None);
+                    };
                     if let Some(actor) = actors.get(&target) {
                         return Ok(Some(actor.clone()));
                     }
                     // Level designer actor values may hold the actor's
                     // SuperObject rather than its Perso (e.g. a Brigand wolf's
                     // partner): a type-4 SuperObject links its Perso at +4.
-                    if s.bytes(target, 4)?.as_ref() == 4u32.to_le_bytes().as_slice()
+                    if s.bytes(target, 4)? == 4u32.to_le_bytes().as_slice()
                         && let Some(perso) = s.pointer(target, 4)?
                     {
                         return Ok(actors.get(&perso).cloned());
@@ -1199,14 +1204,32 @@ pub(super) fn import(
                 "designer memory refers to another definition"
             );
             if let Some(a) = s.pointer(mem, 8)? {
-                memory = values(s, states, actors, &behavior_index, result, a, infos, h.length as usize)
-                    .with_context(|| format!("AI model {path} current designer memory"))?;
+                memory = values(
+                    s,
+                    states,
+                    actors,
+                    &behavior_index,
+                    result,
+                    a,
+                    infos,
+                    h.length as usize,
+                )
+                .with_context(|| format!("AI model {path} current designer memory"))?;
             }
             initial = s
                 .pointer(mem, 4)?
                 .map(|a| {
-                    values(s, states, actors, &behavior_index, result, a, infos, h.length as usize)
-                        .with_context(|| format!("AI model {path} initial designer memory"))
+                    values(
+                        s,
+                        states,
+                        actors,
+                        &behavior_index,
+                        result,
+                        a,
+                        infos,
+                        h.length as usize,
+                    )
+                    .with_context(|| format!("AI model {path} initial designer memory"))
                 })
                 .transpose()?;
         }

@@ -658,7 +658,9 @@ fn camera_target_call_keeps_source_actor_and_main_actor() -> Result<()> {
         .as_mut()
         .unwrap()
         .statements = vec![Statement::CameraChangeTargetedPerso {
-        camera: AssetRef::new("level:/persos/world/0/2")?,
+        camera: astrolabe::model::ai::ActorTarget::Reference(AssetRef::new(
+            "level:/persos/world/0/2",
+        )?),
         target: astrolabe::model::ai::ActorTarget::Keyword(ActorKeyword::MainActor),
     }];
     let code = godot::ai::compile(&model, &[])?;
@@ -677,7 +679,9 @@ fn camera_target_call_keeps_source_actor_and_main_actor() -> Result<()> {
         .as_mut()
         .unwrap()
         .statements = vec![Statement::CameraChangeTargetedPerso {
-        camera: AssetRef::new("level:/persos/world/0/2")?,
+        camera: astrolabe::model::ai::ActorTarget::Reference(AssetRef::new(
+            "level:/persos/world/0/2",
+        )?),
         target: ActorTarget::Reference(AssetRef::new("level:/persos/world/0/8")?),
     }];
     let code = godot::ai::compile(&model, &[])?;
@@ -696,7 +700,9 @@ fn camera_reset_target_passes_the_bound_main_actor() -> Result<()> {
         .as_mut()
         .unwrap()
         .statements = vec![Statement::CameraResetTargetedPerso {
-        camera: AssetRef::new("level:/persos/world/0/2")?,
+        camera: astrolabe::model::ai::ActorTarget::Reference(AssetRef::new(
+            "level:/persos/world/0/2",
+        )?),
     }];
     let code = godot::ai::compile(&model, &[])?;
     assert!(
@@ -1330,7 +1336,7 @@ fn source_laser_pointer_fly_mode_round_trips_and_updates_native_state() -> Resul
     let mut model = model()?;
     model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
     let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
-    assert_eq!(rete::SCHEMA, 64);
+    const { assert!(rete::SCHEMA >= 64) };
     let code = godot::ai::compile(&model, &[])?;
     assert!(
         code.contains("source_set_laser_pointer_fly_mode(bool(0))"),

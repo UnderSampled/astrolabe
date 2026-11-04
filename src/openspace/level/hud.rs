@@ -558,8 +558,16 @@ pub(crate) fn import(
             Ok(format!("Magic{}", std::str::from_utf8(&raw[..end])?))
         };
         crate::model::hud::HudMagic {
-            slot_overlay: gli(u32_at(&gpt, gpt_offset + 0x70)?, 12, HudTextureRole::MagicSlotOverlay)?,
-            points_arc: gli(u32_at(&gpt, gpt_offset + 0x78)?, 14, HudTextureRole::MagicPointsArc)?,
+            slot_overlay: gli(
+                u32_at(&gpt, gpt_offset + 0x70)?,
+                12,
+                HudTextureRole::MagicSlotOverlay,
+            )?,
+            points_arc: gli(
+                u32_at(&gpt, gpt_offset + 0x78)?,
+                14,
+                HudTextureRole::MagicPointsArc,
+            )?,
             slot_kinds: [suffix(0)?, suffix(10)?, suffix(20)?],
             slot_rows: [bytes[0x1e], bytes[0x1f], bytes[0x20]],
         }

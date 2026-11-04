@@ -45,7 +45,11 @@ pub(super) fn export_route(
         })
     };
     let supported = points.iter().all(|p| p.relative_actor.is_none())
-        && route.links.iter().enumerate().all(|(i, link)| link_ok(i, link));
+        && route
+            .links
+            .iter()
+            .enumerate()
+            .all(|(i, link)| link_ok(i, link));
     let point_supported = points
         .iter()
         .map(|p| if p.relative_actor.is_none() { "1" } else { "0" })
@@ -85,13 +89,26 @@ pub(super) fn export_route(
     let rates = route
         .links
         .iter()
-        .map(|l| l.as_ref().and_then(|l| l.curve.as_ref()).map_or(0, |c| c.rate).to_string())
+        .map(|l| {
+            l.as_ref()
+                .and_then(|l| l.curve.as_ref())
+                .map_or(0, |c| c.rate)
+                .to_string()
+        })
         .collect::<Vec<_>>();
-    writeln!(project.builder, "    {id}.link_rates = PackedByteArray([{}])", rates.join(", "))?;
+    writeln!(
+        project.builder,
+        "    {id}.link_rates = PackedByteArray([{}])",
+        rates.join(", ")
+    )?;
     for (index, link) in route.links.iter().enumerate() {
         let curve = format!("{id}_link_{index}");
         writeln!(project.builder, "    var {curve} := Curve3D.new()")?;
-        if let Some(shape) = link.as_ref().and_then(|l| l.curve.as_ref()).map(|c| &c.shape) {
+        if let Some(shape) = link
+            .as_ref()
+            .and_then(|l| l.curve.as_ref())
+            .map(|c| &c.shape)
+        {
             for (point, handle_in, handle_out) in link_curve_points(shape) {
                 writeln!(
                     project.builder,
@@ -186,17 +203,18 @@ fn link_curve_points(shape: &RouteCurveShape) -> Vec<([f32; 3], [f32; 3], [f32; 
             end,
             start_vector,
             end_vector,
-        } => vec![
-            (start, [0.0; 3], start_vector),
-            (end, end_vector, [0.0; 3]),
-        ],
+        } => vec![(start, [0.0; 3], start_vector), (end, end_vector, [0.0; 3])],
         RouteCurveShape::CircleArc { start, end, centre } => {
             let f = |v: [f32; 3]| v.map(f64::from);
             let (start, end, centre) = (f(start), f(end), f(centre));
             let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
             let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
             let cross = |a: [f64; 3], b: [f64; 3]| {
-                [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+                [
+                    a[1] * b[2] - a[2] * b[1],
+                    a[2] * b[0] - a[0] * b[2],
+                    a[0] * b[1] - a[1] * b[0],
+                ]
             };
             let norm = |a: [f64; 3]| {
                 let l = dot(a, a).sqrt();
@@ -251,7 +269,10 @@ mod tests {
             for t in [0.25f32, 0.5, 0.75] {
                 let u = 1.0 - t;
                 let point = [0, 1, 2].map(|i| {
-                    u * u * u * p0.0[i] + 3.0 * u * u * t * c1[i] + 3.0 * u * t * t * c2[i] + t * t * t * p1.0[i]
+                    u * u * u * p0.0[i]
+                        + 3.0 * u * u * t * c1[i]
+                        + 3.0 * u * t * t * c2[i]
+                        + t * t * t * p1.0[i]
                 });
                 let radius = point.iter().map(|x| x * x).sum::<f32>().sqrt();
                 assert!((radius - 2.0).abs() < 0.002, "{radius}");

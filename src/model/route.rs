@@ -134,7 +134,12 @@ impl Content for Route {
                     RouteCurveShape::CircleArc { .. } => 3,
                 };
                 let points: Vec<[f32; 3]> = match curve.shape {
-                    RouteCurveShape::Bezier { start, end, start_vector, end_vector } => {
+                    RouteCurveShape::Bezier {
+                        start,
+                        end,
+                        start_vector,
+                        end_vector,
+                    } => {
                         vec![start, end, start_vector, end_vector]
                     }
                     RouteCurveShape::CircleArc { start, end, centre } => vec![start, end, centre],

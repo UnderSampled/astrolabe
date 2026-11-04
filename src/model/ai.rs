@@ -344,7 +344,9 @@ pub enum Statement {
     /// Meta25 Action_GoToWP: its update 0054b110 recomputes the waypoint's
     /// location (WP_fnv_WayPoint_ComputeLocation) and reads its radius on every
     /// update, then moves as GoToPosition does (0054a960).
-    GoToWaypoint { waypoint: Expression },
+    GoToWaypoint {
+        waypoint: Expression,
+    },
     /// Meta2 captures an actor and radius once, then follows that actor's
     /// current origin through the same contact movement as GoToPosition.
     PursueActor {
@@ -491,7 +493,9 @@ pub enum Statement {
     SetParticleGenerator(AssetRef<super::particle::ParticleGenerator>),
     /// Proc_TurnUp (true) or Proc_TurnDown: 00540220 posts dynamics event 1
     /// or 2 to the caller's dynamics for its mechanics update to interpret.
-    TurnVertical { up: bool },
+    TurnVertical {
+        up: bool,
+    },
     /// Original laser-pointer presentation is global; aiming reads its last
     /// target independently of whether the pointer is visible.
     SetLaserPointerActive(bool),
@@ -842,7 +846,9 @@ pub enum Expression {
     /// ignores an Ultra receiver) and Func_GetNormalGroundVector (174,
     /// 0053ba40: report+0xa0) read a normal of the caller's dynamics
     /// collision report (0052ec80); zero without one.
-    CollideNormal { ground: bool },
+    CollideNormal {
+        ground: bool,
+    },
     /// Cond_CollideMovingZDM (1-30, 00533c90 -> 00430930): the caller's
     /// 1-based ZDM zone, moved to the actor matrix with translation M*offset,
     /// collides with its surroundings; also true when the zone is missing.
@@ -1411,7 +1417,11 @@ impl AiModel {
     /// a behavior literal of this model in one group (the guard plan; live
     /// values were entries of the actor's own normal set).
     pub fn behavior_variable_group(&self, variable: u16) -> Option<BehaviorGroup> {
-        match self.variables.get(usize::from(variable)).map(|v| &v.default) {
+        match self
+            .variables
+            .get(usize::from(variable))
+            .map(|v| &v.default)
+        {
             Some(DesignerValue::Behavior(Some(r))) => {
                 return (r.model.path == self.path).then_some(r.group);
             }
@@ -2238,7 +2248,9 @@ impl Script {
                         expression(selector, variables, depth + 1, count)?;
                         expression(right, variables, depth + 1, count)?;
                     }
-                    Statement::Turn { degrees_per_second, .. }
+                    Statement::Turn {
+                        degrees_per_second, ..
+                    }
                     | Statement::TurnToward(degrees_per_second)
                     | Statement::ActorTurnToward {
                         target: degrees_per_second,
@@ -2288,10 +2300,11 @@ impl Script {
                             expression(value, variables, depth + 1, count)?;
                         }
                     }
-                    Statement::ChangeActorBehavior { actor, .. } => {
-                        if let ActorTarget::Reference(actor) = actor {
-                            ensure!(actor.path.member().is_none(), "behavior actor is a member");
-                        }
+                    Statement::ChangeActorBehavior {
+                        actor: ActorTarget::Reference(actor),
+                        ..
+                    } => {
+                        ensure!(actor.path.member().is_none(), "behavior actor is a member");
                     }
                     Statement::CameraChangeState { camera, state } => {
                         if let ActorTarget::Reference(camera) = camera {

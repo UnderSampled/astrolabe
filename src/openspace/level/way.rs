@@ -160,8 +160,12 @@ fn read_route(s: &SourceSession, route: Address) -> Result<WayInspection> {
         let pp = s.required(route, 0)?;
         s.bytes(pp, h.count as usize * 4)?;
         for index in 0..h.count as usize {
-            let p = s.required(pp, index * 4).with_context(|| format!("route point {index}"))?;
-            value.points.push(read_point(s, p).with_context(|| format!("route point {index}"))?);
+            let p = s
+                .required(pp, index * 4)
+                .with_context(|| format!("route point {index}"))?;
+            value
+                .points
+                .push(read_point(s, p).with_context(|| format!("route point {index}"))?);
         }
     }
     if h.count > 1 {

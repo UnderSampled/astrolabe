@@ -399,8 +399,10 @@ fn manor_model_334_category24_resolves_through_level_actor_identity_map_and_rete
     ensure!(
         matches!(
             &then[3],
-            Statement::CameraChangeState { camera, state: Expression::Integer(3) }
-                if camera.path.as_str() == "level:/persos/world/0/2"
+            Statement::CameraChangeState {
+                camera: astrolabe::model::ai::ActorTarget::Reference(camera),
+                state: Expression::Integer(3)
+            } if camera.path.as_str() == "level:/persos/world/0/2"
         ),
         "model334 camera state target changed"
     );

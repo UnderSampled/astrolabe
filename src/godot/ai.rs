@@ -2024,7 +2024,9 @@ fn guarded_expression(
             // operands toward zero (_ftol); 004c58c0 returns lower + table[i] *
             // (upper - lower) / MAX with table values below MAX and a truncating
             // division: [lower, upper), lower when equal, (upper, lower] reversed.
-            format!("(random_lower_{id} + int(randf() * float(random_upper_{id} - random_lower_{id})))")
+            format!(
+                "(random_lower_{id} + int(randf() * float(random_upper_{id} - random_lower_{id})))"
+            )
         }
         Expression::InventoryQuantity(item) => format!(
             "character().source_inventory_quantity(int({}))",
@@ -2474,7 +2476,10 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             format!("character().source_closer_route_waypoint({slot})")
         }
         Expression::RouteWaypointCount(slot) => {
-            format!("character().source_route_waypoint_count({})", route_slot(slot))
+            format!(
+                "character().source_route_waypoint_count({})",
+                route_slot(slot)
+            )
         }
         Expression::VectorNorm(value) => format!("Vector3({}).length()", expression(value, model)?),
         Expression::VectorNormalize(value) => {
@@ -3458,7 +3463,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}if not character().source_reset_route_back({slot}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                    quoted(&format!("{} requires actor-local route slot {slot}", model.path))
+                    quoted(&format!(
+                        "{} requires actor-local route slot {slot}",
+                        model.path
+                    ))
                 )?;
             }
             Statement::InitRouteAtWaypoint { slot, waypoint } => {
@@ -3467,7 +3475,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}if not character().source_init_route_at_waypoint({slot}, {waypoint}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                    quoted(&format!("{} requires actor-local route slot {slot}", model.path))
+                    quoted(&format!(
+                        "{} requires actor-local route slot {slot}",
+                        model.path
+                    ))
                 )?;
             }
             Statement::ResetRoute(slot) => {
@@ -3869,7 +3880,8 @@ fn statements(
             Statement::CameraChangeTargetedPerso { camera, target } => {
                 let failure = quoted(&format!(
                     "{} requires camera target state for {}",
-                    model.path, camera_asset(camera)?
+                    model.path,
+                    camera_asset(camera)?
                 ));
                 writeln!(
                     out,
@@ -3893,7 +3905,8 @@ fn statements(
                 };
                 let failure = quoted(&format!(
                     "{} requires camera target state for {}",
-                    model.path, camera_asset(camera)?
+                    model.path,
+                    camera_asset(camera)?
                 ));
                 writeln!(
                     out,
@@ -3904,7 +3917,8 @@ fn statements(
             Statement::CameraResetTargetedPerso { camera } => {
                 let failure = quoted(&format!(
                     "{} requires camera reset target state for {}",
-                    model.path, camera_asset(camera)?
+                    model.path,
+                    camera_asset(camera)?
                 ));
                 writeln!(
                     out,
@@ -3931,7 +3945,8 @@ fn statements(
                     quoted(&camera_asset(camera)?),
                     quoted(&format!(
                         "{} requires supported camera state for {}",
-                        model.path, camera_asset(camera)?
+                        model.path,
+                        camera_asset(camera)?
                     ))
                 )?;
             }
@@ -3945,7 +3960,8 @@ fn statements(
                 flow.local += 1;
                 let failure = quoted(&format!(
                     "{} requires supported native camera flags for {}",
-                    model.path, camera_asset(camera)?
+                    model.path,
+                    camera_asset(camera)?
                 ));
                 writeln!(
                     out,
@@ -4511,7 +4527,11 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}if previous_{target_group} >= 0 and change_{target_group}(previous_{target_group}, {}):",
-                    if same_group && *pause_after { "true" } else { "false" }
+                    if same_group && *pause_after {
+                        "true"
+                    } else {
+                        "false"
+                    }
                 )?;
                 writeln!(out, "{pad}    {}", if same_group { exit } else { "pass" })?;
                 if *pause_after {
@@ -4559,7 +4579,11 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}if change_{target_group}(int(dsg_{variable}), {}):",
-                    if same_group && *pause_after { "true" } else { "false" }
+                    if same_group && *pause_after {
+                        "true"
+                    } else {
+                        "false"
+                    }
                 )?;
                 writeln!(out, "{pad}    {}", if same_group { exit } else { "pass" })?;
                 if *pause_after {
@@ -5564,17 +5588,20 @@ mod source_position_tests {
             name: "Guard plan".into(),
             normal: Some(BehaviorSet {
                 behaviors: vec![
-                    behavior(0, vec![
-                        Statement::Assign {
-                            variable: 0,
-                            value: Expression::BehaviorLiteral(target.clone()),
-                        },
-                        Statement::ChangeBehaviorVariable {
-                            variable: 0,
-                            group: BehaviorGroup::Normal,
-                            pause_after: false,
-                        },
-                    ]),
+                    behavior(
+                        0,
+                        vec![
+                            Statement::Assign {
+                                variable: 0,
+                                value: Expression::BehaviorLiteral(target.clone()),
+                            },
+                            Statement::ChangeBehaviorVariable {
+                                variable: 0,
+                                group: BehaviorGroup::Normal,
+                                pause_after: false,
+                            },
+                        ],
+                    ),
                     behavior(1, vec![Statement::Noop]),
                 ],
                 default_behavior: Some(0),
@@ -5590,8 +5617,13 @@ mod source_position_tests {
             designer_unknown: [0; 3],
             unknown: [0; 4],
         };
-        if let Some(Behavior { schedule: Some(script), .. }) =
-            model.normal.as_mut().and_then(|set| set.behaviors.get_mut(1))
+        if let Some(Behavior {
+            schedule: Some(script),
+            ..
+        }) = model
+            .normal
+            .as_mut()
+            .and_then(|set| set.behaviors.get_mut(1))
         {
             script.statements = vec![Statement::TurnVertical { up: false }];
         }
@@ -5600,13 +5632,24 @@ mod source_position_tests {
             generated.contains("int(turn_mechanics_0.get(\"mode\")) in [19, 20]"),
             "{generated}"
         );
-        assert!(generated.contains("Proc_TurnDown needs its mechanics update for dynamics event 2"), "{generated}");
+        assert!(
+            generated.contains("Proc_TurnDown needs its mechanics update for dynamics event 2"),
+            "{generated}"
+        );
         assert!(generated.contains("dsg_0 = int(1)"), "{generated}");
         assert!(generated.contains("if int(dsg_0) < 0:"), "{generated}");
-        assert!(generated.contains("change_normal(int(dsg_0), false)"), "{generated}");
+        assert!(
+            generated.contains("change_normal(int(dsg_0), false)"),
+            "{generated}"
+        );
         // A write of anything but this model's behavior leaves it untyped.
-        if let Some(Behavior { schedule: Some(script), .. }) =
-            model.normal.as_mut().and_then(|set| set.behaviors.first_mut())
+        if let Some(Behavior {
+            schedule: Some(script),
+            ..
+        }) = model
+            .normal
+            .as_mut()
+            .and_then(|set| set.behaviors.first_mut())
         {
             script.statements[0] = Statement::Assign {
                 variable: 0,
@@ -5614,8 +5657,14 @@ mod source_position_tests {
             };
         }
         let generated = compile(&model, &[])?;
-        assert!(!generated.contains("change_normal(int(dsg_0)"), "{generated}");
-        assert!(generated.contains("needs a behavior variable"), "{generated}");
+        assert!(
+            !generated.contains("change_normal(int(dsg_0)"),
+            "{generated}"
+        );
+        assert!(
+            generated.contains("needs a behavior variable"),
+            "{generated}"
+        );
         Ok(())
     }
 
@@ -6108,7 +6157,11 @@ mod source_position_tests {
 
 /// The designer value variant, for diagnostics.
 fn designer_kind_name(value: &DesignerValue) -> String {
-    format!("{value:?}").split(['(', ' ', '{']).next().unwrap_or("").to_string()
+    format!("{value:?}")
+        .split(['(', ' ', '{'])
+        .next()
+        .unwrap_or("")
+        .to_string()
 }
 
 /// A camera statement's camera as the runtime resolves it: a referenced actor's

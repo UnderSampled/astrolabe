@@ -157,6 +157,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
             sample: 0,
             used: 0,
             length: 2.,
+            curve: None,
             unknown: [0; 2],
             dynamics: vec![0; 52],
         })],
@@ -180,8 +181,8 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
                 value: Expression::Integer(7),
             },
             Statement::ChangeAction(Expression::Integer(0)),
-            Statement::ResetRoute(0),
-            Statement::GoOverRoute(0),
+            Statement::ResetRoute(astrolabe::model::ai::RouteSlot::Slot(0)),
+            Statement::GoOverRoute(astrolabe::model::ai::RouteSlot::Slot(0)),
             Statement::Assign {
                 variable: 0,
                 value: Expression::Integer(1),

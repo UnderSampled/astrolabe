@@ -13,6 +13,13 @@ fn production_loading_limit_restores_on_terminal_cancel_and_exit() -> Result<()>
         project.join("game/level_transition.gd"),
         include_bytes!("../godot/game/level_transition.gd"),
     )?;
+    // level_transition.gd preloads the script warm-up (48680b0), which
+    // compiles the shared generated scripts of a real project first.
+    fs::create_dir_all(project.join("generated/hype/shared"))?;
+    fs::write(
+        project.join("game/script_warmup.gd"),
+        include_bytes!("../godot/game/script_warmup.gd"),
+    )?;
     fs::write(
         project.join("check.gd"),
         include_bytes!("../godot/tests/check_level_loading_cap.gd"),

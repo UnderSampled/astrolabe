@@ -49,7 +49,12 @@ func _check_audio_fades() -> void:
 	assert(all_voice.is_running() and all_effects.is_running() and all_music.is_running())
 	assert(all_voice != all_effects and all_effects != all_music)
 
-	await create_timer(0.1).timeout
+	# Timers are processed before tweens in a frame, so one slow frame can
+	# end a fixed wait before these 40 ms fades finish. Wait for the fades.
+	var settle_frames := 0
+	while (all_voice.is_running() or all_effects.is_running() or all_music.is_running()) and settle_frames < 600:
+		await process_frame
+		settle_frames += 1
 	assert(not fades.has("Astrolabe Voice"))
 	assert(not fades.has("Astrolabe Effects"))
 	assert(not fades.has("Astrolabe Music"))

@@ -211,8 +211,18 @@ fn emit(
             scene,
             "metadata/source_rectangles = PackedFloat32Array({})\nmetadata/magic_slot_kinds = PackedStringArray({})\nmetadata/magic_slot_rows = PackedInt32Array({})\nmetadata/magic_slot_overlay = ExtResource({})\nmetadata/magic_points_arc = ExtResource({})",
             rows.join(", "),
-            magic.slot_kinds.iter().map(|k| quoted(k)).collect::<Vec<_>>().join(", "),
-            magic.slot_rows.iter().map(|r| r.to_string()).collect::<Vec<_>>().join(", "),
+            magic
+                .slot_kinds
+                .iter()
+                .map(|k| quoted(k))
+                .collect::<Vec<_>>()
+                .join(", "),
+            magic
+                .slot_rows
+                .iter()
+                .map(|r| r.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
             quoted(&format!("image{}", magic.slot_overlay.slot)),
             quoted(&format!("image{}", magic.points_arc.slot)),
         )?;

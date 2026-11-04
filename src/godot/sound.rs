@@ -289,7 +289,10 @@ fn validate_native_theme_shape(theme: &SoundResourceDefinition, label: &str) -> 
     // or fade fields, nor the theme's main-loop parameter: those matter only
     // when a request switches themes, which stays unsupported at runtime.
     ensure!(
-        !parts.is_empty() && *start_loop >= 0 && (*start_loop as usize) < parts.len() && theme.looped,
+        !parts.is_empty()
+            && *start_loop >= 0
+            && (*start_loop as usize) < parts.len()
+            && theme.looped,
         "{}: theme needs parts, a loop entry within them and looped playback",
         label
     );
@@ -306,7 +309,10 @@ const THEME_UNBOUNDED_REPEATS: u32 = 1 << 16;
 /// Port of the natural advance 004fa5c0 (hype-decomp src/sound/theme_parts.c),
 /// started as 004fa700 starts it. Part fields: start_loop (+4), end_loop (+8),
 /// loops (+0x0c); theme start index (+0x14).
-fn theme_natural_sequence(parts: &[ThemeSoundPart], start_index: usize) -> Result<(Vec<usize>, usize)> {
+fn theme_natural_sequence(
+    parts: &[ThemeSoundPart],
+    start_index: usize,
+) -> Result<(Vec<usize>, usize)> {
     #[derive(Clone, Copy, PartialEq, Eq, Hash)]
     struct State {
         current: usize,
@@ -366,7 +372,10 @@ fn theme_natural_sequence(parts: &[ThemeSoundPart], start_index: usize) -> Resul
     let mut seen = std::collections::HashMap::new();
     let mut order = Vec::new();
     while !seen.contains_key(&state) {
-        ensure!(order.len() <= 4096, "theme natural sequence does not settle into a cycle");
+        ensure!(
+            order.len() <= 4096,
+            "theme natural sequence does not settle into a cycle"
+        );
         seen.insert(state, order.len());
         order.push(state.current);
         advance(&mut state);

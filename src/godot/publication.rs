@@ -112,7 +112,10 @@ pub(super) fn publish_scopes(
             // The other owners keep their content, but it was built against the
             // old shared file: mark them for regeneration instead of refusing.
             for (key, owned) in &old.selections {
-                if !selected.contains_key(key) && owned.contains(path) && manifest.stale.insert(key.clone()) {
+                if !selected.contains_key(key)
+                    && owned.contains(path)
+                    && manifest.stale.insert(key.clone())
+                {
                     manifest.diagnostics.push(format!(
                         "shared generated resource {path} changed; regenerate selection {key}"
                     ));
@@ -170,7 +173,8 @@ fn validate_output_path(root: &Path, path: &str) -> Result<()> {
 mod tests {
     use super::*;
     #[test]
-    fn selected_closures_preserve_unselected_content_and_mark_shared_dependents_stale() -> Result<()> {
+    fn selected_closures_preserve_unselected_content_and_mark_shared_dependents_stale() -> Result<()>
+    {
         let output = tempfile::tempdir()?;
         let stage = tempfile::tempdir()?;
         let shared = "generated/hype/shared/prop.tres";
@@ -196,10 +200,19 @@ mod tests {
         assert_eq!(fs::read(output.path().join(b))?, b.as_bytes());
         write_atomic(&stage.path().join(shared), b"changed shared resource")?;
         let changed = publish_selection("a", &[shared, a])?;
-        assert_eq!(fs::read(output.path().join(shared))?, b"changed shared resource");
-        assert!(changed.stale.contains("b"), "level b was not marked for regeneration");
+        assert_eq!(
+            fs::read(output.path().join(shared))?,
+            b"changed shared resource"
+        );
+        assert!(
+            changed.stale.contains("b"),
+            "level b was not marked for regeneration"
+        );
         let refreshed = publish_selection("b", &[shared, b])?;
-        assert!(refreshed.stale.is_empty(), "regenerating b did not clear its mark");
+        assert!(
+            refreshed.stale.is_empty(),
+            "regenerating b did not clear its mark"
+        );
         publish_selection("a", &[a])?;
         assert!(
             output.path().join(shared).exists(),

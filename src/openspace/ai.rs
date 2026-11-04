@@ -2182,9 +2182,7 @@ impl Parser<'_> {
                 zone: Box::new(self.expression(indent + 1)?),
                 offset: Box::new(self.expression(indent + 1)?),
             },
-            (3, 153 | 174) => Expression::CollideNormal {
-                ground: id == 174,
-            },
+            (3, 153 | 174) => Expression::CollideNormal { ground: id == 174 },
             (3, 195) => Expression::GameState,
             (3, 27) => Expression::RandomInt {
                 lower: Box::new(self.expression(indent + 1)?),
@@ -2252,7 +2250,9 @@ impl Writer<'_> {
             }
             match s {
                 Statement::HoldAfterPrevious => {}
-                Statement::FightSubHitPointsEnemy(Expression::FightSubtractAndGetHitPoints(inner)) => {
+                Statement::FightSubHitPointsEnemy(Expression::FightSubtractAndGetHitPoints(
+                    inner,
+                )) => {
                     let Expression::SubtractAndGetHitPoints { actor, value } = &**inner else {
                         bail!("Fight_SubHitPointsEnemy lacks its actor and value");
                     };
@@ -4599,7 +4599,8 @@ mod partial_tests {
     fn behavior_literal_assignment_is_typed_and_reconstructs() -> Result<()> {
         // A guard's normal 9 stores behavior literals into its DSG type-13
         // fields (brigand4 model 493); live, the words are its normal entries.
-        let (mut codec, bytes) = partial(&[(2, 11, 1), (11, 46, 2), (32, 151_053_296, 2), (8, 0, 0)]);
+        let (mut codec, bytes) =
+            partial(&[(2, 11, 1), (11, 46, 2), (32, 151_053_296, 2), (8, 0, 0)]);
         let target = BehaviorRef {
             model: AssetRef::new("level:/ai/models/493")?,
             group: BehaviorGroup::Normal,
@@ -5754,9 +5755,9 @@ mod partial_tests {
             script.statements,
             vec![Statement::If {
                 condition: Expression::And(
-                    Box::new(compare(Expression::ActorDistance(Box::new(Expression::Actor(
-                        ActorTarget::Variable(7)
-                    ))))),
+                    Box::new(compare(Expression::ActorDistance(Box::new(
+                        Expression::Actor(ActorTarget::Variable(7))
+                    )))),
                     Box::new(compare(Expression::ActorDistanceFrom {
                         receiver: ActorTarget::Keyword(ActorKeyword::MainActor),
                         target: Box::new(Expression::Actor(ActorTarget::Variable(11))),

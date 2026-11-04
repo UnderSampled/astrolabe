@@ -525,13 +525,13 @@ fn opening_shot_excerpt(
         let offset = shot * 4;
         let camera_path = "level:/persos/world/0/2";
         ensure!(
-            matches!(&shots[offset], Statement::CameraChangeTargetedPerso {camera,target:ActorTarget::Reference(target)} if camera.path.as_str()==camera_path && target.path.as_str()==format!("level:/persos/world/0/{helper}"))
+            matches!(&shots[offset], Statement::CameraChangeTargetedPerso {camera:ActorTarget::Reference(camera),target:ActorTarget::Reference(target)} if camera.path.as_str()==camera_path && target.path.as_str()==format!("level:/persos/world/0/{helper}"))
         );
         ensure!(
             matches!(&shots[offset+1], Statement::SetActorAbsolutePosition {actor,position:Expression::WaypointPosition(point)} if actor.path.as_str()==camera_path && point.path.as_str()==format!("level:/waypoints/17-1/{waypoint}"))
         );
         ensure!(
-            matches!(&shots[offset+2], Statement::CameraChangeState {camera,state:Expression::Integer(3)} if camera.path.as_str()==camera_path)
+            matches!(&shots[offset+2], Statement::CameraChangeState {camera:ActorTarget::Reference(camera),state:Expression::Integer(3)} if camera.path.as_str()==camera_path)
         );
     }
     ensure!(
@@ -646,7 +646,10 @@ fn verify_fourth_shot_source(
         .context("Gogoud route schedule")?
         .statements;
     ensure!(statements.len() >= 6);
-    ensure!(matches!(statements[0], Statement::GoOverRoute(6)));
+    ensure!(matches!(
+        statements[0],
+        Statement::GoOverRoute(astrolabe::model::ai::RouteSlot::Slot(6))
+    ));
     for (index, state) in [(1, 26), (2, 24)] {
         ensure!(
             matches!(&statements[index], Statement::ExecuteAction(Expression::Action(Some(action))) if action.family.path.as_str()=="level:/families/27" && action.state==state)
@@ -679,13 +682,13 @@ fn verify_fourth_shot_source(
     );
     ensure!(then.len() == 3);
     ensure!(
-        matches!(&then[0], Statement::CameraChangeTargetedPerso {camera,target:ActorTarget::Reference(target)} if camera.path.as_str()=="level:/persos/world/0/2" && target.path.as_str()=="level:/persos/world/0/20")
+        matches!(&then[0], Statement::CameraChangeTargetedPerso {camera:ActorTarget::Reference(camera),target:ActorTarget::Reference(target)} if camera.path.as_str()=="level:/persos/world/0/2" && target.path.as_str()=="level:/persos/world/0/20")
     );
     ensure!(
         matches!(&then[1], Statement::SetActorAbsolutePosition {actor,position:Expression::WaypointPosition(point)} if actor.path.as_str()=="level:/persos/world/0/2" && point.path.as_str()=="level:/waypoints/17-1/67")
     );
     ensure!(
-        matches!(&then[2], Statement::CameraChangeState {camera,state:Expression::Integer(3)} if camera.path.as_str()=="level:/persos/world/0/2")
+        matches!(&then[2], Statement::CameraChangeState {camera:ActorTarget::Reference(camera),state:Expression::Integer(3)} if camera.path.as_str()=="level:/persos/world/0/2")
     );
     Ok(())
 }
