@@ -1986,16 +1986,22 @@ impl Parser<'_> {
             // handler 0x537aa0 passes selector 3 to 0x52ea00; helper 0x52e910
             // selector 3 computes the source-XY magnitude after transforming
             // the displacement into the explicit target actor's local frame.
+            // Its operand is evaluated like 00537c20's (0x522610 with the
+            // script owner as caller, then 0x438e00), so a designer variable
+            // names the owner's actor (notes/research/brigand-wolves-bats-chain.md).
             (3, 8) => {
-                let actor = self.expression(indent + 1)?;
-                let Expression::Actor(actor) = actor else {
-                    return Ok(Expression::Unsupported(self.unsupported_range(
-                        at,
-                        end,
-                        "installed category-3 ID 8 requires an actor operand".into(),
-                    )?));
+                let target = match self.expression(indent + 1)? {
+                    actor @ Expression::Actor(_) => actor,
+                    variable @ Expression::Variable(_) => variable,
+                    _ => {
+                        return Ok(Expression::Unsupported(self.unsupported_range(
+                            at,
+                            end,
+                            "installed category-3 ID 8 requires an actor operand".into(),
+                        )?));
+                    }
                 };
-                Expression::ActorLocalSourceXYDistance(Box::new(Expression::Actor(actor)))
+                Expression::ActorLocalSourceXYDistance(Box::new(target))
             }
             (3, 7) => Expression::ActorLocalDistance {
                 receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),

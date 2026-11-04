@@ -497,7 +497,7 @@ fn compiled_incremental_turn_snapshots_target_counts_frames_and_cancels() -> Res
     assert!(code.contains("if remaining_0 < 0: remaining_0 = 1"));
     assert!(code.contains("source_turn_angles(main_actor)"));
     assert!(code.contains("action_revision_0 != normal_action_revision"));
-    assert!(code.contains("source_turn_to_heading(turn_heading_0)"));
+    assert!(code.contains("source_incremental_turn_step(turn_heading_0)"));
     assert!(code.contains("dsg_0 = bool(true)"));
     fs::write(project.join("turn.gd"), code)?;
     let mut referenced = reopened;

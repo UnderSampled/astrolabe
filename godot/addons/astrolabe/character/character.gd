@@ -456,6 +456,16 @@ func source_turn_to_heading(heading: float) -> void:
     global_rotation.y = heading
     source_turned_this_tick = true
 
+## One positive step of the incremental-turn meta-actions (0054d030): each
+## queues dynamics event5 and writes the heading (travel-native audit). That
+## event supersedes a completed or cancelled travel request, so its steering
+## hold ends and the playing action's own translation resumes, as the Brigand
+## wolves' circling (model 1203 normal 6) needs after their pursuit.
+func source_incremental_turn_step(heading: float) -> void:
+    if not source_point_active: source_point_holds_motion = false
+    if not source_route_active: source_route_holds_motion = false
+    source_turn_to_heading(heading)
+
 ## Proc217 writes an absolute heading about source +Z to its mechanics request.
 ## Reuse the native facing transform; no engine event queue is reconstructed.
 func source_turn_toward(target: Node3D) -> bool:

@@ -252,6 +252,13 @@ func check_point_requests() -> bool:
     # Floor safe-margin recovery may lift the stopped body slightly. Steering
     # is horizontal, and must stop independently of that contact correction.
     if not require(Vector2(actor.global_position.x,actor.global_position.z).distance_to(Vector2(stopped.x,stopped.z)) < 0.0001 and actor.velocity == Vector3.ZERO and actor.is_on_floor(), "cancelled Character point request kept animation steering: before=%s after=%s velocity=%s" % [stopped,actor.global_position,actor.velocity]): return false
+    # An incremental-turn step queues event5 (0054d030), superseding the held
+    # request: the playing walk translates again along the new heading. Facing
+    # away from the wall, so the step alone decides the result.
+    actor.source_incremental_turn_step(-PI/2)
+    stopped = actor.global_position
+    for _tick in 10: await physics_frame
+    if not require(not actor.source_point_holds_motion and actor.global_position.x < stopped.x - 0.01, "an incremental-turn step kept the cancelled travel's steering hold: before=%s after=%s" % [stopped,actor.global_position]): return false
     world.free()
     return true
 

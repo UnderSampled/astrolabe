@@ -2881,7 +2881,7 @@ fn blocking(
     ) {
         writeln!(
             out,
-            "{pad}        turn_heading_{id} += turn_step_{id}\n{pad}        character().source_turn_to_heading(turn_heading_{id})\n{pad}        remaining_{id} -= 1"
+            "{pad}        turn_heading_{id} += turn_step_{id}\n{pad}        character().source_incremental_turn_step(turn_heading_{id})\n{pad}        remaining_{id} -= 1"
         )?;
     }
     writeln!(out, "{pad}        await {}", flow.tick())?;
