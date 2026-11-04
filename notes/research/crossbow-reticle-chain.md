@@ -140,3 +140,24 @@ Camera3D (world-space check).
   - Orientation (camera-facing versus along the surface) is unverified.
   - The aim ray remains the screen-centre stand-in.
   - Procs 339 to 341 are still unparsed.
+
+## Real chain (owner, 2026-11-04, second pass)
+
+- Why Hype's activation was not reached before: the earlier start states only selected weapon 80.
+  In fix/28 normal 4, Proc337 follows the crossbow draw (`Button_GetCrossbow`), which needs crossbow
+  ammo and Global dsg_1 == 1. In normal 0 it needs dsg_59 or dsg_71, which the draw sets. It is not
+  the look key.
+- Second defect, found on the real path: holding look sends Hype to normal 40, where fix/28 hides his
+  display for the first-person view. The view was his child, so it was hidden too, though its own
+  `visible` was true. It is now a sibling under the actor's parent. The probe checks
+  `is_visible_in_tree`.
+- Probe, real game:
+  - Bootstrap, Load Game of the converted reference save (`astrolabe import-save`, crossbow x 8),
+    load-in dialogue paged until on-foot control.
+  - `Button_GetCrossbow`: fix/28 activates the pointer in 15 frames.
+  - Look binding held (KP 0): normal 40, session aim mode with its own ray. The marker shows at hits
+    5.2 to 11.6 m and follows LookLeft; its red cross is visible at screen centre.
+  - Look released: hidden (no aim ray hit). Crossbow put away: hidden.
+- The bolt still aims at the same `target_position`; only the hit flag was added.
+- In the headless window the held look key is re-sent each tick, because held input is dropped there.
+- The marker reads smaller than the take's (about 25 px near); its 0.25 size is an estimate only.
