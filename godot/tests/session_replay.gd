@@ -340,6 +340,10 @@ func dispatch_input(input: Dictionary) -> void:
     var key := InputEventKey.new()
     key.physical_keycode = code
     key.keycode = code
+    # X11 reports the side of Shift_L/R and Control_L/R; Godot carries it as location.
+    match int(input["keysym"]):
+        0xffe1, 0xffe3: key.location = KEY_LOCATION_LEFT
+        0xffe2, 0xffe4: key.location = KEY_LOCATION_RIGHT
     key.pressed = str(input["edge"]) == "press"
     key.echo = bool(input["repeat"])
     Input.parse_input_event(key)

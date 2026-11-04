@@ -113,10 +113,11 @@ through bindings and sprite lookups.
   new keys, rebinds from the pause menu and checks the bindings after a restart.
 - [x] Writes at the source's points (play start, Resume Game, shutdown); F1, F5
   and R bindable, port shortcuts yield; F1 help is a stub in the original.
-- [x] Left/right Ctrl, Shift and Alt are distinct keys (either side answers only
-  while the other is unbound, for side-less synthesized input).
+- [x] Left/right Ctrl, Shift and Alt are distinct keys; real X11 events carry the
+  side. The paused route bot still sends side-less Shift/Ctrl.
 - [x] Gamepad: button capture and dispatch, D-pad, and the source stick ranges
   (walk, run, turn), checked with simulated joypad events.
 - [x] The Configure page's stained-glass title.
-- [ ] A physical pad (button order is the source index); stick release
-  hysteresis.
+- [x] Stick release band from the source's self-latching ranges (simulated
+  transitions).
+- [ ] A physical pad (button order is the source index).

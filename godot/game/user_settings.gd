@@ -50,12 +50,19 @@ var pad_bindings: Dictionary = {}
 ## writes Current.cfg when play starts, on Resume Game and at shutdown.
 var committed_key_bindings: Dictionary = {}
 var committed_pad_bindings: Dictionary = {}
+## Stick actions -> Vector2(press, hold) deadzones. The source ORs
+## `Action & wider range` into the action, so once pressed it stays pressed
+## until the stick leaves the wider range (Button_Up presses at Y <= -30 and
+## holds to -20; Button_SpeedUp presses at -90 and holds to -75).
+var _axis_bands: Dictionary = {}
 var reverse_stereo := false
 var _aim_mode := false
 var _reversed_audio_cache: Dictionary = {}
 var _stereo_test_player: AudioStreamPlayer
 
 func _ready() -> void:
+	# The release band must follow the stick in menus and pauses too.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	for bus_name in BUSES.values():
 		_ensure_bus(bus_name)
 	if ResourceLoader.exists(CONTROL_BINDINGS):
@@ -221,25 +228,10 @@ func _notification(what: int) -> void:
 		if control_bindings != null:
 			commit_control_bindings()
 
-## A Ctrl/Shift/Alt binding is side specific. Its other side, when no entry
-## holds it, also answers: synthesized and replayed input (gate probe, route
-## bot) carries no side.
+## A Ctrl/Shift/Alt binding is side specific, as the source's scancodes are.
+## Real X11 key events carry the side (KeyLocation), checked on this build.
 func _key_matches(id: int, key: InputEventKey) -> bool:
-	if int(key.physical_keycode) != id & 0xffffffff:
-		return false
-	var side := id >> 32
-	if side == 0 or int(key.location) == side:
-		return true
-	return not _key_held_by_any(_other_side(id))
-
-func _other_side(id: int) -> int:
-	return (id & 0xffffffff) + ((3 - (id >> 32)) << 32)
-
-func _key_held_by_any(id: int) -> bool:
-	for entry in key_bindings:
-		if int(key_bindings[entry]) == id:
-			return true
-	return false
+	return int(key.physical_keycode) == id & 0xffffffff and (id >> 32 == 0 or int(key.location) == id >> 32)
 
 ## True when a Controls binding owns this key (port shortcuts then yield).
 func key_is_bound(key: InputEventKey) -> bool:
@@ -267,6 +259,7 @@ func configure_gameplay_inputs(aim_mode: bool) -> void:
 	_aim_mode = aim_mode
 	if control_bindings == null:
 		return
+	_axis_bands.clear()
 	for action in control_bindings.actions:
 		if HOST_OWNED_ACTIONS.has(action):
 			continue
@@ -292,7 +285,36 @@ func configure_gameplay_inputs(aim_mode: bool) -> void:
 			motion.axis = JOY_AXES[bounds.x]
 			motion.axis_value = -1.0 if bounds.z < 0 else 1.0
 			InputMap.action_add_event(action, motion)
-			InputMap.action_set_deadzone(action, mini(absi(bounds.y), absi(bounds.z)) / 100.0)
+			var press := _inner_bound(bounds)
+			var hold := press
+			for held in control_bindings.hold_axes.get(action, []):
+				var band: Vector3i = held
+				if band.x == bounds.x and (band.z < 0) == (bounds.z < 0):
+					hold = minf(hold, _inner_bound(band))
+			_axis_bands[action] = Vector2(press, hold)
+	_update_axis_bands()
+
+static func _inner_bound(bounds: Vector3i) -> float:
+	return mini(absi(bounds.y), absi(bounds.z)) / 100.0
+
+## A pressed stick action is judged against its hold bound, a released one
+## against its press bound. Input has already applied the event when _input
+## runs, so the next stick event sees the band that matches the new state.
+func _update_axis_bands() -> void:
+	for action in _axis_bands:
+		var band: Vector2 = _axis_bands[action]
+		var deadzone := band.y if Input.is_action_pressed(action) else band.x
+		if not is_equal_approx(InputMap.action_get_deadzone(action), deadzone):
+			InputMap.action_set_deadzone(action, deadzone)
+
+func _input(event: InputEvent) -> void:
+	if not _axis_bands.is_empty() and (event is InputEventJoypadMotion or event is InputEventKey or event is InputEventJoypadButton):
+		_update_axis_bands()
+
+func _process(_delta: float) -> void:
+	# Handled events skip _input; keep the band in step every frame as well.
+	if not _axis_bands.is_empty():
+		_update_axis_bands()
 
 func _events_for_entry(entry: String) -> Array[InputEvent]:
 	var events: Array[InputEvent] = []
@@ -302,10 +324,6 @@ func _events_for_entry(entry: String) -> Array[InputEvent]:
 		key.physical_keycode = id & 0xffffffff
 		key.location = id >> 32
 		events.append(key)
-		if id >> 32 != 0 and not _key_held_by_any(_other_side(id)):
-			var either := InputEventKey.new()
-			either.physical_keycode = id & 0xffffffff
-			events.append(either)
 	elif pad_bindings.has(entry):
 		var button := InputEventJoypadButton.new()
 		button.device = -1

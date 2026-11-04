@@ -15,6 +15,8 @@ func key(names: String, pressed: bool) -> void:
 		var event := InputEventKey.new()
 		event.keycode = KEYS[name]
 		event.physical_keycode = KEYS[name]
+		if name in ["LeftShift", "LeftControl"]:
+			event.location = KEY_LOCATION_LEFT
 		event.pressed = pressed
 		Input.parse_input_event(event)
 	Input.flush_buffered_events()

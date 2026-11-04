@@ -142,18 +142,27 @@ shortcuts (F1 panel, F5 save, R reload) have no source counterpart; each
 yields when the key is bound. No compiled AI reads Save_Key or Load_Key
 (F3/F2), and the exe does not look them up by name.
 
-Ctrl, Shift and Alt bindings keep their side. The other side also answers
-while no entry holds it, because synthesized and replayed input (gate probe,
-route bot) carries no side; once both sides are bound they are distinct.
+Ctrl, Shift and Alt are side-specific keys, as the source's scancodes are:
+a binding answers only its own side. Godot reports the side as
+`InputEventKey.location`; real X11 events on this build were checked to carry
+location 1 (left) and 2 (right) for both Ctrl, Shift and Alt keys (the project
+uses Godot's default X11 driver). Synthesized test input must set the location;
+the gate probe, `behavior_probe.gd`, `behavior_gameplay.gd` and
+`session_replay.gd` do. The route bot (paused) still sends `LeftShift` and
+`LeftControl` without a side and needs `KEY_LOCATION_LEFT` before its routes
+can hold Shift or Ctrl again.
 Pad buttons use the source index as the Godot button index; the paddle's
 digital directions (f00e) are the D-pad. The joystick ranges (f010, handler
 `004a7c20`: axis code − 4 selects X, Y, Z, Rx, Ry, Rz on a ±100 scale) become
-left-stick events with the range's inner bound as the action deadzone:
-X ≤ −20 / ≥ 20 turns, Y ≤ −30 walks, Y ≤ −90 runs. The source's release
-hysteresis (pressed actions hold to −20 or −75) has no InputMap equivalent and
-is dropped. Gamepad capture is checked with simulated joypad events through
-the `astrolabe_simulated_pad` Engine meta, because Godot cannot register a
-virtual pad; no physical pad was tested. The Inventory row feeds the authored
+left-stick events. Their release band follows the source's self-latching
+`Action & wider range` terms: Button_Up presses at Y ≤ −30 and stays pressed to
+−20, Button_Down at 30 and 20, Button_SpeedUp at −90 and −75; Left and Right use
+±20 with no band. `UserSettings` switches each stick action's InputMap deadzone
+between its press and hold bound according to its pressed state. A stick held
+still inside the band while a key press starts the action is only re-judged on
+its next motion event. Gamepad capture is checked with simulated joypad events
+through the `astrolabe_simulated_pad` Engine meta, because Godot cannot register
+a virtual pad; no physical pad was tested. The Inventory row feeds the authored
 inventory host, and `TestInventoryMode`/`InventoryExit` stay unbound (stand-in
 4-334). The Configure root's localized title tiles (`config_ta..td`) are drawn
 from its sprite list like the Controls title.

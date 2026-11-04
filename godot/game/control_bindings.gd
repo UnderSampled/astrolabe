@@ -10,6 +10,8 @@ extends Resource
 @export var actions: Dictionary = {}
 ## Script action -> Vector3i(axis, min, max) joystick ranges (+-100 scale).
 @export var axes: Dictionary = {}
+## Script action -> wider ranges that keep it pressed once pressed (release band).
+@export var hold_axes: Dictionary = {}
 ## Key id or pad button -> {label, texture, rect}. Only named inputs can be bound.
 @export var key_names: Dictionary = {}
 @export var pad_names: Dictionary = {}

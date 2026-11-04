@@ -484,8 +484,12 @@ func handle(request: Dictionary) -> Dictionary:
                 "ArrowRight": event.physical_keycode = KEY_RIGHT
                 "ArrowUp": event.physical_keycode = KEY_UP
                 "ArrowDown": event.physical_keycode = KEY_DOWN
-                "LeftShift": event.physical_keycode = KEY_SHIFT
-                "LeftControl": event.physical_keycode = KEY_CTRL
+                "LeftShift":
+                    event.physical_keycode = KEY_SHIFT
+                    event.location = KEY_LOCATION_LEFT
+                "LeftControl":
+                    event.physical_keycode = KEY_CTRL
+                    event.location = KEY_LOCATION_LEFT
                 "X": event.physical_keycode = KEY_X
                 "Z": event.physical_keycode = KEY_Z
                 "Space": event.physical_keycode = KEY_SPACE

@@ -44,6 +44,9 @@ func key(code: Key, pressed: bool) -> void:
 	var event := InputEventKey.new()
 	event.keycode = code
 	event.physical_keycode = code
+	# A real keyboard reports which Ctrl/Shift/Alt; bindings are side specific.
+	if [KEY_CTRL, KEY_SHIFT, KEY_ALT].has(code):
+		event.location = KEY_LOCATION_LEFT
 	event.pressed = pressed
 	Input.parse_input_event(event)
 	Input.flush_buffered_events()

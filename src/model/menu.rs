@@ -131,6 +131,9 @@ pub struct ControlAction {
     /// Fixed joystick ranges the expression also ORs in.
     #[serde(default)]
     pub axes: Vec<ControlAxis>,
+    /// Wider ranges that keep the action pressed once it is (`Action & range`).
+    #[serde(default)]
+    pub hold_axes: Vec<ControlAxis>,
 }
 /// A joystick axis (0 X, 1 Y, 2 Z, 3..5 rotations) inside [min, max] on the
 /// source +-100 scale (IPT opcode f010, handler 004a7c20).

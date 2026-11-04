@@ -292,17 +292,32 @@ func run() -> void:
 		pad(5, false)
 		highest = maxf(highest, await play(1.5))
 		check("pad_button_6_jumps", highest - ground > 0.2 and alive(), highest - ground)
-		stick(-0.25)
-		await process_frame
-		var light := Input.is_action_pressed("Button_Up")
-		stick(-0.5)
-		await process_frame
-		var walk := Input.is_action_pressed("Button_Up") and not Input.is_action_pressed("Button_SpeedUp")
-		stick(-1.0)
-		await process_frame
-		var run := Input.is_action_pressed("Button_Up") and Input.is_action_pressed("Button_SpeedUp")
-		check("stick_thresholds_follow_f010", not light and walk and run, [light, walk, run])
+		# Source ranges: Button_Up presses at Y <= -30 and, once pressed, holds
+		# to -20; Button_SpeedUp presses at -90 and holds to -75.
+		var walk_steps := []
+		for value in [-0.25, -0.35, -0.25, -0.15, -0.25]:
+			stick(value)
+			await process_frame
+			walk_steps.append(Input.is_action_pressed("Button_Up"))
+		check("walk_presses_at_30_holds_to_20", walk_steps == [false, true, true, false, false], walk_steps)
+		var run_steps := []
+		for value in [-0.85, -0.95, -0.8, -0.7, -0.8]:
+			stick(value)
+			await process_frame
+			run_steps.append(Input.is_action_pressed("Button_SpeedUp"))
+		check("run_presses_at_90_holds_to_75", run_steps == [false, true, true, false, false], run_steps)
 		stick(0.0)
+		await process_frame
+		key(KEY_SHIFT, true, KEY_LOCATION_RIGHT)
+		await process_frame
+		var right_shift := Input.is_action_pressed("Button_SpeedUp")
+		key(KEY_SHIFT, false, KEY_LOCATION_RIGHT)
+		key(KEY_SHIFT, true, KEY_LOCATION_LEFT)
+		await process_frame
+		var left_shift := Input.is_action_pressed("Button_SpeedUp")
+		key(KEY_SHIFT, false, KEY_LOCATION_LEFT)
+		await process_frame
+		check("unbound_right_shift_does_not_run", not right_shift and left_shift, [right_shift, left_shift])
 		stick(-0.5)
 		var start := actor().global_position
 		await play(1.5)
@@ -321,7 +336,7 @@ func run() -> void:
 		await tap(KEY_ESCAPE)
 		await close_to_play()
 		check("reset_written_on_resume", int(saved_keys().get("Up_Key", 0)) == KEY_UP and int(saved_pad().get("Jump_Pad", -1)) == 0, saved_keys().get("Up_Key", 0))
-		check("reset_reaches_script_actions", not paused and action_keys("Button_Up") == ["Up"] and action_keys("Button_Jump") == ["Ctrl", "Ctrl"], {"paused": paused, "up": action_keys("Button_Up"), "jump": action_keys("Button_Jump")})
+		check("reset_reaches_script_actions", not paused and action_keys("Button_Up") == ["Up"] and action_keys("Button_Jump") == ["Ctrl"], {"paused": paused, "up": action_keys("Button_Up"), "jump": action_keys("Button_Jump")})
 		# Turn away from the wall the earlier walk approached (the yard is small).
 		await hold(KEY_LEFT, 1.4)
 		await play(0.3)

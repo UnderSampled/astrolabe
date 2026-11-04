@@ -960,6 +960,23 @@ fn controls_bindings(controls: &MenuControls, directory: &str) -> Result<String>
             )
         })
         .collect::<Vec<_>>();
+    let holds = controls
+        .actions
+        .iter()
+        .filter(|action| !action.hold_axes.is_empty())
+        .map(|action| {
+            format!(
+                "{}: [{}]",
+                quoted(&action.name),
+                action
+                    .hold_axes
+                    .iter()
+                    .map(|axis| format!("Vector3i({}, {}, {})", axis.axis, axis.min, axis.max))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })
+        .collect::<Vec<_>>();
     let mut key_names = Vec::new();
     let mut pad_names = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
@@ -991,10 +1008,11 @@ fn controls_bindings(controls: &MenuControls, directory: &str) -> Result<String>
         "controls key-name mapping is incomplete"
     );
     Ok(format!(
-        "[gd_resource type=\"Resource\" script_class=\"ControlBindings\" load_steps=2 format=3]\n\n[ext_resource type=\"Script\" path=\"res://game/control_bindings.gd\" id=\"script\"]\n\n[resource]\nscript = ExtResource(\"script\")\nentries = [{}]\nactions = {{\n{}\n}}\naxes = {{\n{}\n}}\nkey_names = {{\n{}\n}}\npad_names = {{\n{}\n}}\ncapture = {{\"label\": \"???\", \"texture\": {}, \"rect\": {}}}\n",
+        "[gd_resource type=\"Resource\" script_class=\"ControlBindings\" load_steps=2 format=3]\n\n[ext_resource type=\"Script\" path=\"res://game/control_bindings.gd\" id=\"script\"]\n\n[resource]\nscript = ExtResource(\"script\")\nentries = [{}]\nactions = {{\n{}\n}}\naxes = {{\n{}\n}}\nhold_axes = {{\n{}\n}}\nkey_names = {{\n{}\n}}\npad_names = {{\n{}\n}}\ncapture = {{\"label\": \"???\", \"texture\": {}, \"rect\": {}}}\n",
         entries.join(", "),
         actions.join(",\n"),
         axes.join(",\n"),
+        holds.join(",\n"),
         key_names.join(",\n"),
         pad_names.join(",\n"),
         quoted(&format!(
@@ -1343,6 +1361,7 @@ mod tests {
                 bindings_text.contains("{\"name\": \"Jump_Key\", \"kind\": \"key\", \"default\": 4299161622}"),
                 bindings_text.contains("\"label\": \"pad0\""),
                 bindings_text.contains("\"Button_SpeedUp\": [Vector3i(1, -110, -90)]"),
+                bindings_text.contains("hold_axes = {\n\"Button_Up\": [Vector3i(1, -110, -20)]"),
                 configuration_text.contains("[node name=\"Title0\" type=\"TextureRect\""),
             ];
             ensure!(

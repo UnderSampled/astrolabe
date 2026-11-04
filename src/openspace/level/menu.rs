@@ -1606,7 +1606,7 @@ fn entry_actions(s: &SourceSession) -> Result<(Vec<ControlEntry>, Vec<ControlAct
         terms: &[Option<InputTerm>],
         records: &[(Address, String, Option<String>, usize)],
         visiting: &mut Vec<usize>,
-        out: &mut (Vec<String>, Vec<ControlAxis>),
+        out: &mut (Vec<String>, Vec<ControlAxis>, Vec<ControlAxis>),
     ) {
         let positive =
             |t: &InputTerm| !matches!(t, InputTerm::NotEntry | InputTerm::Fixed { negative: true });
@@ -1618,7 +1618,33 @@ fn entry_actions(s: &SourceSession) -> Result<(Vec<ControlEntry>, Vec<ControlAct
             InputTerm::And(a, b) => match (positive(a), positive(b)) {
                 (true, false) => leaves(a, terms, records, visiting, out),
                 (false, true) => leaves(b, terms, records, visiting, out),
-                _ => {}
+                // `Button_X & range`: the action's own previous state latches
+                // it while the stick stays in a wider range (Button_Up: press
+                // at Y <= -30, hold to -20).
+                (true, true) => {
+                    let axis_of = |term: &InputTerm| match term {
+                        InputTerm::Axis(axis) => Some(axis.clone()),
+                        InputTerm::Entry(j) => match &terms[*j] {
+                            Some(InputTerm::Axis(axis)) => Some(axis.clone()),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    let latch = |term: &InputTerm| matches!(term, InputTerm::Entry(j) if Some(j) == visiting.first());
+                    let hold = if latch(a) {
+                        axis_of(b)
+                    } else if latch(b) {
+                        axis_of(a)
+                    } else {
+                        None
+                    };
+                    if let Some(axis) = hold
+                        && !out.2.contains(&axis)
+                    {
+                        out.2.push(axis);
+                    }
+                }
+                (false, false) => {}
             },
             InputTerm::Entry(i) => {
                 if let Some(options) = &records[*i].2
@@ -1645,13 +1671,14 @@ fn entry_actions(s: &SourceSession) -> Result<(Vec<ControlEntry>, Vec<ControlAct
         if matches!(term, InputTerm::Input(_)) {
             continue;
         }
-        let mut out = (Vec::new(), Vec::new());
+        let mut out = (Vec::new(), Vec::new(), Vec::new());
         leaves(term, &terms, &records, &mut vec![i], &mut out);
         if !out.0.is_empty() || !out.1.is_empty() {
             actions.push(ControlAction {
                 name: record.1.clone(),
                 entries: out.0,
                 axes: out.1,
+                hold_axes: out.2,
             });
         }
     }
