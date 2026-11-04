@@ -3673,6 +3673,23 @@ fn statements(
                     "{pad}character().source_set_laser_pointer_active({active})"
                 )?;
             }
+            Statement::TurnVertical { up } => {
+                // The update of identity-card types 19 and 20 (0057e110) has
+                // no case for events 1 and 2, so there the event changes
+                // nothing. Other types' updates are not ported.
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var turn_mechanics_{id}: Resource = character().current_mechanics\n{pad}if turn_mechanics_{id} == null or not (int(turn_mechanics_{id}.get(\"mode\")) in [19, 20]):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} Proc_Turn{} needs its mechanics update for dynamics event {}",
+                        model.path,
+                        if *up { "Up" } else { "Down" },
+                        if *up { 1 } else { 2 }
+                    ))
+                )?;
+            }
             Statement::SetLaserPointerSniperMode(enabled) => {
                 let value = guarded_expression(out, enabled, model, depth, flow)?;
                 writeln!(
@@ -5552,7 +5569,17 @@ mod source_position_tests {
             designer_unknown: [0; 3],
             unknown: [0; 4],
         };
+        if let Some(Behavior { schedule: Some(script), .. }) =
+            model.normal.as_mut().and_then(|set| set.behaviors.get_mut(1))
+        {
+            script.statements = vec![Statement::TurnVertical { up: false }];
+        }
         let generated = compile(&model, &[])?;
+        assert!(
+            generated.contains("int(turn_mechanics_0.get(\"mode\")) in [19, 20]"),
+            "{generated}"
+        );
+        assert!(generated.contains("Proc_TurnDown needs its mechanics update for dynamics event 2"), "{generated}");
         assert!(generated.contains("dsg_0 = int(1)"), "{generated}");
         assert!(generated.contains("if int(dsg_0) < 0:"), "{generated}");
         assert!(generated.contains("change_normal(int(dsg_0), false)"), "{generated}");

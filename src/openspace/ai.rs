@@ -566,6 +566,8 @@ impl Parser<'_> {
                         )
                     }
                 }
+                (4, 38) => Statement::TurnVertical { up: true },
+                (4, 43) => Statement::TurnVertical { up: false },
                 (4, 337) => Statement::SetLaserPointerActive(true),
                 (4, 338) => Statement::SetLaserPointerActive(false),
                 (4, 342) => Statement::SetLaserPointerSniperMode(self.expression(indent + 1)?),
@@ -2538,6 +2540,7 @@ impl Writer<'_> {
                 Statement::SetLaserPointerActive(active) => {
                     self.node(4, if *active { 337 } else { 338 }, indent)
                 }
+                Statement::TurnVertical { up } => self.node(4, if *up { 38 } else { 43 }, indent),
                 Statement::SetLaserPointerSniperMode(enabled) => {
                     self.node(4, 342, indent);
                     self.expression(enabled, indent + 1)?;
@@ -4486,6 +4489,22 @@ mod partial_tests {
                 group: BehaviorGroup::Normal,
                 pause_after: false
             }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn vertical_turn_procedures_reconstruct() -> Result<()> {
+        // Proc_TurnUp (38) and Proc_TurnDown (43): 00540220 events 1 and 2.
+        let (codec, bytes) = partial(&[(4, 38, 1), (4, 43, 1), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[..],
+            [
+                Statement::TurnVertical { up: true },
+                Statement::TurnVertical { up: false }
+            ]
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

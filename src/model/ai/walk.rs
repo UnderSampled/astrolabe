@@ -332,6 +332,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SetParticleGeneratorEnabled(_)
                 | Statement::SetParticleGenerator(_)
                 | Statement::SetLaserPointerActive(_)
+                | Statement::TurnVertical { .. }
                 | Statement::SetObjectActive { .. }
                 | Statement::ActivateFade
                 | Statement::DeactivateFade

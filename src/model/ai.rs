@@ -489,6 +489,9 @@ pub enum Statement {
     JumpWithoutAddingSpeed,
     SetParticleGeneratorEnabled(bool),
     SetParticleGenerator(AssetRef<super::particle::ParticleGenerator>),
+    /// Proc_TurnUp (true) or Proc_TurnDown: 00540220 posts dynamics event 1
+    /// or 2 to the caller's dynamics for its mechanics update to interpret.
+    TurnVertical { up: bool },
     /// Original laser-pointer presentation is global; aiming reads its last
     /// target independently of whether the pointer is visible.
     SetLaserPointerActive(bool),
