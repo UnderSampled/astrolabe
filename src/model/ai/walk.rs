@@ -311,6 +311,8 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::Increment { .. }
                 | Statement::Decrement { .. }
                 | Statement::ChangeBehavior { .. }
+                | Statement::ChangeBehaviorVariable { .. }
+                | Statement::ChangeBehaviorToPrevious { .. }
                 | Statement::ChangeActorBehavior { .. }
                 | Statement::ResetRoute(_)
                 | Statement::ResetRouteBack(_)

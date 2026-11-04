@@ -736,7 +736,8 @@ fn value_type(v: &DesignerValue) -> &'static str {
         | DesignerValue::Short(_)
         | DesignerValue::UnsignedShort(_)
         | DesignerValue::UnsignedInteger(_)
-        | DesignerValue::Action(_) => "int",
+        | DesignerValue::Action(_)
+        | DesignerValue::Behavior(_) => "int",
         DesignerValue::Real(_) => "float",
         DesignerValue::Vector(_) => "Vector3",
         DesignerValue::IntegerArray(_) | DesignerValue::ActionArray(_) => "PackedInt32Array",
@@ -800,6 +801,9 @@ fn literal(
             v.values.iter().map(|v| super::vec3(*v)).collect(),
         ),
         DesignerValue::Action(v) => v.as_ref().map_or(-1, |v| i64::from(v.state)).to_string(),
+        // The behavior's index in its group; ChangeBehaviorVariable checks the
+        // model and group at compile time.
+        DesignerValue::Behavior(v) => v.as_ref().map_or(-1, |v| i64::from(v.behavior)).to_string(),
         DesignerValue::ActionArray(v) => array(
             "PackedInt32Array",
             v.values
@@ -4377,6 +4381,74 @@ fn statements(
                     } else {
                         "false"
                     }
+                )?;
+                writeln!(out, "{pad}    {}", if same_group { exit } else { "pass" })?;
+                if *pause_after {
+                    if flow.rule {
+                        writeln!(
+                            out,
+                            "{pad}{group}_rule_claimed = true\n{pad}{group}_action_revision += 1"
+                        )?;
+                    }
+                    writeln!(
+                        out,
+                        "{pad}await {}\n{pad}if not active_{group}(token): {exit}",
+                        flow.tick()
+                    )?;
+                }
+            }
+            Statement::ChangeBehaviorToPrevious {
+                group: requested,
+                pause_after,
+            } => {
+                let target_group = group_name(*requested);
+                let same_group = target_group == group;
+                writeln!(
+                    out,
+                    "{pad}if previous_{target_group} >= 0 and change_{target_group}(previous_{target_group}, {}):",
+                    if same_group && *pause_after { "true" } else { "false" }
+                )?;
+                writeln!(out, "{pad}    {}", if same_group { exit } else { "pass" })?;
+                if *pause_after {
+                    if flow.rule {
+                        writeln!(
+                            out,
+                            "{pad}{group}_rule_claimed = true\n{pad}{group}_action_revision += 1"
+                        )?;
+                    }
+                    writeln!(
+                        out,
+                        "{pad}await {}\n{pad}if not active_{group}(token): {exit}",
+                        flow.tick()
+                    )?;
+                }
+            }
+            Statement::ChangeBehaviorVariable {
+                variable,
+                group: requested,
+                pause_after,
+            } => {
+                let target_group = group_name(*requested);
+                let same_group = target_group == group;
+                let typed = matches!(
+                    model.variables.get(usize::from(*variable)).map(|v| &v.default),
+                    Some(DesignerValue::Behavior(Some(r))) if r.model.path == model.path && r.group == *requested
+                );
+                if !typed {
+                    writeln!(
+                        out,
+                        "{pad}fail_unsupported({})\n{pad}{exit}",
+                        quoted(&format!(
+                            "{} behavior request through dsg_{variable} needs a behavior variable of this model and group",
+                            model.path
+                        ))
+                    )?;
+                    continue;
+                }
+                writeln!(
+                    out,
+                    "{pad}if change_{target_group}(int(dsg_{variable}), {}):",
+                    if same_group && *pause_after { "true" } else { "false" }
                 )?;
                 writeln!(out, "{pad}    {}", if same_group { exit } else { "pass" })?;
                 if *pause_after {

@@ -242,6 +242,20 @@ pub enum Statement {
         selector: Expression,
         right: Expression,
     },
+    /// Proc_ChangeMyComport/Reflex (209/210) whose operand is a designer
+    /// variable of DSG type 13 (a behavior pointer) rather than a literal.
+    /// Proc_ChangeMyComport(PrevComportIntell) / Proc_ChangeMyComportReflex
+    /// (PrevComportReflex): fields 7 and 8 read the group's previous behavior,
+    /// which 005216e0 saves on every change.
+    ChangeBehaviorToPrevious {
+        group: BehaviorGroup,
+        pause_after: bool,
+    },
+    ChangeBehaviorVariable {
+        variable: u16,
+        group: BehaviorGroup,
+        pause_after: bool,
+    },
     ChangeBehavior {
         target: BehaviorRef,
         /// Yield the calling flow after the request; a change to that same
@@ -1138,6 +1152,9 @@ pub enum DesignerValue {
     Waypoint(Option<AssetRef<Waypoint>>),
     /// Resolved waypoint assets selected through a source array operation.
     WaypointArray(DesignerArray<Option<AssetRef<Waypoint>>>),
+    /// DSG type 13: a behavior (comport) pointer, value kind 0x23 (descriptor
+    /// table 0x005fdcc0), resolved to the behavior it addresses.
+    Behavior(Option<BehaviorRef>),
     /// Preserved bytes for a source designer field whose value semantics are
     /// not understood. The payload is never traversed as pointers or executed.
     Opaque {

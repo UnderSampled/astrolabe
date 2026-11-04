@@ -721,6 +721,7 @@ fn values(
     s: &SourceSession,
     states: &BTreeMap<Address, StateRef>,
     actors: &BTreeMap<Address, AssetRef<crate::model::character::Perso>>,
+    behaviors: &BTreeMap<Address, BehaviorRef>,
     result: &mut SceneImport,
     a: Address,
     infos: &[InfoWire],
@@ -747,10 +748,24 @@ fn values(
                 "opaque designer field has no bounded extent"
             );
             let size = end - offset;
+            // DSG type 13 holds a behavior pointer (value kind 0x23); a word
+            // that addresses a known behavior is typed, otherwise kept opaque.
+            let behavior = if info.kind == 13 && size >= 4 {
+                match s.pointer(add(a, offset), 0) {
+                    Ok(None) => Some(None),
+                    Ok(Some(target)) => behaviors.get(&target).cloned().map(Some),
+                    Err(_) => None,
+                }
+            } else {
+                None
+            };
             (
-                DesignerValue::Opaque {
-                    kind: info.kind,
-                    bytes: s.bytes(add(a, offset), size)?.to_vec(),
+                match behavior {
+                    Some(behavior) => DesignerValue::Behavior(behavior),
+                    None => DesignerValue::Opaque {
+                        kind: info.kind,
+                        bytes: s.bytes(add(a, offset), size)?.to_vec(),
+                    },
                 },
                 size,
             )
@@ -1074,6 +1089,7 @@ pub(super) fn import(
                         s,
                         states,
                         actors,
+                        &behavior_index,
                         result,
                         s.required(*a, 0)?,
                         infos,
@@ -1166,13 +1182,13 @@ pub(super) fn import(
                 "designer memory refers to another definition"
             );
             if let Some(a) = s.pointer(mem, 8)? {
-                memory = values(s, states, actors, result, a, infos, h.length as usize)
+                memory = values(s, states, actors, &behavior_index, result, a, infos, h.length as usize)
                     .with_context(|| format!("AI model {path} current designer memory"))?;
             }
             initial = s
                 .pointer(mem, 4)?
                 .map(|a| {
-                    values(s, states, actors, result, a, infos, h.length as usize)
+                    values(s, states, actors, &behavior_index, result, a, infos, h.length as usize)
                         .with_context(|| format!("AI model {path} initial designer memory"))
                 })
                 .transpose()?;

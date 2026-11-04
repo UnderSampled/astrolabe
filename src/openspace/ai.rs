@@ -1231,6 +1231,35 @@ impl Parser<'_> {
         start: usize,
     ) -> Result<Statement> {
         let operand = self.at;
+        let group = if id == 209 {
+            BehaviorGroup::Normal
+        } else {
+            BehaviorGroup::Reflex
+        };
+        // Field 7 PrevComportIntell / 8 PrevComportReflex (0x005ffd68 table).
+        if self.nodes.get(operand).is_some_and(|node| {
+            node.kind == 9
+                && node.indent == indent + 1
+                && node.parameter == if group == BehaviorGroup::Normal { 7 } else { 8 }
+        }) {
+            self.take(indent + 1)?;
+            return Ok(Statement::ChangeBehaviorToPrevious { group, pause_after });
+        }
+        if let Some(node) = self
+            .nodes
+            .get(operand)
+            .filter(|node| node.kind == 11 && node.indent == indent + 1)
+        {
+            // A designer variable operand: typed only when the variable holds
+            // a behavior (DSG type 13); the emitter checks its model and group.
+            let variable = u16::try_from(node.parameter)?;
+            self.take(indent + 1)?;
+            return Ok(Statement::ChangeBehaviorVariable {
+                variable,
+                group,
+                pause_after,
+            });
+        }
         if !self
             .nodes
             .get(operand)
@@ -1240,7 +1269,11 @@ impl Parser<'_> {
                 start,
                 self.end(start),
                 format!(
-                    "behavior request at node {start} has a non-behavior operand at node {operand}"
+                    "behavior request at node {start} has a non-behavior operand at node {operand} ({})",
+                    self.nodes
+                        .get(operand)
+                        .map(|n| format!("kind {} parameter {}", n.kind, n.parameter))
+                        .unwrap_or_default()
                 ),
             )?));
         }
@@ -1256,11 +1289,6 @@ impl Parser<'_> {
             )?));
         }
         let target = self.behavior(indent + 1)?;
-        let group = if id == 209 {
-            BehaviorGroup::Normal
-        } else {
-            BehaviorGroup::Reflex
-        };
         ensure!(
             target.group == group,
             "behavior request/owning group differs"
@@ -2942,6 +2970,37 @@ impl Writer<'_> {
                     );
                     self.behavior(target, indent + 1)?;
                 }
+                Statement::ChangeBehaviorToPrevious { group, pause_after } => {
+                    if *pause_after {
+                        self.node(4, 6, indent);
+                        self.node(12, 1, indent + 1);
+                    }
+                    let (id, field) = match group {
+                        BehaviorGroup::Normal => (209, 7),
+                        BehaviorGroup::Reflex => (210, 8),
+                    };
+                    self.node(4, id, indent);
+                    self.node(9, field, indent + 1);
+                }
+                Statement::ChangeBehaviorVariable {
+                    variable,
+                    group,
+                    pause_after,
+                } => {
+                    if *pause_after {
+                        self.node(4, 6, indent);
+                        self.node(12, 1, indent + 1);
+                    }
+                    self.node(
+                        4,
+                        match group {
+                            BehaviorGroup::Normal => 209,
+                            BehaviorGroup::Reflex => 210,
+                        },
+                        indent,
+                    );
+                    self.node(11, u32::from(*variable), indent + 1);
+                }
                 Statement::ChangeActorBehavior { actor, target } => {
                     self.node(
                         4,
@@ -4333,16 +4392,36 @@ mod partial_tests {
     }
 
     #[test]
-    fn dynamic_behavior_operand_is_preserved_as_an_explicit_unsupported_fragment() -> Result<()> {
+    fn previous_behavior_field_operand_is_typed_and_reconstructs() -> Result<()> {
+        // Proc_ChangeMyComport(PrevComportIntell): field 7 (0x005ffd68 table).
+        let (codec, bytes) = partial(&[(4, 209, 1), (9, 7, 2), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements[0],
+            Statement::ChangeBehaviorToPrevious {
+                group: BehaviorGroup::Normal,
+                pause_after: false
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn designer_variable_behavior_operand_is_typed_and_reconstructs() -> Result<()> {
+        // Proc_ChangeMyComport with a DSG variable operand (a type-13 behavior
+        // pointer) is a typed request on that variable, not a fixed behavior.
         let (codec, bytes) = partial(&[(4, 209, 1), (11, 45, 2), (8, 0, 0)]);
         let script = codec.read(&bytes)?;
-        let Statement::Unsupported(fragment) = &script.statements[0] else {
-            anyhow::bail!("dynamic behavior operand was interpreted as a fixed behavior");
-        };
-        assert!(fragment.reason.contains("non-behavior operand"));
-        assert_eq!(fragment.nodes.len(), 2);
-        assert_eq!(fragment.nodes, codec.preserved_nodes[..2]);
-        assert!(codec.write(&script).is_err());
+        assert!(matches!(
+            script.statements[0],
+            Statement::ChangeBehaviorVariable {
+                variable: 45,
+                group: BehaviorGroup::Normal,
+                pause_after: false
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
         Ok(())
     }
 

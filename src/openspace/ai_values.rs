@@ -75,6 +75,7 @@ impl DesignerValueCodec {
             DesignerValue::RealArray(_) => 21,
             DesignerValue::IntegerArray(_) => 22,
             DesignerValue::Action(_) => 14,
+            DesignerValue::Behavior(_) => 13,
             DesignerValue::ActionArray(_) => 25,
             DesignerValue::SourceWaypoint(_) => 8,
             DesignerValue::SourceWaypointArray(_) => 23,
@@ -224,6 +225,9 @@ impl FormatCodec for DesignerValueCodec {
         );
         let mut c = Cursor::new(Vec::new());
         match value {
+            DesignerValue::Behavior(_) => {
+                bail!("behavior designer values need a behavior pointer handle to write")
+            }
             DesignerValue::Boolean(v) => u8::from(*v).write_le(&mut c)?,
             DesignerValue::Byte(v) => v.write_le(&mut c)?,
             DesignerValue::UnsignedByte(v) | DesignerValue::Way(v) => v.write_le(&mut c)?,

@@ -375,8 +375,15 @@ func source_is_in_behavior(group: StringName, target: int) -> bool:
 	if group == &"reflex": return current_reflex >= 0 and current_reflex == target
 	return false
 
+## The behavior each group left on its last change: 005216e0 copies the current
+## comport (intelligence+8) to +0x0c before installing the new one; the AI reads
+## them as fields 7 PrevComportIntell and 8 PrevComportReflex (0x005ffd68 table).
+var previous_normal: int = -1
+var previous_reflex: int = -1
+
 func change_normal(target: int, defer_entry: bool = false) -> bool:
 	if current_normal == target: return false
+	previous_normal = current_normal
 	current_normal = target
 	normal_revision += 1
 	normal_resume_rule = 0
@@ -412,6 +419,7 @@ func active_reflex(token: int) -> bool:
 
 func change_reflex(target: int, defer_entry: bool = false) -> bool:
 	if current_reflex == target: return false
+	previous_reflex = current_reflex
 	current_reflex = target
 	reflex_revision += 1
 	reflex_resume_rule = 0
