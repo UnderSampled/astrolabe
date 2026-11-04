@@ -98,3 +98,40 @@ has no inactive flag. So the original must keep it asleep by sector activation (
 private disposable original of 181's StandardGame +0x1c and normal at Brigand arrival, and at the
 426 s spot. Then the source sleep/wake rule for actors leaving or entering Hype's sector activity
 set, scoped to that evidence. An earlier plain rule was reverted (manoir-checklist).
+
+## Symptom 4: live activation evidence (2026-11-04, private disposable original)
+
+Private copy: harness prefix reflink-copied to TestResults/orig/local. My own `orrery mcp` ran on
+port 18795; the installed original, the review copy (18791) and pid 1881 were left untouched.
+Manor save, menu load, `navigate_level brigand`, 5 s wait, then `find_scene_actor` and `read_memory`.
+
+| actor (sector) | normal now (initial) | per-pass write | mind+0x10 | StandardGame +0x1b +0x1c +0x1d +0x20 +0x24 |
+| --- | --- | --- | --- | --- |
+| 181 Trous (18) | 0 (0) | dsg_1 still (0,0,0): never ran | 0 | 0 1 0 4 4 |
+| 178 race kid (18) | 4 (3) | dsg_4 = its position: ran | 1 | 0 1 0 4 4 |
+| 123 Texte (11) | 2 (0, prev 1) | advanced: ran | 1 | 0 1 0 4 4 |
+| 120 wolf 1 (9) | 7 (4) | dsg_24 written: ran | 1 | 0 1 0 0 0 |
+| 48 bat 1 (11) | 2 (2) | no change | 0 | 0 1 0 0 0 |
+
+Corrections and conclusions:
+- 00438fa0 writes StandardGame +0x1d, not +0x1c (objdump). The section-8 note in
+  static-checklist-records.md is wrong on that byte. +0x1d is 0 for all five actors.
+- No sector gate fits the data:
+  - 178 and 181 share sector 18 and flags, but only 178 runs.
+  - 123 and bat 1 share sector 11, but only 123 runs.
+  - A trial "loaded sector" gate was reverted. It fixed the warp but stalled Gogoud's map scene,
+    which waits for 123, and the take shows that scene running at 329 s.
+- The 00437b10 sleep test cannot be the cause: 181 has +0x24 = 4.
+- StandardGame +0x28..+0x47 holds no distinguishing byte. Raymap's R2 offsets (tooFarLimit +0x33,
+  activationBits +0x41) do not apply to Hype's layout.
+- mind+0x10 is 0 exactly for the actors that have never entered a behavior. It looks like a
+  started/initialized flag, so it is a symptom, not the gate.
+- So the original starts characters' AI selectively: 181 and the bats stay unstarted at arrival.
+  The race kid's normals (1800: 1 to 181 normal 2, 2 and 7 to normal 0) are the source's only
+  writers of 181's behavior. 181 is most plausibly started by the race's ChangeComport, or by the
+  unlocated wake caller (00449cd0/00449c60, FUN_00443080 activation).
+- Remaining work:
+  - Statically locate the per-frame character AI loop and what sets the started state (callers of
+    FUN_00443080, 00449cd0, 00449c60).
+  - Live: watch 181's mind+0x10 when the race starts, and whether a ChangeComport alone starts it.
+  - Then port that start rule. Until then the port starts every Brain at load.

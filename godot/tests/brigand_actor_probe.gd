@@ -226,6 +226,8 @@ func walk_toward(_hype: Node3D, _target: Vector3, _session: Node) -> void:
 
 func sample(step: int, session: Node, hype: Node3D, world: Node, watch: Array) -> Dictionary:
 	var row := {"t": snappedf(float(step) / Engine.physics_ticks_per_second, 0.01), "hype": vec(hype.global_position), "actors": {}}
+	var sector: Node = hype.call("source_current_sector") if hype.has_method("source_current_sector") else null
+	row["hype_sector"] = str(sector.name) + ":" + str(sector.get("sector_name")) if is_instance_valid(sector) else "-"
 	var hype_brain := hype.get_node_or_null("Brain")
 	if hype_brain != null:
 		row["hype_normal"] = hype_brain.get("current_normal")
