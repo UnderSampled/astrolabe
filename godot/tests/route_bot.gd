@@ -705,8 +705,17 @@ func run() -> void:
 			# From the session's loading flag to play in the new level: the exit fade and the load.
 			if ok and load_began >= 0: print("LOADTIME ", JSON.stringify({"level": step["until_level"], "ms": now_ms() - load_began}))
 		elif step.has("save"):
+			# A checkpoint needs Hype standing still: let go of any follow keys.
+			for arrow in ["ArrowUp", "ArrowLeft", "ArrowRight"]: _follow_steer(arrow, false)
+			_follow_key(KEY_SHIFT, false)
+			_steer_state["run"] = false
+			var settle := now_ms() + 3000
+			while now_ms() < settle and (actor().velocity.length() > 0.4 or int(brain_of("hype").get("current_normal")) != 4):
+				await physics_frame
 			game.call("save_game")
 			await process_frame
+			var label: Node = game.get("status_label")
+			print("SAVE_STEP ", JSON.stringify({"status": str(label.get("text")) if label != null else "", "velocity": snappedf(actor().velocity.length(), 0.01), "normal": brain_of("hype").get("current_normal")}))
 		elif step.has("until_normal"):
 			var end := now_ms() + int(step.get("timeout", 30.0) * 1000.0)
 			while int(game.get("brain").get("current_normal")) != int(step["until_normal"]) and now_ms() < end: await physics_frame
@@ -808,6 +817,22 @@ func follow(plan: Dictionary) -> bool:
 		while cursor + 1 < track.size() and float(track[cursor + 1][0]) <= shift: cursor += 1
 	while clock < until:
 		await physics_frame
+		# Every hold is bounded: a clock hold that lasts over 8 s is logged
+		# with its reason and released (the pending key goes through), and a
+		# level-exit hold ends the follow, so the bot never idles silently.
+		if _hold_this_frame.is_empty():
+			_hold_streak = 0.0
+		else:
+			_hold_streak += 1.0 / Engine.physics_ticks_per_second
+			if _hold_streak > 8.0:
+				print("IDLE ", JSON.stringify({"take": snappedf(clock, 0.01), "reason": _hold_this_frame, "seconds": snappedf(_hold_streak, 0.1), "mode": _port_mode(), "normal": brain_of("hype").get("current_normal"), "key": keys[next_key] if next_key < keys.size() else null, "pos": [snappedf(position().x, 0.1), snappedf(position().y, 0.1)]}))
+				_hold_streak = 0.0
+				_follow_hold = 99.0
+				_follow_spot = {}
+				if _hold_this_frame == "level-exit":
+					_follow_report_metrics()
+					return false
+		_hold_this_frame = ""
 		var now := (now_ms() - origin) / 1000.0
 		if bool(game.get("loading")) or game.get("level") == null:
 			if not loading:
@@ -853,15 +878,15 @@ func follow(plan: Dictionary) -> bool:
 			# dialogue; its Space waits while the port's pages are advanced.
 			if bool(row[2]) and int(row[1]) == KEY_SPACE and wanted == "play" and _port_mode() == "dialogue" and _follow_hold < 6.0:
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
-				shift -= 1.0 / Engine.physics_ticks_per_second
+				shift -= _hold("dialogue-space")
 				break
 			if bool(row[2]) and wanted != "play" and _port_mode() != wanted and _follow_hold < 6.0:
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
-				shift -= 1.0 / Engine.physics_ticks_per_second
+				shift -= _hold("modal")
 				break
 			# Where the take stood still to act (casts, swings, shots), the zones
 			# leave centimetres of margin: reach its spot and facing first.
-			if bool(row[2]) and int(row[1]) in ACTION_KEYS and wanted == "play" and _port_mode() == "play" and _follow_hold < 6.0:
+			if bool(row[2]) and int(row[1]) in ACTION_KEYS and wanted == "play" and _port_mode() == "play" and _follow_hold < 12.0:
 				var spot := _track_spot(track, float(row[0]))
 				if not spot.is_empty():
 					_follow_spot = spot
@@ -869,14 +894,14 @@ func follow(plan: Dictionary) -> bool:
 					var turn := absf(wrapf((Vector2(spot["aim"]) - position()).angle() - heading(), -PI, PI))
 					if off > 0.5 or turn > 0.05:
 						_follow_hold += 1.0 / Engine.physics_ticks_per_second
-						shift -= 1.0 / Engine.physics_ticks_per_second
+						shift -= _hold("spot")
 						break
 			if bool(row[2]) and int(row[1]) in ACTION_KEYS and _follow_spot.is_empty() and (_follow_gap > 1.0 or (_follow_facing_off and wanted == "play")) and _follow_hold < 12.0:
 				# An action waits for Hype to reach and face the take's spot;
 				# facing makes him settle to a stand and turn (aimed casts).
 				_follow_aiming = _follow_facing_off and wanted == "play"
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
-				shift -= 1.0 / Engine.physics_ticks_per_second
+				shift -= _hold("action")
 				break
 			# Hype's movement rules precede his action rules, so an action
 			# pressed with an arrow held is lost. Release the arrows for one
@@ -887,10 +912,10 @@ func follow(plan: Dictionary) -> bool:
 				_follow_quiet_frames = 2 if steering else 1
 				if steering:
 					for arrow in ["ArrowUp", "ArrowLeft", "ArrowRight"]: _follow_steer(arrow, false)
-					shift -= 1.0 / Engine.physics_ticks_per_second
+					shift -= _hold("steer-release")
 					break
 			if _follow_hold > 0.0 and not _follow_spot.is_empty():
-				print("SPOT ", JSON.stringify({"take": float(row[0]), "held": snappedf(_follow_hold, 0.01), "off": snappedf(Vector2(_follow_spot["point"]).distance_to(position()), 0.01), "turn": snappedf(wrapf(float(_follow_spot["facing"]) - heading(), -PI, PI), 0.01)}))
+				print("SPOT ", JSON.stringify({"take": float(row[0]), "held": snappedf(_follow_hold, 0.01), "off": snappedf(Vector2(_follow_spot["point"]).distance_to(position()), 0.01), "turn": snappedf(wrapf((Vector2(_follow_spot["aim"]) - position()).angle() - heading(), -PI, PI), 0.01), "pos": [snappedf(position().x, 0.01), snappedf(position().y, 0.01)], "spot": [snappedf(Vector2(_follow_spot["point"]).x, 0.01), snappedf(Vector2(_follow_spot["point"]).y, 0.01)], "aim": [snappedf(Vector2(_follow_spot["aim"]).x, 0.01), snappedf(Vector2(_follow_spot["aim"]).y, 0.01)], "heading": snappedf(heading(), 0.01)}))
 			_follow_hold = 0.0
 			_follow_aiming = false
 			_follow_spot = {}
@@ -906,6 +931,8 @@ func follow(plan: Dictionary) -> bool:
 			# Route annotation: a press the take needed but the port no longer
 			# does (the stage already counted), as a player who saw it would.
 			if _follow_skip(plan.get("skip_if", []), row):
+				_follow_spot = {}
+				_follow_hold = 0.0
 				next_key += 1
 				continue
 			_follow_key(int(row[1]), bool(row[2]))
@@ -935,17 +962,19 @@ func follow(plan: Dictionary) -> bool:
 			print("WATCH ", JSON.stringify({"take": snappedf(clock, 0.01), "gogoud": watch[0], "epee": watch[1], "arbalete": watch[2], "magie": watch[3], "dialogue_page_mode": watch[4], "hype_17_55_58_0_70_97_held": watch[5]}))
 			_watch = watch
 		# A dialogue the take has already left is advanced with Space.
+		# (The reset belongs to this test: attached to the release below, it
+		# zeroed the timer every frame and no tap was ever sent.)
 		if _port_mode() == "dialogue" and _take_mode(track, landmarks, clock) == "play":
 			_follow_linger += 1.0 / Engine.physics_ticks_per_second
 			if _follow_linger > 0.35:
 				_follow_linger = 0.0
 				_follow_key(KEY_SPACE, true)
 				_follow_space_release = 0.1
+		else:
+			_follow_linger = 0.0
 		if _follow_space_release > 0.0:
 			_follow_space_release -= 1.0 / Engine.physics_ticks_per_second
 			if _follow_space_release <= 0.0: _follow_key(KEY_SPACE, false)
-		else:
-			_follow_linger = 0.0
 		# Path pursuit: follow the take's track by proximity (so a lagging Hype
 		# goes round corners instead of cutting them), never past its clock.
 		var here := position()
@@ -989,7 +1018,7 @@ func follow(plan: Dictionary) -> bool:
 				sample = track[last]
 				target = _track_point(sample)
 				playable = true
-				shift -= 1.0 / Engine.physics_ticks_per_second
+				shift -= _hold("level-exit")
 		if not _follow_spot.is_empty():
 			target = _follow_spot["point"]
 			playable = true
@@ -1215,6 +1244,13 @@ func _trace_bolts(clock: float) -> void:
 			for zone in [1, 2, 3, 4]: zones.append(bool(mannequin.call("source_collide_perso_zde_no_with_type_zde", zone, 2)))
 		print("BOLT ", JSON.stringify({"take": snappedf(clock, 0.01), "frame": Engine.get_physics_frames(), "id": node.get_instance_id() % 10000, "pos": [snappedf(node.global_position.x, 0.01), snappedf(-node.global_position.z, 0.01), snappedf(node.global_position.y, 0.01)], "normal": brain.get("current_normal"), "dsg_120": brain.get("dsg_120"), "active": node.get("source_object_active"), "contacts": contacts, "mannequin_zones": zones, "mannequin_dist": snappedf(node.global_position.distance_to(mannequin.global_position), 0.01) if mannequin != null else -1}))
 
+## One frame of held take clock, recorded under its reason.
+func _hold(reason: String) -> float:
+	var dt := 1.0 / Engine.physics_ticks_per_second
+	_hold_this_frame = reason
+	_hold_totals[reason] = float(_hold_totals.get(reason, 0.0)) + dt
+	return dt
+
 func _port_mode() -> String:
 	var inventory_host: Node = game.get("inventory_host")
 	if inventory_host != null and is_instance_valid(inventory_host.get("view")) and inventory_host.get("view").visible: return "inventory"
@@ -1235,6 +1271,9 @@ var _follow_facing := NAN
 var _follow_key_release := {}
 var _follow_facing_off := false
 var _follow_aiming := false
+var _hold_this_frame := ""
+var _hold_streak := 0.0
+var _hold_totals := {}
 var _follow_skipped := {}
 var _follow_spot := {}
 var _follow_quiet_frames := 0
@@ -1308,6 +1347,9 @@ func _follow_report_metrics() -> void:
 	m["spurious"] = spurious
 	var minutes := maxf(float(m["frames"]) / Engine.physics_ticks_per_second / 60.0, 0.001)
 	print("MOTION ", JSON.stringify({"minutes": snappedf(minutes, 0.01), "port_starts": m["port_starts"], "port_stops": m["port_stops"], "take_starts": m["take_starts"], "take_stops": m["take_stops"], "spurious_start_stop": m["spurious"], "controlled_minutes": snappedf(minutes, 0.01), "turn_toggles_per_min": snappedf(m["turn_toggles"] / minutes, 0.1), "straight_yaw_rms_deg_s": snappedf(sqrt(m["yaw_rate_sq"] / maxf(m["straight_frames"], 1)), 0.1)}))
+	var holds := {}
+	for reason in _hold_totals: holds[reason] = snappedf(_hold_totals[reason], 0.1)
+	print("HOLDS ", JSON.stringify(holds))
 func _follow_steer(name: String, pressed: bool) -> void:
 	if bool(_steer_state.get(name, false)) == pressed: return
 	_steer_state[name] = pressed
