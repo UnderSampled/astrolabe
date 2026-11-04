@@ -541,8 +541,9 @@ func snapshot(game: Node) -> Dictionary:
     var actor_brain_count := 0
     var global_data: Array[Dictionary] = []
     for source_brain in brains:
-        # Exported nonvisual Globals keep designer values with automatic=false
-        # (scene.rs). They are not rooted actor behaviors held by this session.
+        # The exported Global (fix perso 15) runs as a real actor, automatic,
+        # for fall recovery and damage (f875e4d). It is counted apart from the
+        # rooted actor behaviors held by this session.
         if source_brain.get_parent().get_parent() == level.get_node("Globals"):
             global_data.append({"path":str(source_brain.get_path()),"model":source_brain.get("source_model_path"),"automatic":source_brain.get("automatic")})
             continue
@@ -708,7 +709,7 @@ func run() -> void:
     # by the source corpus test, rather than inferred from this runtime result.
     if not require(hype.call("source_hit_points_ready") and life.get("current") == 50 and remembered_life == 50 and not hype_failure.contains("operation 35 at node 820") and not hype_failure.contains("requires converted actor hit points"),"Hype did not read original actor life state into designer field128"): return
     if not require(first["scene"] == "res://game/new_game.tscn" and first["loading_stage"] == "opening" and first["save_disabled"],"New Game mode or opening state differs"): return
-    if not require(first["global_data_brains"].size() == 1 and first["global_data_brains"][0]["model"] == "fix:/ai/models/1" and not first["global_data_brains"][0]["automatic"],"exported global-data role changed"): return
+    if not require(first["global_data_brains"].size() == 1 and first["global_data_brains"][0]["model"] == "fix:/ai/models/1" and first["global_data_brains"][0]["automatic"],"exported Global actor role changed"): return
     if not require(first["automatic_brains"] == first["brain_count"] and first["brain_count"] > 0,"opening held generated Brains"): return
     if not require(absf(float(first["gate_height"])) < 0.1 and first["gate_automatic"],"New Game used the saved-game gate workaround"): return
     # Original live reading of the initial stationary Hype (notes/manor-intro-reference-2026-10-03.md);
@@ -954,15 +955,25 @@ func run() -> void:
     corrupt_import.close()
     var failure_button := error_menu.find_child("LoadGame", true, false) as Button
     if not require(failure_button != null and not failure_button.disabled, "Load Game was not offered for the isolated failure check"): return
+    # The project may hold other original saves (game/saves/*.cfg); check the
+    # staged one wherever the picker lists it.
     var failure_candidates: Array = SAVE_STATE.load_candidates()
-    if not require(failure_candidates.size() == 1 and failure_candidates[0].get("status") == "error" and not str(failure_candidates[0].get("message", "")).is_empty(), "a corrupt original save was not listed with its reason"): return
+    var staged_source := SAVE_STATE.ORIGINAL_SOURCE + ":" + ORIGINAL_IMPORT_FILE
+    var staged_index := -1
+    for index in failure_candidates.size():
+        if failure_candidates[index].get("source") == staged_source: staged_index = index
+    if not require(staged_index >= 0 and failure_candidates[staged_index].get("status") == "error" and not str(failure_candidates[staged_index].get("message", "")).is_empty(), "a corrupt original save was not listed with its reason"): return
+    var staged_candidate: Dictionary = failure_candidates[staged_index]
     await click_gui(failure_button, true)
     await _wait_frames_until(func(): return error_menu.get("save_picker") != null and is_instance_valid(error_menu.get("save_picker")), 3000)
     var failure_picker: Control = error_menu.get("save_picker")
     if not require(failure_picker != null and is_instance_valid(failure_picker), "Load Game did not open the save picker for the corrupt save"): return
     var failure_rows := failure_picker.get_node("Panel/Margin/Rows/Saves").get_children()
-    if not require(failure_rows.size() == 2 and (failure_rows[0] as Button).disabled and failure_rows[1] is Label, "the unusable save was not shown disabled with its reason"): return
-    report["load_failure"] = {"candidate":failure_candidates[0].get("message", ""),"button_disabled":true}
+    var staged_row := -1
+    for index in failure_rows.size():
+        if failure_rows[index] is Button and (failure_rows[index] as Button).text == str(staged_candidate.get("label")): staged_row = index
+    if not require(staged_row >= 0 and (failure_rows[staged_row] as Button).disabled and staged_row + 1 < failure_rows.size() and failure_rows[staged_row + 1] is Label and (failure_rows[staged_row + 1] as Label).text == str(staged_candidate.get("message")), "the unusable save was not shown disabled with its reason"): return
+    report["load_failure"] = {"candidate":staged_candidate.get("message", ""),"button_disabled":true,"listed_sources":failure_candidates.size()}
     await click_gui(failure_picker.get_node("Panel/Margin/Rows/Back") as Button, true)
     await process_frame
     if not require(error_menu.get("save_picker") == null or not is_instance_valid(error_menu.get("save_picker")), "closing the picker did not return to the main menu"): return
