@@ -3012,7 +3012,13 @@ fn statements(
                         value
                     }
                 } else {
-                    format!("{}({value})", value_type(kind))
+                    if matches!(kind, DesignerValue::Vector(_)) {
+                        // 00523b50 copies a non-vector result's word into x
+                        // (source_vector in behavior.gd).
+                        format!("source_vector({value})")
+                    } else {
+                        format!("{}({value})", value_type(kind))
+                    }
                 };
                 writeln!(out, "{pad}dsg_{variable} = {value}")?;
             }
@@ -4246,8 +4252,13 @@ fn statements(
                 let value = guarded_expression(out, value, model, depth, flow)?;
                 writeln!(
                     out,
-                    "{pad}dsg_{variable}[int({})] = {kind}({})",
-                    index, value
+                    "{pad}dsg_{variable}[int({})] = {}",
+                    index,
+                    if kind == "Vector3" {
+                        format!("source_vector({value})")
+                    } else {
+                        format!("{kind}({value})")
+                    }
                 )?;
             }
             Statement::VectorComponentAssign {

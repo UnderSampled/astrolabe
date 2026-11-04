@@ -153,6 +153,15 @@ func stop() -> void:
 	normal_schedule_tick.emit()
 	reflex_schedule_tick.emit()
 
+## A value stored into a vector designer variable. The source writer (00523b50)
+## copies the value's word into x and the result buffer's two payload words into
+## y and z; for a non-vector result those are stale, so they read as zero here
+## (stand-in real-into-vector, stand-ins.md).
+func source_vector(value: Variant) -> Vector3:
+	if value is Vector3: return value
+	stand_in("real-into-vector", "%s stores a non-vector value into a vector designer variable" % get("source_model_path"))
+	return Vector3(float(value), 0.0, 0.0)
+
 func fail_unsupported(context: String) -> void:
 	if not strict_unsupported:
 		# The caller returns, abandoning this rule pass; rules retry next tick.
