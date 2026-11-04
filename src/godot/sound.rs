@@ -280,31 +280,98 @@ fn export_resource(
 
 fn validate_native_theme_shape(theme: &SoundResourceDefinition, label: &str) -> Result<()> {
     let SoundResourceData::Theme {
-        start_loop,
-        main_loops,
-        parts,
+        start_loop, parts, ..
     } = &theme.data
     else {
         anyhow::bail!("{label}: expected theme")
     };
+    // Natural part advance (004fa5c0/004fa770) never reads a part's transition
+    // or fade fields, nor the theme's main-loop parameter: those matter only
+    // when a request switches themes, which stays unsupported at runtime.
     ensure!(
-        !parts.is_empty()
-            && *start_loop >= 0
-            && (*start_loop as usize) < parts.len()
-            && *main_loops == 0
-            && theme.looped
-            && parts.iter().all(|part| !part.start_loop
-                && !part.end_loop
-                && part.loops == 0
-                && part.transition_duration == 0.0
-                && matches!(
-                    part.transition,
-                    ThemeTransition::Crossfade | ThemeTransition::EndOfPart
-                )),
-        "{}: theme loop groups or transition semantics require additional source coverage",
+        !parts.is_empty() && *start_loop >= 0 && (*start_loop as usize) < parts.len() && theme.looped,
+        "{}: theme needs parts, a loop entry within them and looped playback",
         label
     );
     Ok(())
+}
+
+/// A repeat count at or above this is treated as unbounded. The source counts
+/// down a 32-bit word from 0xffffffff when no group set it, which is hours of
+/// playback; folding such counts keeps the simulated sequence finite.
+const THEME_UNBOUNDED_REPEATS: u32 = 1 << 16;
+
+/// The part order the source plays with no theme switch, as a finite prefix
+/// plus a cycle: (part index per step, step the last step advances to).
+/// Port of the natural advance 004fa5c0 (hype-decomp src/sound/theme_parts.c),
+/// started as 004fa700 starts it. Part fields: start_loop (+4), end_loop (+8),
+/// loops (+0x0c); theme start index (+0x14).
+fn theme_natural_sequence(parts: &[ThemeSoundPart], start_index: usize) -> Result<(Vec<usize>, usize)> {
+    #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+    struct State {
+        current: usize,
+        repeat_start: Option<usize>,
+        remaining: u32,
+    }
+    let count = parts.len();
+    let folded = |n: u32| n.min(THEME_UNBOUNDED_REPEATS);
+    let advance = |state: &mut State| {
+        let next;
+        let mut next_index = state.current;
+        'record: {
+            if parts[state.current].end_loop && state.remaining != 0 {
+                if state.remaining < THEME_UNBOUNDED_REPEATS {
+                    state.remaining -= 1;
+                }
+                next = state.repeat_start.unwrap_or(0);
+                next_index = next;
+                break 'record;
+            }
+            if state.remaining == 0 {
+                state.repeat_start = None;
+            }
+            next_index += 1;
+            if next_index < count {
+                next = next_index;
+            } else {
+                next_index = start_index;
+                next = start_index;
+                let mut scan = start_index as i64;
+                while !parts[scan as usize].start_loop {
+                    scan -= 1;
+                    if scan < 0 || parts[scan as usize].end_loop {
+                        break 'record;
+                    }
+                }
+                state.repeat_start = Some(scan as usize);
+                state.remaining = folded(parts[scan as usize].loops as u32);
+            }
+        }
+        if parts[next].start_loop && state.repeat_start.is_none() {
+            state.repeat_start = Some(next_index);
+            state.remaining = folded(parts[next].loops as u32);
+        }
+        state.current = next;
+    };
+    // 004fa700 then the advance it calls: the first part plays first.
+    let mut state = State {
+        current: 0,
+        repeat_start: None,
+        remaining: THEME_UNBOUNDED_REPEATS,
+    };
+    if parts[0].start_loop {
+        state.repeat_start = Some(0);
+        state.remaining = folded(parts[0].loops as u32);
+    }
+    let mut seen = std::collections::HashMap::new();
+    let mut order = Vec::new();
+    while !seen.contains_key(&state) {
+        ensure!(order.len() <= 4096, "theme natural sequence does not settle into a cycle");
+        seen.insert(state, order.len());
+        order.push(state.current);
+        advance(&mut state);
+    }
+    Ok((order, seen[&state]))
 }
 
 fn export_theme_voice(
@@ -327,7 +394,17 @@ fn export_theme_voice(
         return Ok(());
     }
     validate_native_theme_shape(theme, &identity(reference))?;
-    if parts.len() > 63 {
+    let (order, cycle) = theme_natural_sequence(parts, *start_loop as usize)?;
+    let plain = order.len() == parts.len()
+        && order.iter().enumerate().all(|(step, part)| step == *part)
+        && cycle == *start_loop as usize;
+    if order.len() > 63 {
+        ensure!(
+            plain,
+            "{}: theme loop groups unroll to {} clips, above the interactive stream's 63",
+            identity(reference),
+            order.len()
+        );
         return export_flat_theme_voice(project, source, reference, theme);
     }
     let stream = resource_path(project, reference, "streams");
@@ -337,9 +414,12 @@ fn export_theme_voice(
     writeln!(
         project.builder,
         "    var theme_stream_{n} = AudioStreamInteractive.new()\n    theme_stream_{n}.clip_count = {}\n    theme_stream_{n}.initial_clip = 0",
-        parts.len()
+        order.len()
     )?;
-    for (i, part) in parts.iter().enumerate() {
+    // One clip per step of the source's natural part order; the last step
+    // advances into the repeating cycle.
+    for (i, part_index) in order.iter().copied().enumerate() {
+        let part = &parts[part_index];
         let definitions = source.load(&part.resource.definitions)?;
         let resource = definitions.resource(part.resource.id)?;
         ensure!(
@@ -348,16 +428,12 @@ fn export_theme_voice(
             identity(reference)
         );
         let gain = resource.volume.map_or(1.0, |v| (v / 127.0).clamp(0.0, 1.0));
-        let next = if i + 1 < parts.len() {
-            i + 1
-        } else {
-            *start_loop as usize
-        };
+        let next = if i + 1 < order.len() { i + 1 } else { cycle };
         writeln!(
             project.builder,
             "    var theme_part_{n}_{i} = load({})\n    var theme_gain_{n}_{i} = AudioStreamSynchronized.new()\n    theme_gain_{n}_{i}.stream_count = 1\n    theme_gain_{n}_{i}.set_sync_stream(0, theme_part_{n}_{i}.stream)\n    theme_gain_{n}_{i}.set_sync_stream_volume(0, linear_to_db(maxf({gain}, 0.000001)))\n    theme_stream_{n}.set_clip_name({i}, {})\n    theme_stream_{n}.set_clip_stream({i}, theme_gain_{n}_{i})\n    theme_stream_{n}.set_clip_auto_advance({i}, AudioStreamInteractive.AUTO_ADVANCE_ENABLED)\n    theme_stream_{n}.set_clip_auto_advance_next_clip({i}, {next})\n    theme_stream_{n}.add_transition({i}, {next}, AudioStreamInteractive.TRANSITION_FROM_TIME_END, AudioStreamInteractive.TRANSITION_TO_TIME_START, AudioStreamInteractive.FADE_DISABLED, 0.0)",
             quoted(&resource_path(project, &part.resource, "voices")),
-            quoted(&format!("part_{i}"))
+            quoted(&format!("step_{i}_part_{part_index}"))
         )?;
     }
     writeln!(

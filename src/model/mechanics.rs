@@ -97,6 +97,8 @@ impl Content for Mechanics {
                     6 => 88,
                     7 => 48,
                     11 => 16,
+                    16 => 48,
+                    17 => 96,
                     19 => 4,
                     _ => anyhow::bail!("unsupported opaque mechanics kind"),
                 };

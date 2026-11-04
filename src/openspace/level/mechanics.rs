@@ -53,6 +53,11 @@ pub(super) fn size(kind: u32) -> Result<usize> {
         // Source case 0xb allocates a pointer-free 0x14-byte card. Its fields
         // are retained until their gameplay meaning is established.
         11 => 20,
+        // 00591464 case 0x10 allocates 0x34 and seeds floats (1, 80, 2, 0.85,
+        // 1, 5); case 0x11 allocates 100, zeroed. Both are pointer-free (the
+        // copier memcpys 0x10 whole). Retained until their meaning is read.
+        16 => 52,
+        17 => 100,
         _ => anyhow::bail!("unsupported Hype mechanics kind {kind}"),
     })
 }
