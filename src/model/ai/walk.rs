@@ -86,8 +86,10 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::ExecuteAction(value)
                 | Statement::Turn {
                     degrees_per_second: value,
+                    ..
                 }
                 | Statement::TurnToward(value)
+                | Statement::ActorTurnToward { target: value, .. }
                 | Statement::IncrementalTurnToward { frames: value, .. }
                 | Statement::SetVectorSpeed(value)
                 | Statement::AddWind(value)

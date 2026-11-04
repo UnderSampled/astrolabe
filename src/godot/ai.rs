@@ -3269,12 +3269,33 @@ fn statements(
                     }
                 }
             }
-            Statement::Turn { degrees_per_second } => {
+            Statement::Turn {
+                degrees_per_second,
+                per_frame,
+            } => {
                 let value = guarded_expression(out, degrees_per_second, model, depth, flow)?;
+                if *per_frame {
+                    // Proc_Turn2: degrees per frame over this frame's time.
+                    writeln!(
+                        out,
+                        "{pad}if frame_seconds > 0.0: character().turn(float({value}) / frame_seconds, frame_seconds)"
+                    )?;
+                } else {
+                    writeln!(out, "{pad}character().turn(float({value}), frame_seconds)")?;
+                }
+            }
+            Statement::ActorTurnToward { actor, target } => {
+                let receiver = actor_target_code(actor);
+                let value = guarded_expression(out, target, model, depth, flow)?;
+                let id = flow.local;
+                flow.local += 1;
                 writeln!(
                     out,
-                    "{pad}character().turn(float({}), frame_seconds)",
-                    value
+                    "{pad}var turner_{id}: Variant = {receiver}\n{pad}var turn_actor_{id}: Variant = {value}\n{pad}if not (turner_{id} is Node3D) or not is_instance_valid(turner_{id}) or not turner_{id}.has_method(\"source_turn_toward\") or not (turn_actor_{id} is Node3D) or not is_instance_valid(turn_actor_{id}) or not turner_{id}.source_turn_toward(turn_actor_{id}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires native actors and mechanics for an Ultra TurnPerso",
+                        model.path
+                    ))
                 )?;
             }
             Statement::TurnToward(target) => {

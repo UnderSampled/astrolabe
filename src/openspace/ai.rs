@@ -387,7 +387,8 @@ impl Parser<'_> {
                         Statement::Decrement { target }
                     }
                 }
-                (4, 214) => Statement::Turn {
+                (4, 214 | 215) => Statement::Turn {
+                    per_frame: id == 215,
                     degrees_per_second: self.expression(indent + 1)?,
                 },
                 (4, 217) => Statement::TurnToward(self.expression(indent + 1)?),
@@ -691,6 +692,15 @@ impl Parser<'_> {
                         // is discarded by this source Ultra statement.
                         self.at = at;
                         Statement::Evaluate(self.expression(indent)?)
+                    } else if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 217)
+                    {
+                        // 00542c80 takes Operator_Ultra's receiver as the turner.
+                        self.take(indent + 1)?;
+                        Statement::ActorTurnToward {
+                            actor: actor_target,
+                            target: self.expression(indent + 2)?,
+                        }
                     } else if let Some(actor_target) = actor_target.clone()
                         && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 273)
                     {
@@ -2264,8 +2274,11 @@ impl Writer<'_> {
                         }
                     }
                 }
-                Statement::Turn { degrees_per_second } => {
-                    self.node(4, 214, indent);
+                Statement::Turn {
+                    degrees_per_second,
+                    per_frame,
+                } => {
+                    self.node(4, if *per_frame { 215 } else { 214 }, indent);
                     self.expression(degrees_per_second, indent + 1)?;
                 }
                 Statement::TurnToward(target) => {
@@ -2653,6 +2666,12 @@ impl Writer<'_> {
                 }
                 Statement::ActivateFade => self.node(4, 319, indent),
                 Statement::DeactivateFade => self.node(4, 320, indent),
+                Statement::ActorTurnToward { actor, target } => {
+                    self.node(2, 24, indent);
+                    self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                    self.node(4, 217, indent + 1);
+                    self.expression(target, indent + 2)?;
+                }
                 Statement::SetCustomBit { actor, bit, value } => {
                     if *actor == ActorTarget::Keyword(ActorKeyword::SelfActor) {
                         self.node(4, 273, indent);

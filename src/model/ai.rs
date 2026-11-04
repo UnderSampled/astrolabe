@@ -256,12 +256,21 @@ pub enum Statement {
         target: BehaviorRef,
     },
     ChangeAction(Expression),
+    /// Proc_Turn (214) and Proc_Turn2 (215) share 00542bb0: 214 takes degrees
+    /// per second; 215 takes degrees per frame, divided by the clamped frame
+    /// time (DAT_00754af8, 16 to 80 ms) its dynamics then integrates over.
     Turn {
         degrees_per_second: Expression,
+        per_frame: bool,
     },
     /// Proc_TurnPerso (217) requests the absolute horizontal heading toward
     /// an actor's origin. This is an immediate mechanics request, not Meta23.
     TurnToward(Expression),
+    /// Proc_TurnPerso under Operator_Ultra: the receiver turns toward the target.
+    ActorTurnToward {
+        actor: ActorTarget,
+        target: Expression,
+    },
     /// Action_IncrementalTurnPerso snapshots the shortest horizontal turn and
     /// applies equal steps over a source frame count; negative counts mean one.
     IncrementalTurnToward {
@@ -2115,10 +2124,12 @@ impl Script {
                         expression(selector, variables, depth + 1, count)?;
                         expression(right, variables, depth + 1, count)?;
                     }
-                    Statement::Turn { degrees_per_second }
-                    | Statement::TurnToward(degrees_per_second) => {
-                        expression(degrees_per_second, variables, depth + 1, count)?
-                    }
+                    Statement::Turn { degrees_per_second, .. }
+                    | Statement::TurnToward(degrees_per_second)
+                    | Statement::ActorTurnToward {
+                        target: degrees_per_second,
+                        ..
+                    } => expression(degrees_per_second, variables, depth + 1, count)?,
                     Statement::IncrementalTurnToward { target, frames } => {
                         if let ActorTarget::Reference(actor) = target {
                             ensure!(actor.path.member().is_none(), "turn target is a member");
