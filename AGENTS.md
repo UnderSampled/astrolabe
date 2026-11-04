@@ -55,6 +55,13 @@ The original OpenSpace engine and its decompilation are the source of truth, fol
 
 Work directly on `main`. This is a single-developer project: do not create branches unless Stephen asks, and do not push without being asked. Commit as you go, and run the gate at merge-point-sized steps.
 
+## Debugging failed behavior
+
+- **Static first.** When a behavior or chain fails, trace it statically before running experiments: through the decoded AI, the generated GDScript, the runtime and the decomp. Prefer a Sonnet research subagent writing to `notes/research/`. Name every link and whether the port implements it, stands it in, or lacks it. Use live runs to confirm or refute a specific link with targeted logging, not to search by trial and error.
+- **No unsourced adaptations.** Any port behavior that departs from the source needs source evidence, or must be a documented [stand-in](./docs/astrolabe/stand-ins.md) with its reason. "It looked wrong" or "it sank" is not evidence.
+
+See [debugging a failing behavior](./docs/astrolabe/testing.md#debugging-a-failing-behavior).
+
 ## Validation and local data
 
 Run `python3 tools/gate.py` before merging. Its game checks start from a loaded save; the intro runs with the full route (`tools/route_check.py --full`), and two-engine stage scenarios stay short, on demand and outside the gate. Unsupported source calls get documented [stand-ins](./docs/astrolabe/stand-ins.md), never silent no-ops. Check new AI parser assumptions against live memory through Orrery.

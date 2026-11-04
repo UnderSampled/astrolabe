@@ -163,6 +163,17 @@ script error. A route takes up to a few minutes, so this is on demand. Routes co
 training, the key, the first gate and the exit; `stage*.json` start mid-game with
 bot steps, and `save_exit.json` is the gate's route.
 
+## Debugging a failing behavior
+
+Trace a failing behavior or chain statically before experimenting: decoded AI,
+generated GDScript, runtime and decomp, ideally through a research subagent
+writing to `notes/research/`. List every link and whether the port implements
+it, stands it in, or lacks it. Then use a run to confirm or refute one named
+link with targeted logging (the route bot's `follow` step prints `WATCH`,
+`NORMAL`, `KEY` and `SELECT` lines for this), rather than rerunning until it
+passes. A port behavior that departs from the source needs source evidence or
+a documented entry in [stand-ins.md](./stand-ins.md).
+
 ## Side-by-side videos
 
 `tools/video/` makes an original-versus-port video from a take and a route-bot
