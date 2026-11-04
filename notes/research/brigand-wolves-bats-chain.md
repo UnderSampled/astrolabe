@@ -153,3 +153,24 @@ pickup, paged with Button_Hit as in the take at about 341 s):
 - Remaining: generic-4-53 (SetHitPointsToInit) and generic-5-1 (Action_IncrementalTurn in a rule)
   are still skipped. The wolves' Walk event5 body itself is not recovered. Not compared frame by
   frame with the take's 366 s fight.
+
+## Live check of the (3,8) designer operand (owner, 2026-11-04)
+
+Private disposable original, manor save, `navigate_level brigand`. Raw reads used Astrolabe's verified
+designer layout (source_view.rs designer_view, records.rs DesignerWire and InfoWire):
+- Wolf 1 chain: perso+0x10 brain, then mind, mind+0 model, model+8 definition
+  (40 fields, length 248), infos at definition+4, 16-byte rows {offset, kind, save, init}.
+- mind+0x0C memory: +0 points back to the definition (checked), +8 holds the current values.
+
+| field | offset | kind | live value |
+| --- | --- | --- | --- |
+| dsg_33 | 192 | 10 | wolf 1's own SuperObject |
+| dsg_34 | 196 | 10 | the SuperObject whose perso has object types (41, 67, 149): wolf 2, the partner |
+| dsg_35 | 200 | 10 | the SuperObject whose perso has object types (4, 52, 135): I_Brigand1_ArbreLoups |
+
+- The port's exported dsg_35 (the tree, world/0/65) matches.
+- Orrery's designer decoder fails on these fields because it reads the stored SuperObject as a perso.
+- Handler 0x537aa0 pushes [[operand]+4] to 0x438e00, which returns [x+0xC] (objdump). So the
+  evaluated operand is a perso (StandardGame +0x0C is the SuperObject; that layout was checked live).
+- So Func_DistanceXZToPerso(dsg_35) measures to the tree, as the corrected decoder emits.
+- Inferred, not read: the SuperObject-to-perso step for a kind-10 slot inside 0x522610.
