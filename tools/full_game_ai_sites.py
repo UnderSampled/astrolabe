@@ -7,7 +7,10 @@ and the per-level port logs, and counts by level and model:
     with no table entry) and generic-untyped (scripts that could not be typed);
   - guards: fail_unsupported("...") sites, grouped by message template (actor
     paths and numbers replaced);
-  - converter diagnostics: codes in the port log;
+  - converter diagnostics: codes in the port log; each unsupported_script
+    diagnostic is also counted per model as an unsupported table call
+    (unsupported_call, <cat>-<op>) or a typing failure (untyped_reason, its
+    message with node and behavior numbers replaced);
   - save-related sites: save procedures, Global (level-carried) Brain field
     writes, and inventory/progress calls.
 Nothing is run. usage: full_game_ai_sites.py PROJECT LOG_DIR OUT_TSV [LOG_PREFIX]
@@ -43,6 +46,12 @@ def global_brains(level_dir):
             bound[scripts[m.group(1)]].add(k)
     return bound
 INVENTORY = re.compile(r'source_inventory_\w+|source_magic_\w+|Inv_\w+')
+DIAGNOSTIC = re.compile(r'\{[^{}]*"code":"openspace\.ai\.unsupported_script"[^{}]*\}')
+CALL = re.compile(r'unsupported AI (?:expression|statement) category (\d+) operation (\d+)')
+
+def reason(message):
+    m = message.split(": ", 1)[-1]
+    return re.sub(r'\b(node|behavior) \d+', r'\1 N', m)[:140]
 
 def template(message):
     m = re.sub(r'(level|fix):/[\w/.\-]+', '<ref>', message)
@@ -65,8 +74,17 @@ for level_dir in sorted((project / "generated/hype/levels").iterdir()):
         for m in INVENTORY.finditer(text): rows[(level, model, "inventory_call", m.group(0))] += 1
     log = logs / f"{prefix}{level}.log"
     if log.exists():
-        for code in re.findall(r'"code":"([^"]+)"', log.read_text(errors="replace")):
+        text = log.read_text(errors="replace")
+        for code in re.findall(r'"code":"([^"]+)"', text):
             rows[(level, "-", "diagnostic", code)] += 1
+        for d in DIAGNOSTIC.finditer(text):
+            d = json.loads(d.group(0))
+            asset = d.get("asset", "-").replace("level:/ai/models/", "").replace("fix:/ai/models/", "fix/")
+            call = CALL.search(d["message"])
+            if call:
+                rows[(level, asset, "unsupported_call", f"{call.group(1)}-{call.group(2)}")] += 1
+            else:
+                rows[(level, asset, "untyped_reason", reason(d["message"]))] += 1
 with out.open("w") as f:
     f.write("level\tmodel\tkind\tid\tsites\n")
     for (level, model, kind, ident), n in sorted(rows.items()):

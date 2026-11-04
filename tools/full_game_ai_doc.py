@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""Render docs/astrolabe/full-game-ai-sites.md from a full-game run.
+
+usage: full_game_ai_doc.py SITES_TSV RESULTS_TSV OUT_MD [STALE ...]
+SITES_TSV is tools/full_game_ai_sites.py output; RESULTS_TSV is the run
+manifest (level, exit status, seconds; last line "DONE <commit>"). Each STALE
+argument names an entry a later commit changed, with that commit. Body states
+come from the hype-decomp checkout next to this repository. Every count below
+is computed from these files. Fix models are compiled into every level, so a
+fix model's sites count once in "unique" figures.
+"""
+import collections, csv, re, sys
+from pathlib import Path
+
+sites_path, results_path, out = map(Path, sys.argv[1:4])
+stale = sys.argv[4:]
+DECOMP = Path(__file__).resolve().parents[1].parent / "hype-decomp"
+if not DECOMP.exists():
+    DECOMP = Path("/home/stephen/Projects/hype-decomp")
+rows = list(csv.DictReader(sites_path.open(), delimiter="\t"))
+results = [l.rstrip("\n").split("\t") for l in results_path.open() if l.strip()]
+done = [r[0] for r in results if r[0].startswith("DONE")]
+binary = done[0].split()[1] if done else "unfinished"
+runs = [r for r in results if len(r) == 3]
+failed = [r[0] for r in runs if r[1] != "0"]
+
+api = {}
+for l in (DECOMP / "research/hype-ai-api.tsv").open():
+    if l.startswith("#"): continue
+    c = l.rstrip("\n").split("\t")
+    if len(c) > 5:
+        k = {"condition": "1", "function": "3", "procedure": "4", "meta_action": "5"}[c[0]] + "-" + c[1]
+        api[k] = (c[2], c[5] if c[0] == "meta_action" and c[5] not in ("-", "") else c[4])
+recovered = {l.split("\t")[0] for l in (DECOMP / "research/ai-dispatch-recovered.tsv").open()
+             if not l.startswith(("#", "entry"))}
+coverage = {r["address"]: r for r in csv.DictReader((DECOMP / "research/coverage.tsv").open(), delimiter="\t")}
+
+
+def aggregate(kind, levels=None):
+    """(id, levels, unique sites, level-model sites, fix-model sites), largest first."""
+    seen = collections.defaultdict(set); own = collections.Counter()
+    fix = collections.defaultdict(lambda: collections.defaultdict(int))
+    for r in rows:
+        if r["kind"] != kind or (levels and r["level"] not in levels): continue
+        seen[r["id"]].add(r["level"])
+        if r["model"].startswith("fix/"):
+            fix[r["id"]][r["model"]] = max(fix[r["id"]][r["model"]], int(r["sites"]))
+        else:
+            own[r["id"]] += int(r["sites"])
+    out = [(i, len(seen[i]), own[i] + sum(fix[i].values()), own[i], sum(fix[i].values())) for i in seen]
+    return sorted(out, key=lambda x: (-x[2], -x[1]))
+
+
+def total(kind, levels=None):
+    return sum(x[2] for x in aggregate(kind, levels))
+
+
+def body(ident):
+    m = re.match(r"(?:generic-)?([1-5]-\d+)$", ident)
+    if not m or m.group(1) not in api: return "-", "-"
+    name, address = api[m.group(1)]
+    c = coverage.get(address, {})
+    state = ("rewritten" if c.get("status") == "body_rewritten_static"
+             else "raw recovered" if address in recovered else "raw" if c.get("raw_file") else "none")
+    return name, state
+
+
+def site_count(ident):
+    """Unique sites of a stand-in, whether documented (4-271) or generic."""
+    bare = ident.removeprefix("generic-")
+    return sum(x[2] for x in aggregate("stand_in") if x[0] in (bare, "generic-" + bare))
+
+
+stand_ins = aggregate("stand_in")
+guards = aggregate("guard")
+diagnostics = aggregate("diagnostic")
+level_count = len({r["level"] for r in rows})
+
+table = ["| Id | Entry | Levels | Unique sites | Level-model sites | Fix-model sites | Original body |",
+         "| --- | --- | --- | --- | --- | --- | --- |"]
+for i, lv, u, o, f in stand_ins[:35]:
+    name, state = body(i)
+    if i == "generic-untyped": name = "(script could not be typed)"
+    table.append(f"| `{i}` | {name} | {lv} | {u} | {o} | {f} | {state} |")
+guard_table = ["| Guard message (template) | Levels | Unique sites |", "| --- | --- | --- |"] + \
+    [f"| {g[0].replace('|', '/')} | {g[1]} | {g[2]} |" for g in guards[:10]]
+diag_table = ["| Diagnostic | Levels | Sites |", "| --- | --- | --- |"] + \
+    [f"| `{d[0]}` | {d[1]} | {d[2]} |" for d in diagnostics]
+
+pair = {"manoir", "brigand"}
+untyped_pair = next((x for x in aggregate("stand_in", pair) if x[0] == "generic-untyped"), None)
+reasons = aggregate("untyped_reason", pair)
+reason_lines = "\n".join(f"  - {r[0]}: {r[2]}" for r in reasons) or "  - none"
+unsupported_pair = {lv: next((x[2] for x in aggregate("diagnostic", {lv}) if x[0] == "openspace.ai.unsupported_script"), 0)
+                    for lv in ("manoir", "brigand")}
+
+turns = {i: site_count(f"generic-{i}") for i in ("4-36", "4-37", "4-38", "4-43")}
+maps = {i: site_count(f"generic-{i}") for i in ("4-271", "4-272")}
+camera = sum(x[2] for x in stand_ins if re.fullmatch(r"generic-4-1(5\d|6\d|7[0-6])", x[0]))
+
+staleness = ("Stale entries:\n" + "\n".join(f"  - {e}" for e in stale)) if stale else "At generation time there were none."
+
+doc = f"""# Missing AI sites across the whole game
+
+Static inventory, generated by `tools/full_game_ai_doc.py` from one run.
+
+- **Binary:** all levels were converted with one binary, main `{binary}`.
+- **Manifest:** {len(runs)} levels, {len(runs) - len(failed)} with exit 0{', failed: ' + ', '.join(failed) if failed else ''}.
+- **Method:** each level was converted with
+  `astrolabe port disc PROJECT --level L` into an isolated project (never
+  `godot/`). `tools/full_game_ai_sites.py` then counted the generated GDScript
+  and port logs. Nothing was run in Godot.
+- **Staleness:** an entry is stale when a commit after `{binary}` changed its
+  handling. {staleness}
+
+Ids are `<category>-<op>`: 1 condition, 2 operator or field, 3 function,
+4 procedure, 5 meta action. `generic-` marks a call with no table entry, and
+`generic-untyped` a script the compiler could not type.
+
+Fix models are compiled into every level, so their sites repeat per level.
+"Unique sites" counts each fix model once.
+
+"Original body" is the state of the original handler in hype-decomp:
+- **rewritten**: a clean C rewrite exists;
+- **raw**: the original Ghidra export had it;
+- **raw recovered**: readable since the dispatch-table recovery
+  (`docs/ai-dispatch-table-recovery.md`).
+
+## Conversion
+
+Every level converts. The blockers of the first pass were fixed in the
+converter or turned into documented stand-ins:
+
+| Former blocker | Levels | Resolution |
+| --- | --- | --- |
+| Null triangle or UV array with a zero count (block (6,2)+8) | toras x4, tour x2, village x3 | Zero-count arrays skip their null pointer; empty submeshes get no Godot surface |
+| Mechanics cards 16 and 17 (then 1, 2, 5, 8, 10, 12 to 15, 20) | casino3, ciel x4 | Sizes from 00591464; all are pointer-free (00593eaf copies them flat) and kept unpromoted |
+| Theme loop groups | fort, monast2, monast3, toras4 | The source's natural part advance (004fa5c0) unrolled into clips, or one PCM stream above 63 clips |
+| Waypoint-array element store ("dsg_N is not an array") | manoir2, manoir4, casino3 | Stores the waypoint Resource |
+| Non-finite dialogue justification | manoir3 | Accepted: the source forwards the word unread to the FON draw calls |
+| Action states of another family in a shared model | toras | Checked against their own family |
+| Zone activation past the geometry's slots | tour3 | Stand-in `zone-past-slots` |
+| Real stored into a vector variable | toptower | Stand-in `real-into-vector` |
+| Unrelocated way-list word (0x12345678, a fill pattern) | casino | Stand-in `unrelocated-way-list` |
+
+## Priority view
+
+The largest remaining items are below.
+
+**Untyped scripts (`generic-untyped`).** {site_count('generic-untyped')} unique stand-in
+sites in the generated GDScript of all levels. Manoir and Brigand have two
+different counts:
+- **Stand-in sites:** {untyped_pair[2] if untyped_pair else 0} `generic-untyped` sites
+  ({untyped_pair[3] if untyped_pair else 0} in level models,
+  {untyped_pair[4] if untyped_pair else 0} in fix models, each counted once).
+- **Typing-failure diagnostics:** the converter's untyped fragments, each fix
+  model once:
+{reason_lines}
+- **All `openspace.ai.unsupported_script` diagnostics:**
+  {unsupported_pair['manoir']} in Manoir and {unsupported_pair['brigand']} in Brigand. These count every unsupported
+  fragment, including the documented `generic-<cat>-<op>` calls, so they are
+  not untyped counts.
+
+**Turn procedures 4-36 and 4-37** (Proc_TurnLeft, TurnRight): {turns['4-36'] + turns['4-37']}
+sites, all in ciel model 124.
+- They rotate under the type-19 mechanics update (0057e110), which the port
+  lacks.
+- 4-38 and 4-43 (TurnUp, TurnDown) are typed as no-ops on that card type and
+  have {turns['4-38'] + turns['4-43']} stand-in sites left.
+- See `notes/research/static-traces-modelcast-turns.md`.
+
+**Map destinations 4-271 and 4-272:** {maps['4-271'] + maps['4-272']} sites. Their bodies are
+rewritten in hype-decomp.
+
+**Camera procedures 4-150 to 4-176:** {camera} unique stand-in sites.
+
+**Totals:**
+- {len(stand_ins)} stand-in ids with {total('stand_in')} unique sites;
+- {len(guards)} guard templates with {total('guard')} unique sites. Guards are
+  runtime validity checks that skip a call when a binding is missing.
+
+## Stand-ins by sites (top 35)
+
+Full per-level and per-model counts: the run's sites TSV (regenerate with
+`tools/full_game_ai_sites.py`).
+
+""" + "\n".join(table) + """
+
+## Guards (most common templates)
+
+""" + "\n".join(guard_table) + """
+
+## Converter diagnostics
+
+""" + "\n".join(diag_table) + f"""
+
+## Saves and persistent state
+
+| Item | Sites ({level_count} levels) | Port support |
+| --- | --- | --- |
+| Proc_ActivateSaveGameMotorMode (4-336, lectern save menu) | {total('save_call')} | Stand-in: saves through the authored save |
+| Proc_SaveGame, Proc_IncHistoricAndSaveGame, Proc_SaveAllGameValues; save rotation sector and moving surface | 0 seen | Possibly inside untyped scripts |
+| Global Brain (level-carried) field writes | {len(aggregate('global_write'))} distinct fields, {total('global_write')} unique sites | Native manor save keeps a bounded set; elsewhere the `travel-save` stand-in |
+| Inventory and magic calls | {total('inventory_call')} unique sites, {len(aggregate('inventory_call'))} kinds | Shared inventory; `1-118`, `1-119`, `3-197`, `3-199` are stand-ins |
+
+Known save gaps:
+- 248 unknown Manoir save identities (`notes/research/unknown-save-fields.md`).
+- A port save can be refused or write nothing
+  (`notes/research/route-bot-state.md`).
+  - `save_game()` returns silently before `opening_finished`.
+  - `checkpoint_error` refuses until Hype has settled.
+"""
+out.write_text(doc)
+print(f"wrote {out}: binary {binary}, {len(runs)} levels, {len(failed)} failed")
