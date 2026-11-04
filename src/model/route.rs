@@ -45,6 +45,36 @@ pub struct RouteLink {
     pub unknown: [u8; 2],
     #[serde(with = "serde_bytes")]
     pub dynamics: Vec<u8>,
+    /// Bezier (connection 2) or circle-arc (connection 3) geometry.
+    #[serde(default)]
+    pub curve: Option<RouteLinkCurve>,
+}
+
+/// A curved link's shape and its source sampling rate. The original walks
+/// rate + 1 samples it baked from this shape (00526cc0 -> 00530cc0 /
+/// 00530340); the port follows the shape itself, so the table is not kept
+/// (notes/research/curved-way-links.md).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RouteLinkCurve {
+    pub shape: RouteCurveShape,
+    pub rate: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum RouteCurveShape {
+    /// Cubic Bezier through start + start_vector and end + end_vector (00531720).
+    Bezier {
+        start: [f32; 3],
+        end: [f32; 3],
+        start_vector: [f32; 3],
+        end_vector: [f32; 3],
+    },
+    /// The short arc about centre at the start radius (00532810).
+    CircleArc {
+        start: [f32; 3],
+        end: [f32; 3],
+        centre: [f32; 3],
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -98,6 +128,24 @@ impl Content for Route {
                 link.static_endpoint.is_none() || link.connection == 0,
                 "static endpoint on another connection kind"
             );
+            if let Some(curve) = &link.curve {
+                let expected = match curve.shape {
+                    RouteCurveShape::Bezier { .. } => 2,
+                    RouteCurveShape::CircleArc { .. } => 3,
+                };
+                let points: Vec<[f32; 3]> = match curve.shape {
+                    RouteCurveShape::Bezier { start, end, start_vector, end_vector } => {
+                        vec![start, end, start_vector, end_vector]
+                    }
+                    RouteCurveShape::CircleArc { start, end, centre } => vec![start, end, centre],
+                };
+                ensure!(
+                    link.connection == expected
+                        && curve.rate > 0
+                        && points.iter().flatten().all(|v| v.is_finite()),
+                    "invalid curved route link"
+                );
+            }
         }
         Ok(())
     }

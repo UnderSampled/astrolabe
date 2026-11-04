@@ -751,6 +751,41 @@ pub(super) struct StaticLineWire {
     pub position: u32,
 }
 
+/// Bezier (type 2) and circle-arc (type 3) link payload: twelve bytes
+/// {curve, samples, lengths} (FUN_00530510 / FUN_0052fbf0). The sample table
+/// holds rate+1 points and is read at run time by 00530cc0 / 00530340; the
+/// length table is its cumulative polyline length (00530ac0).
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CurvedLinkWire {
+    pub curve: u32,
+    pub samples: u32,
+    pub lengths: u32,
+}
+
+/// MTH3D_tdstBezierCurve_ (00531180, 00531670): end points, tangent offsets
+/// and the sampling rate at 0x30 (00531240).
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct BezierCurveWire {
+    pub start: [f32; 3],
+    pub end: [f32; 3],
+    pub start_vector: [f32; 3],
+    pub end_vector: [f32; 3],
+    pub rate: u8,
+}
+
+/// MTH3D_tdstCircleArcCurve_ (00531b30, 00531c60): end points, centre and the
+/// sampling rate at 0x24 (00531e10).
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CircleArcCurveWire {
+    pub start: [f32; 3],
+    pub end: [f32; 3],
+    pub centre: [f32; 3],
+    pub rate: u8,
+}
+
 /// The selected AI records are shared by file import and bounded relocated
 /// memory inspection. Keeping their declarations here prevents the live view
 /// from growing a second, subtly different decoder.

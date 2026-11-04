@@ -50,6 +50,8 @@ pub struct WayLinkInspection {
     pub unknown: [u8; 2],
     /// The 52-byte DynamicObject value is retained while its semantics are mapped.
     pub dynamics: Vec<u8>,
+    /// Bezier or circle-arc geometry.
+    pub curve: Option<RouteLinkCurve>,
 }
 
 /// Inspect one rooted actor without interpreting its AI or following opaque geometry.
@@ -176,6 +178,10 @@ fn read_route(s: &SourceSession, route: Address) -> Result<WayInspection> {
                                     Ok(point)
                                 }).transpose()?
                             } else { None },
+                            curve: match raw.connection {
+                                2 | 3 => s.pointer(a, 0)?.map(|payload| read_curve(s, payload, raw.connection)).transpose()?,
+                                _ => None,
+                            },
                             connection: raw.connection,
                             dynamic_kind: raw.dynamic_kind,
                             sample: raw.sample,
@@ -190,6 +196,37 @@ fn read_route(s: &SourceSession, route: Address) -> Result<WayInspection> {
         }
     }
     Ok(value)
+}
+
+/// Curved link payload {curve, samples, lengths}: the shape and its rate. The
+/// baked sample and length tables are derived from it and not kept.
+fn read_curve(s: &SourceSession, payload: Address, connection: u32) -> Result<RouteLinkCurve> {
+    let _: CurvedLinkWire = wire(s.bytes(payload, 12)?)?;
+    let curve = s.required(payload, 0)?;
+    let (shape, rate) = if connection == 2 {
+        let c: BezierCurveWire = wire(s.bytes(curve, 0x31)?)?;
+        (
+            RouteCurveShape::Bezier {
+                start: c.start,
+                end: c.end,
+                start_vector: c.start_vector,
+                end_vector: c.end_vector,
+            },
+            c.rate,
+        )
+    } else {
+        let c: CircleArcCurveWire = wire(s.bytes(curve, 0x25)?)?;
+        (
+            RouteCurveShape::CircleArc {
+                start: c.start,
+                end: c.end,
+                centre: c.centre,
+            },
+            c.rate,
+        )
+    };
+    ensure!(rate > 0, "curved link has no samples");
+    Ok(RouteLinkCurve { shape, rate })
 }
 
 fn read_point(s: &SourceSession, p: Address) -> Result<WaypointInspection> {
@@ -296,6 +333,7 @@ pub(super) fn import_bindings(
                                     length: l.length,
                                     unknown: l.unknown,
                                     dynamics: l.dynamics,
+                                    curve: l.curve,
                                 })
                             })
                             .transpose()

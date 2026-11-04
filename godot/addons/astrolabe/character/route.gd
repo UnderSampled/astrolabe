@@ -1,6 +1,6 @@
 extends Resource
-## Native fixed route geometry. The exporter resolves source geometry/sharing;
-## gameplay consumes the saved Curve3D, never source link records or samples.
+## Native route geometry. The exporter resolves source geometry/sharing;
+## gameplay consumes the saved curves, never source records or samples.
 @export var curve: Curve3D
 @export var radii: PackedFloat32Array
 @export var closed: bool = false
@@ -8,4 +8,7 @@ extends Resource
 ## Selected motion may reach a fixed point before later unsupported links.
 @export var point_supported: PackedByteArray
 @export var link_supported: PackedByteArray
+## Per link: the Bezier or circle-arc link as a native curve from waypoint i
+## to its end; empty (no points) for StaticLine.
+@export var link_curves: Array[Curve3D] = []
 @export var source_identity: String

@@ -98,6 +98,7 @@ var source_point_revision: int = 0
 var source_point_active: bool = false
 var source_point_holds_motion: bool = false
 var _source_point_target: Vector3 = Vector3.ZERO
+var _source_point_arrival: Vector3 = Vector3.ZERO
 var _source_point_actor: Node3D
 var _source_point_pursuit: bool = false
 var _source_point_radius: float = 0.0
@@ -647,20 +648,50 @@ func _source_select_waypoint_target() -> bool:
         if link < 0 or link >= route.link_supported.size() or route.link_supported[link] == 0:
             _source_fail_point_request("selected waypoint needs unsupported link geometry")
             return false
+        var curve := _source_link_curve(route, link)
+        if curve != null:
+            # A curved link is walked toward its end, with the current
+            # waypoint's radius (005181e0); the arrival test is at the link's
+            # end, where the original's last sample lies.
+            _source_point_radius = route.radii[point]
+            _source_point_arrival = curve.get_point_position(curve.point_count-1)
+            _source_point_target = _source_curve_steer(curve, _source_point_radius)
+            if not _source_point_target.is_finite() or not is_finite(_source_point_radius):
+                _source_fail_point_request("selected waypoint requires finite position and radius")
+                return false
+            return true
         # Supported StaticLine selects its endpoint directly at every sample.
         selected = link+1
     if selected < 0 or selected >= route.point_supported.size() or route.point_supported[selected] == 0:
         _source_fail_point_request("selected waypoint needs unsupported relative geometry")
         return false
     _source_point_target = route.curve.get_point_position(selected)
+    _source_point_arrival = _source_point_target
     _source_point_radius = route.radii[point]
     if not _source_point_target.is_finite() or not is_finite(_source_point_radius):
         _source_fail_point_request("selected waypoint requires finite position and radius")
         return false
     return true
 
-## Arrival advances at most one vertex. Sampled curved links remain explicit
-## failures; fixed StaticLine reports last-sample immediately.
+## A curved link's native curve, or null for StaticLine and older resources.
+func _source_link_curve(route: Resource, link: int) -> Curve3D:
+    var curves: Variant = route.get("link_curves")
+    if not curves is Array or link < 0 or link >= curves.size(): return null
+    var curve: Curve3D = curves[link]
+    return curve if curve != null and curve.point_count >= 2 else null
+
+## Steering point on a curved link: one arrival radius past the actor's
+## nearest point along the curve, clamped to its end. The original instead
+## targets the first baked sample farther than the radius (00518500); moving
+## along the curve by distance is the behavioral equivalent.
+func _source_curve_steer(curve: Curve3D, radius: float) -> Vector3:
+    var length := curve.get_baked_length()
+    var offset := curve.get_closest_offset(global_position) + maxf(radius, 0.25)
+    return curve.sample_baked(minf(offset, length))
+
+## Arrival advances at most one vertex (00518500). Arrival on a curved link is
+## at its end, which the original reaches past its last sample (00526c50), so
+## both kinds move on to the next vertex here.
 func _source_advance_next_waypoint() -> bool:
     var slot := _source_point_route_slot
     var route = source_routes[slot]
@@ -704,9 +735,10 @@ func _source_point_control() -> bool:
     # The source returns completion before arrival/snap if dynamics is absent.
     var moving := source_motion_binding_present
     if moving:
-        var distance := global_position.distance_to(_source_point_target)
+        var arrival := _source_point_arrival if _source_point_route_slot >= 0 else _source_point_target
+        var distance := global_position.distance_to(arrival)
         moving = distance > _source_point_radius and not (_source_point_radius == 0.0 and distance <= 0.25)
-        if not moving and _source_point_radius == 0.0: global_position = _source_point_target
+        if not moving and _source_point_radius == 0.0: global_position = arrival
     if not moving:
         var continuing := _source_advance_next_waypoint() if _source_point_route_slot >= 0 else false
         if not continuing: source_point_active = false
@@ -754,9 +786,9 @@ func _source_character_point_motion(direction: Vector3, delta: float) -> Vector3
         global_rotation.y = current_heading+turn
     return direction * speed
 
-## GoOverWay retains actor-local progress. Fixed route vertices are native
-## Curve3D points; animation supplies speed and CharacterBody3D supplies contact.
-## Curved/dynamic/relative routes fail before starting rather than approximating.
+## GoOverWay retains actor-local progress. Route vertices are native Curve3D
+## points and curved links their baked samples; animation supplies speed and
+## CharacterBody3D supplies contact. Dynamic/relative routes fail before starting.
 func source_begin_route(slot: int) -> int:
     if slot < 0 or slot >= source_routes.size(): return -1
     var route = source_routes[slot]
@@ -790,13 +822,17 @@ func _source_route_target() -> Vector3:
     # Engine arrival callback 0054a9a0 compares three-dimensional distance <=
     # radius. Zero-radius points additionally accept 0.25, then snap (0054a9f0).
     # Limit the scan to one complete loop, including coincident vertices.
+    # A vertex reached over a curved link is approached along that link's
+    # curve, with the vertex's radius tested at the curve's end (00518500).
     for _point in route.curve.point_count:
         var index := source_route_points[source_route_slot]
-        var target: Vector3 = route.curve.get_point_position(index)
+        var curve: Curve3D = _source_link_curve(route, index-1) if index > 0 else null
         var radius: float = route.radii[index]
-        if global_position.distance_to(target) > (radius if radius > 0.0 else 0.25):
-            return target
-        if radius == 0.0: global_position = target
+        var arrival: Vector3 = route.curve.get_point_position(index)
+        if curve != null: arrival = curve.get_point_position(curve.point_count-1)
+        if global_position.distance_to(arrival) > (radius if radius > 0.0 else 0.25):
+            return _source_curve_steer(curve, radius) if curve != null else arrival
+        if radius == 0.0: global_position = arrival
         index += 1
         if index == route.curve.point_count:
             source_route_points[source_route_slot] = 0
