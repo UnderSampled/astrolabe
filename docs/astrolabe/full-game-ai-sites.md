@@ -1,7 +1,7 @@
 # Missing AI sites across the whole game
 
 Static inventory, refreshed 2026-11-04. All 37 levels convert. Each was
-converted with `astrolabe port disc output/full-game/project2 --level L`
+converted with `astrolabe port disc output/full-game/project3 --level L`
 (isolated project, never `godot/`), and the generated GDScript and port logs
 were counted with `tools/full_game_ai_sites.py`. Nothing was run in Godot.
 Ids are `<category>-<op>`: 1 condition, 2 operator or field, 3 function,
@@ -17,12 +17,10 @@ Fix models are compiled into every level, so their sites repeat per level.
 - **raw recovered**: readable since the dispatch-table recovery
   (`docs/ai-dispatch-table-recovery.md`).
 
-**Binary skew.** Manoir and the four Brigand maps were re-converted with the
-binary that ports Action_GoToWP, Proc_Turn2, Ultra Proc_TurnPerso,
-Func_GetNormalCollideVector and GetNormalGroundVector,
-ReduceIndexOfVectorArray and Cond_CollideMovingZDM (main 3c506d4). The other 32
-levels were converted before those ports. Their remaining sites for those ids
-(for example `generic-4-215`, `generic-3-220`) would go with a re-conversion.
+**One binary.** All 37 levels were converted fresh with a single pinned
+binary, main e655c98. The run manifest `output/full-game/results3.tsv` has 37
+rows, all exit 0, ending `DONE e655c98`. Every one of the 37 directories under
+`disc/Gamedata/World/Levels` has a manifest row and a generated level folder.
 
 ## Conversion
 
@@ -45,44 +43,43 @@ converter or turned into documented stand-ins:
 
 The largest remaining items are:
 
-- **Untyped scripts:** `generic-untyped`, 967 unique sites in all 37 levels,
-  plus 5798 `openspace.ai.unsupported_script` diagnostics. In Manoir and
-  Brigand the typing failures are:
-  - the camera procedures' unbound camera actor (fix/437, 60 sites);
-  - behavior requests whose operand is a designer variable of type 13, a
-    behavior pointer (60 sites in brigand, brigand2 and brigand4; it needs a
-    typed behavior designer value);
-  - Ultra receivers on operations 185, 187, 387, 218 and 253;
-  - actor-field receivers.
+- **Untyped scripts:** `generic-untyped`, 688 unique sites in all 37 levels
+  (967 before the camera Self, previous-behavior and Ultra transparency
+  typing). In Manoir and Brigand: 60 sites, down from 180. The remaining
+  typing failures there:
+  - Ultra operations unsupported for a receiver (14);
+  - unbound camera target actor (13);
+  - actor-field receivers (13, plus 4 unbound field targets);
+  - add-assignment targets that are not designer variables (9);
+  - Ultra 387 on a designer-variable receiver (6);
+  - Ultra 218 (4);
+  - unbound source objects (4).
 - **Turn procedures 4-36, 4-37, 4-38, 4-43** (Proc_TurnLeft, Right, Up, Down):
   about 380 sites in 4 levels; raw recovered.
 - **Map destinations 4-271 and 4-272:** 160 sites in about 30 levels; their
   bodies are now rewritten in hype-decomp.
 - **Camera procedures 4-150 to 4-176:** in all 37 levels.
 
-Totals: 140 stand-in ids with 3286 unique sites;
-193 guard templates with 97767 unique sites. Guards
+Totals: 216 stand-in ids with 2752 unique sites;
+203 guard templates with 97975 unique sites. Guards
 are runtime validity checks that skip a call when a binding is missing.
 
 ## Stand-ins by sites (top 35)
 
-Full lists: `output/full-game/final2.txt` and, per level and model,
-`output/full-game/sites2.tsv` (regenerate with the tool).
+Full lists: `output/full-game/final3.txt` and, per level and model,
+`output/full-game/sites3.tsv` (regenerate with the tool).
 
 | Id | Entry | Levels | Unique sites | Level-model sites | Fix-model sites | Original body |
 | --- | --- | --- | --- | --- | --- | --- |
-| `generic-untyped` | - | 37 | 967 | 954 | 13 | - |
-| `generic-4-215` | Proc_Turn2 | 8 | 111 | 111 | 0 | rewritten |
+| `generic-untyped` | (script could not be typed) | 37 | 688 | 687 | 1 | - |
 | `generic-4-38` | Proc_TurnUp | 4 | 108 | 108 | 0 | raw recovered |
 | `generic-4-43` | Proc_TurnDown | 4 | 100 | 100 | 0 | raw recovered |
 | `generic-4-37` | Proc_TurnRight | 4 | 92 | 92 | 0 | raw recovered |
 | `4-271` | Map_vSetDestination | 31 | 87 | 87 | 0 | rewritten |
 | `generic-4-36` | Proc_TurnLeft | 4 | 84 | 84 | 0 | raw recovered |
-| `generic-3-220` | ReduceIndexOfVectorArray | 9 | 83 | 83 | 0 | raw |
 | `4-272` | Map_vResetDestination | 29 | 73 | 73 | 0 | rewritten |
 | `generic-4-387` | Proc_SND_PersoChangeVolEffects | 4 | 70 | 70 | 0 | rewritten |
 | `generic-4-216` | Proc_DeltaTurnPerso | 6 | 62 | 62 | 0 | rewritten |
-| `generic-3-153` | Func_GetNormalCollideVector | 6 | 61 | 61 | 0 | rewritten |
 | `generic-4-176` | Procedure_Camera_SetTargetPosition | 13 | 51 | 51 | 0 | raw recovered |
 | `4-175` | Procedure_Camera_SetCameraPosition | 37 | 49 | 46 | 3 | raw recovered |
 | `generic-4-218` | Proc_ChangeAction | 26 | 45 | 45 | 0 | raw recovered |
@@ -97,7 +94,6 @@ Full lists: `output/full-game/final2.txt` and, per level and model,
 | `generic-1-97` | Cond_IsInFrontOfPerso | 8 | 31 | 31 | 0 | rewritten |
 | `generic-5-26` | Action_GoToWPXY | 2 | 31 | 31 | 0 | raw recovered |
 | `generic-4-165` | Procedure_Camera_SetPosition | 12 | 30 | 30 | 0 | raw |
-| `generic-4-217` | Proc_TurnPerso | 6 | 28 | 28 | 0 | rewritten |
 | `generic-3-83` | Func_GetNormSpeed | 5 | 27 | 27 | 0 | raw recovered |
 | `generic-4-240` | Proc_SetVisualGMTTextureScrollingCoef | 6 | 26 | 26 | 0 | raw recovered |
 | `generic-1-94` | Cond_IsAtLeftOfPerso | 7 | 25 | 25 | 0 | rewritten |
@@ -105,7 +101,11 @@ Full lists: `output/full-game/final2.txt` and, per level and model,
 | `1-119` | Cond_Inv_FindObject | 37 | 24 | 23 | 1 | rewritten |
 | `generic-1-95` | Cond_IsAtRightOfPerso | 7 | 24 | 24 | 0 | rewritten |
 | `generic-5-7` | Action_WaitEndOfActionPerso | 23 | 23 | 23 | 0 | rewritten |
-| `generic-4-185` | Proc_TransparentDisplay | 3 | 23 | 23 | 0 | rewritten |
+| `generic-4-419` | Inv_ChangeJewelState | 8 | 21 | 21 | 0 | rewritten |
+| `generic-4-349` | Proc_GPI_SetDraw | 8 | 20 | 20 | 0 | raw recovered |
+| `generic-4-357` | Proc_GPI_SlideGamePlayInterface | 8 | 20 | 20 | 0 | raw recovered |
+| `generic-1-96` | Cond_IsBehindPerso | 7 | 19 | 19 | 0 | rewritten |
+| `generic-4-34` | Proc_GoRelative | 6 | 19 | 19 | 0 | raw recovered |
 
 ## Guards (most common templates)
 
@@ -127,7 +127,7 @@ Full lists: `output/full-game/final2.txt` and, per level and model,
 | Diagnostic | Levels | Sites |
 | --- | --- | --- |
 | `openspace.scene.model_coverage` | 37 | 9841 |
-| `openspace.ai.unsupported_script` | 37 | 5798 |
+| `openspace.ai.unsupported_script` | 37 | 4732 |
 | `openspace.character.coverage` | 37 | 2403 |
 | `openspace.dialogue.unsupported_item` | 20 | 108 |
 | `openspace.ai.opaque_designer_field` | 17 | 39 |
