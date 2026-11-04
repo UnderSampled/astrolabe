@@ -261,6 +261,7 @@ func _physics_step(delta: float) -> void:
         basis = basis * Basis(root_motion_turn)
     source_turned_this_tick = false
     var motion := global_basis.orthonormalized() * root_motion_displacement / delta
+    if _source_request_only_mechanics(): motion = Vector3.ZERO
     if source_point_active or source_point_holds_motion:
         motion = _source_point_motion(delta)
         if _source_point_mass_motion:
@@ -283,7 +284,7 @@ func _physics_step(delta: float) -> void:
     # downward acceleration into retained sideways momentum on a slight slope.
     var gravity_ratio := 1.0
     if current_mechanics != null:
-        gravity_ratio = float(current_mechanics.ratio)
+        gravity_ratio = 0.0 if _source_request_only_mechanics() else float(current_mechanics.ratio)
     external_velocity += gravity * gravity_ratio * delta
     velocity = motion + external_velocity
     move_and_slide()
@@ -938,8 +939,23 @@ func source_initialize_motion(value: Vector3) -> void:
     source_relative_motion = true
     external_velocity = Vector3.ZERO
 
+## Proc34 posts dynamics event 0x0c. Live Brigand bats (type-6 card 141730,
+## no motion procedure) fly by it alone: woken at 20 m, bat 1 left its spawn
+## along its turning heading and settled to Hype's height through the vector's
+## z (notes/research/bat-type6-flight.md), so the request enables motion.
 func source_go_relative() -> void:
     source_relative_motion = true
+    # 00540220 posts nothing for an actor without dynamics (Perso+8).
+    if not motion_enabled and current_mechanics != null:
+        motion_enabled = true
+        _configure_motion()
+
+## Card type 6 (bats, Grille gates, PigeonPP) has no Character translation:
+## its update applies the posted request only (00588198, 0058ceea). The
+## live bats keep Hype's height, so neither animation displacement nor
+## gravity moves them.
+func _source_request_only_mechanics() -> bool:
+    return current_mechanics != null and int(current_mechanics.mode) == 6
 
 ## ASTROLABE_PERF=1: time spent per actor and stage, summed in an Engine meta
 ## dictionary that tests/route_bot.gd prints. Kept here rather than preloaded

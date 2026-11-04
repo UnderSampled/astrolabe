@@ -208,6 +208,16 @@ func finish_case(case_name: String) -> void:
 				if Vector3(row["hype"][0], row["hype"][1], row["hype"][2]).distance_to(Vector3(previous[0], previous[1], previous[2])) > 4.0:
 					finish(false, "Hype jumped from %s to %s at %s s" % [previous, row["hype"], row["t"]]); return
 				previous = row["hype"]
+		"bats":
+			# 774: woken within 25 m of the dummy, a bat flies at Hype (normal 0)
+			# and dives (normal 4) within 5 m; the dive's zone contact hurts him.
+			var dived := ["45", "46", "47", "48", "49", "50"].filter(func(key): return visited[key].has(4))
+			var lives := samples.map(func(row): return int(row.get("hype_life", -1)))
+			report["bat_life"] = [lives[0], lives.min()]
+			if dived.is_empty():
+				finish(false, "no bat dived at Hype: normals %s, moved %s" % [visited, report["moved"]]); return
+			if lives.min() >= lives[0]:
+				finish(false, "bats %s dived but Hype kept life %d" % [dived, lives[0]]); return
 		"wolves_bite":
 			var lives := samples.map(func(row): return int(row.get("hype_life", -1)))
 			if not (visited["119"].has(5) or visited["120"].has(5)) or lives.min() >= lives[0]:
