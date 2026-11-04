@@ -280,12 +280,12 @@ pub enum Statement {
     /// Proc_AddWind is retained as typed source data; the native target accepts
     /// it as an explicitly deferred no-op until source wind parity is ported.
     AddWind(Expression),
-    /// Hype category-23 operands are actor-local route slot indices.
-    ResetRoute(u8),
-    GoOverRoute(u8),
+    /// The way operand selects one of the actor's own routes.
+    ResetRoute(RouteSlot),
+    GoOverRoute(RouteSlot),
     /// Meta30 visits the next selected waypoint in one actor-local route slot.
     /// Unlike GoOverRoute, it completes after that point's progress update.
-    GoToNextWaypoint(u8),
+    GoToNextWaypoint(RouteSlot),
     /// Meta32/33 capture a point and radius once. The horizontal variant
     /// refreshes the point's height from the actor before each native update.
     GoToPosition {
@@ -1061,6 +1061,10 @@ pub struct DesignerVariable {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DesignerValue {
     Boolean(bool),
+    /// DSG type 9: one byte indexing the owner's own way list, the same index
+    /// space as a category-23 way operand (005236a0 size 1, reader 00523860;
+    /// notes/research/way-designer-operand.md).
+    Way(u8),
     Integer(i32),
     Real(f32),
     Byte(i8),
@@ -1093,6 +1097,14 @@ pub enum DesignerValue {
         kind: u32,
         bytes: Vec<u8>,
     },
+}
+/// A way (`Y`) operand: a category-23 literal or a designer variable of type
+/// Way. 00542ff0, 0054b260 and 0054b200 read either as the same one-byte index
+/// into the actor's way list (notes/research/way-designer-operand.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RouteSlot {
+    Slot(u8),
+    Variable(u16),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DesignerActorList {

@@ -54,7 +54,7 @@ pub struct DesignerValueCodec {
 }
 impl DesignerValueCodec {
     pub fn supports(kind: u32) -> bool {
-        matches!(kind, 0..=8 | 10..=12 | 14 | 20..=23 | 25)
+        matches!(kind, 0..=12 | 14 | 20..=23 | 25)
     }
     pub fn kind(value: &DesignerValue) -> u32 {
         match value {
@@ -63,6 +63,7 @@ impl DesignerValueCodec {
             DesignerValue::Boolean(_) => 0,
             DesignerValue::Byte(_) => 1,
             DesignerValue::UnsignedByte(_) => 2,
+            DesignerValue::Way(_) => 9,
             DesignerValue::Short(_) => 3,
             DesignerValue::UnsignedShort(_) => 4,
             DesignerValue::Integer(_) => 5,
@@ -85,7 +86,7 @@ impl DesignerValueCodec {
     /// Extent of one value, derived from its kind and array count, never cached.
     pub fn extent(&self, bytes: &[u8]) -> Result<usize> {
         Ok(match self.kind {
-            0..=2 => 1,
+            0..=2 | 9 => 1,
             3..=4 => 2,
             5..=8 | 10 | 14 => 4,
             11 => 4 + 4 * usize::from(ListHeader::read(&mut Cursor::new(bytes))?.capacity),
@@ -119,6 +120,7 @@ impl FormatCodec for DesignerValueCodec {
             }
             1 => DesignerValue::Byte(i8::read_le(&mut c)?),
             2 => DesignerValue::UnsignedByte(u8::read_le(&mut c)?),
+            9 => DesignerValue::Way(u8::read_le(&mut c)?),
             3 => DesignerValue::Short(i16::read_le(&mut c)?),
             4 => DesignerValue::UnsignedShort(u16::read_le(&mut c)?),
             5 => DesignerValue::Integer(i32::read_le(&mut c)?),
@@ -224,7 +226,7 @@ impl FormatCodec for DesignerValueCodec {
         match value {
             DesignerValue::Boolean(v) => u8::from(*v).write_le(&mut c)?,
             DesignerValue::Byte(v) => v.write_le(&mut c)?,
-            DesignerValue::UnsignedByte(v) => v.write_le(&mut c)?,
+            DesignerValue::UnsignedByte(v) | DesignerValue::Way(v) => v.write_le(&mut c)?,
             DesignerValue::Short(v) => v.write_le(&mut c)?,
             DesignerValue::UnsignedShort(v) => v.write_le(&mut c)?,
             DesignerValue::Integer(v) => v.write_le(&mut c)?,
@@ -392,6 +394,20 @@ where
 mod list_tests {
     use super::*;
     use crate::model::AssetRef;
+
+    #[test]
+    fn way_designer_value_is_one_byte() -> Result<()> {
+        assert!(DesignerValueCodec::supports(9));
+        let codec = DesignerValueCodec {
+            kind: 9,
+            ..Default::default()
+        };
+        let value = codec.read(&[3])?;
+        assert_eq!(value, DesignerValue::Way(3));
+        assert_eq!(DesignerValueCodec::kind(&value), 9);
+        assert_eq!(codec.write(&value)?, [3]);
+        Ok(())
+    }
 
     #[test]
     fn source_perso_list_round_trips_empty_and_edited_entries() -> Result<()> {

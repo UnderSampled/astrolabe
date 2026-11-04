@@ -449,12 +449,14 @@ impl Parser<'_> {
                 (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
                 (4, 30) => Statement::AddWind(self.expression(indent + 1)?),
                 (4, 220) | (5, 27 | 30) => {
+                    // Kind 23 is a literal way index; a kind-11 designer
+                    // variable of type Way holds the same index.
                     let (_, slot) = self.take(indent + 1)?;
-                    ensure!(
-                        slot.kind == 23,
-                        "route call lacks local slot operand at node {at}"
-                    );
-                    let slot: u8 = slot.parameter.try_into()?;
+                    let slot = match slot.kind {
+                        23 => RouteSlot::Slot(slot.parameter.try_into()?),
+                        11 => RouteSlot::Variable(slot.parameter.try_into()?),
+                        _ => bail!("route call lacks a way operand at node {at}"),
+                    };
                     if kind == 4 {
                         Statement::ResetRoute(slot)
                     } else if id == 30 {
@@ -2322,7 +2324,12 @@ impl Writer<'_> {
                     } else {
                         self.node(5, 27, indent);
                     }
-                    self.node(23, u32::from(*slot), indent + 1);
+                    match slot {
+                        RouteSlot::Slot(slot) => self.node(23, u32::from(*slot), indent + 1),
+                        RouteSlot::Variable(variable) => {
+                            self.node(11, u32::from(*variable), indent + 1)
+                        }
+                    }
                 }
                 Statement::GoRelative => self.node(4, 34, indent),
                 Statement::KillSelf => {
@@ -4968,10 +4975,35 @@ mod partial_tests {
             [
                 Statement::AddWind(Expression::Vector(_)),
                 Statement::AddWind(Expression::Vector(_)),
-                Statement::ResetRoute(0),
-                Statement::GoOverRoute(6)
+                Statement::ResetRoute(RouteSlot::Slot(0)),
+                Statement::GoOverRoute(RouteSlot::Slot(6))
             ]
         ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn way_calls_take_a_designer_way_variable() -> Result<()> {
+        // The squirrels (816, 1862): ReInitWay and GoOverWay on Way variable 10.
+        let (codec, bytes) = partial(&[
+            (4, 220, 1),
+            (11, 10, 2),
+            (5, 27, 1),
+            (11, 10, 2),
+            (5, 30, 1),
+            (23, 1, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![
+                Statement::ResetRoute(RouteSlot::Variable(10)),
+                Statement::GoOverRoute(RouteSlot::Variable(10)),
+                Statement::GoToNextWaypoint(RouteSlot::Slot(1)),
+            ]
+        );
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())
     }

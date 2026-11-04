@@ -709,12 +709,20 @@ fn compile_with_bindings(
     }
     Ok(continue_past_guards(&out))
 }
+/// A way operand as GDScript: the literal slot, or the owner's Way variable.
+fn route_slot(slot: &RouteSlot) -> String {
+    match slot {
+        RouteSlot::Slot(slot) => slot.to_string(),
+        RouteSlot::Variable(index) => format!("int(dsg_{index})"),
+    }
+}
 fn value_type(v: &DesignerValue) -> &'static str {
     match v {
         DesignerValue::Boolean(_) => "bool",
         DesignerValue::Integer(_)
         | DesignerValue::Byte(_)
         | DesignerValue::UnsignedByte(_)
+        | DesignerValue::Way(_)
         | DesignerValue::Short(_)
         | DesignerValue::UnsignedShort(_)
         | DesignerValue::UnsignedInteger(_)
@@ -761,7 +769,7 @@ fn literal(
         DesignerValue::Boolean(v) => v.to_string(),
         DesignerValue::Integer(v) => v.to_string(),
         DesignerValue::Byte(v) => v.to_string(),
-        DesignerValue::UnsignedByte(v) => v.to_string(),
+        DesignerValue::UnsignedByte(v) | DesignerValue::Way(v) => v.to_string(),
         DesignerValue::Short(v) => v.to_string(),
         DesignerValue::UnsignedShort(v) => v.to_string(),
         DesignerValue::UnsignedInteger(v) => v.to_string(),
@@ -2676,6 +2684,7 @@ fn blocking(
             format!("character().source_point_motion_finished(motion_ticket_{id})")
         }
         Statement::GoToNextWaypoint(slot) => {
+            let slot = route_slot(slot);
             writeln!(
                 out,
                 "{pad}    var motion_ticket_{id}: int = character().source_begin_next_waypoint({slot})",
@@ -3279,6 +3288,7 @@ fn statements(
                 writeln!(out, "{pad}character().source_go_relative()")?;
             }
             Statement::ResetRoute(slot) => {
+                let slot = route_slot(slot);
                 writeln!(
                     out,
                     "{pad}if not character().source_reset_route({slot}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
@@ -3289,6 +3299,7 @@ fn statements(
                 )?;
             }
             Statement::GoOverRoute(slot) => {
+                let slot = route_slot(slot);
                 let id = flow.local;
                 flow.local += 1;
                 if flow.rule {
