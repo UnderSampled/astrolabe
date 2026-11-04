@@ -111,6 +111,12 @@ through bindings and sprite lookups.
   look and the rest are bound; inventory goes to the authored host (4-334).
   `godot/tests/controls_rebind_probe.gd` rebinds through the menu, plays with the
   new keys, rebinds from the pause menu and checks the bindings after a restart.
-- [ ] The Configure page's own stained-glass title (`config_ta..td` tiles) is not
-  drawn; the Controls page shows how to read them.
-- [ ] F1 help popup, pad capture on real hardware, and analog axes.
+- [x] Writes at the source's points (play start, Resume Game, shutdown); F1, F5
+  and R bindable, port shortcuts yield; F1 help is a stub in the original.
+- [x] Left/right Ctrl, Shift and Alt are distinct keys (either side answers only
+  while the other is unbound, for side-less synthesized input).
+- [x] Gamepad: button capture and dispatch, D-pad, and the source stick ranges
+  (walk, run, turn), checked with simulated joypad events.
+- [x] The Configure page's stained-glass title.
+- [ ] A physical pad (button order is the source index); stick release
+  hysteresis.

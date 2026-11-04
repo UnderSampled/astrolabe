@@ -34,7 +34,15 @@ var level: Node3D
 var actor: CharacterBody3D
 var brain: Node
 var world_brain: Node
-var ready_to_play := false
+## Entering play is one of the source's settings write points (mode-3 entry
+## calls FUN_00402780, which saves Current.cfg through FUN_00428910).
+var ready_to_play := false:
+    set(value):
+        if value and not ready_to_play:
+            var preferences := get_node_or_null("/root/UserSettings")
+            if preferences != null and preferences.has_method("commit_control_bindings"):
+                preferences.call("commit_control_bindings")
+        ready_to_play = value
 var loading := false
 var loading_stage := "idle"
 var load_started_usec := 0
@@ -1076,6 +1084,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
         if key.physical_keycode == KEY_ESCAPE:
             leave_session("res://game/bootstrap.tscn")
+        return
+    # Port session shortcuts have no source counterpart; a key the player bound
+    # on the Controls page belongs to that binding (the original lets F1, F5
+    # and R be bound like any named key).
+    var preferences := get_node_or_null("/root/UserSettings")
+    if preferences != null and preferences.has_method("key_is_bound") and bool(preferences.call("key_is_bound", key)):
         return
     if key.physical_keycode == KEY_F1:
         get_viewport().set_input_as_handled()

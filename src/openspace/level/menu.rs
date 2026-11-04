@@ -881,6 +881,7 @@ fn configuration(s: &SourceSession) -> Result<MenuConfiguration> {
     ];
     let key = BlockKey(18, 0);
     let mut parent = None;
+    let mut configuration_root = None;
     for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
         let address = Address {
             owner: Owner::Fix,
@@ -907,8 +908,22 @@ fn configuration(s: &SourceSession) -> Result<MenuConfiguration> {
             parent.replace(s.required(address, 8)?).is_none(),
             "ambiguous source configuration root"
         );
+        configuration_root = Some(address);
     }
     let parent = parent.context("source configuration root absent")?;
+    let title: Vec<MenuPicture> = root_sprites(s, configuration_root.unwrap())?
+        .into_iter()
+        // Unnamed slider knobs share the list; the title is the localized art.
+        .filter(|picture| {
+            picture.name.starts_with("Title")
+                && picture
+                    .texture
+                    .path
+                    .as_str()
+                    .starts_with("texture:/multilanguage/")
+        })
+        .collect();
+    ensure!(title.len() == 4, "source configuration title tiles differ");
     let mut nodes = BTreeMap::new();
     for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
         let address = Address {
@@ -1080,6 +1095,7 @@ fn configuration(s: &SourceSession) -> Result<MenuConfiguration> {
         slider_positions: slider_positions
             .try_into()
             .map_err(|_| anyhow::anyhow!("source slider count differs"))?,
+        title,
         controls: Some(controls(s)?),
     })
 }
@@ -1304,56 +1320,7 @@ fn controls(s: &SourceSession) -> Result<MenuControls> {
     }
     let gamepad = lists.pop().unwrap();
     let keyboard = lists.pop().unwrap();
-    // The root's sprite list (list node +0x8c head, records linked at +0):
-    // name +0x24, centre +0x1c/+0x20 in pixels, size +0x74/+0x78 and a GLI
-    // texture at +0x64 or +0x68. The four unnamed records tile the localized
-    // stained-glass title; the named ones are the pictures and SelectBox.
-    let mut anchor_sprite = None;
-    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
-        let address = Address {
-            owner: Owner::Fix,
-            key,
-            offset,
-        };
-        let Ok(bytes) = s.allocation_bytes(address) else {
-            continue;
-        };
-        if bytes.len() >= 0x7c && fixed_string(&bytes[0x24..0x44]).ok() == Some("SelectBox") {
-            ensure!(
-                anchor_sprite.replace(address).is_none(),
-                "ambiguous source SelectBox"
-            );
-        }
-    }
-    let list = s.required(anchor_sprite.context("source SelectBox absent")?, 8)?;
-    let mut pictures = Vec::new();
-    let mut at = s.pointer(list, 0x8c)?;
-    while let Some(address) = at {
-        ensure!(pictures.len() < 32, "controls sprite list does not end");
-        let bytes = s.allocation_bytes(address)?;
-        ensure!(bytes.len() >= 0x7c, "controls sprite record is short");
-        let texture = match s.pointer(address, 0x64)? {
-            Some(texture) => texture,
-            None => s.required(address, 0x68)?,
-        };
-        let info: TextureInfoWire = wire(s.bytes(texture, 188)?)?;
-        let float = |at: usize| f32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
-        let name = fixed_string(&bytes[0x24..0x44])?;
-        pictures.push(MenuPicture {
-            name: if name.is_empty() {
-                format!("Title{}", pictures.len())
-            } else {
-                name.to_owned()
-            },
-            texture: AssetRef::new(format!(
-                "texture:/{}",
-                fixed_string(&info.name)?.replace('\\', "/")
-            ))?,
-            center: [float(0x1c), float(0x20)],
-            size: [float(0x74), float(0x78)],
-        });
-        at = s.pointer(address, 0)?;
-    }
+    let pictures = root_sprites(s, root)?;
     for name in ["DisplayWithKeyboard", "DisplayWithGamepad", "SelectBox"] {
         ensure!(
             pictures.iter().any(|picture| picture.name == name),
@@ -1434,15 +1401,54 @@ fn controls(s: &SourceSession) -> Result<MenuControls> {
     })
 }
 
+/// A menu root's sprite list (root +4 is the list node: background name, then
+/// the head at +0x8c; records link at +0): name +0x24, centre +0x1c/+0x20 in
+/// pixels, size +0x74/+0x78 and a GLI texture at +0x64 or +0x68. Unnamed
+/// records tile the localized stained-glass title.
+fn root_sprites(s: &SourceSession, root: Address) -> Result<Vec<MenuPicture>> {
+    let list = s.required(root, 4)?;
+    let mut pictures = Vec::new();
+    let mut at = s.pointer(list, 0x8c)?;
+    while let Some(address) = at {
+        ensure!(pictures.len() < 32, "menu sprite list does not end");
+        let bytes = s.allocation_bytes(address)?;
+        ensure!(bytes.len() >= 0x7c, "menu sprite record is short");
+        let texture = match s.pointer(address, 0x64)? {
+            Some(texture) => texture,
+            None => s.required(address, 0x68)?,
+        };
+        let info: TextureInfoWire = wire(s.bytes(texture, 188)?)?;
+        let float = |at: usize| f32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
+        let name = fixed_string(&bytes[0x24..0x44])?;
+        pictures.push(MenuPicture {
+            name: if name.is_empty() {
+                format!("Title{}", pictures.len())
+            } else {
+                name.to_owned()
+            },
+            texture: AssetRef::new(format!(
+                "texture:/{}",
+                fixed_string(&info.name)?.replace('\\', "/")
+            ))?,
+            center: [float(0x1c), float(0x20)],
+            size: [float(0x74), float(0x78)],
+        });
+        at = s.pointer(address, 0)?;
+    }
+    Ok(pictures)
+}
+
 enum InputTerm {
     And(Box<InputTerm>, Box<InputTerm>),
     Or(Box<InputTerm>, Box<InputTerm>),
     Entry(usize),
     NotEntry,
-    /// A raw key/pad/axis test outside the options entries.
+    /// A raw key/pad test outside the options entries.
     Fixed {
         negative: bool,
     },
+    /// A joystick axis range; not remappable.
+    Axis(ControlAxis),
     Input(ControlInput),
 }
 
@@ -1549,9 +1555,23 @@ fn entry_actions(s: &SourceSession) -> Result<(Vec<ControlEntry>, Vec<ControlAct
                     *k += 2;
                     InputTerm::Input(ControlInput::PadDirection(u8::try_from(direction)?))
                 }
+                // Handler 004a7c20: device, axis code (4.. = DIJOYSTATE lX,
+                // lY, lZ, lRx, lRy, lRz), then an inclusive range on the axis
+                // scaled to +-100; only joystick devices (type 4) answer.
                 0xf010 => {
+                    let axis = value(*k + 1)?;
+                    let bound = |at: usize| -> Result<i16> { Ok(value(at)? as u16 as i16) };
+                    let (min, max) = (bound(*k + 2)?, bound(*k + 3)?);
                     *k += 4;
-                    InputTerm::Fixed { negative: false }
+                    if (4..10).contains(&axis) {
+                        InputTerm::Axis(ControlAxis {
+                            axis: u8::try_from(axis - 4)?,
+                            min,
+                            max,
+                        })
+                    } else {
+                        InputTerm::Fixed { negative: false }
+                    }
                 }
                 // Typed cheat strings and other device tests are not controls.
                 _ => return Ok(None),
@@ -1586,7 +1606,7 @@ fn entry_actions(s: &SourceSession) -> Result<(Vec<ControlEntry>, Vec<ControlAct
         terms: &[Option<InputTerm>],
         records: &[(Address, String, Option<String>, usize)],
         visiting: &mut Vec<usize>,
-        out: &mut Vec<String>,
+        out: &mut (Vec<String>, Vec<ControlAxis>),
     ) {
         let positive =
             |t: &InputTerm| !matches!(t, InputTerm::NotEntry | InputTerm::Fixed { negative: true });
@@ -1604,8 +1624,8 @@ fn entry_actions(s: &SourceSession) -> Result<(Vec<ControlEntry>, Vec<ControlAct
                 if let Some(options) = &records[*i].2
                     && matches!(terms[*i], Some(InputTerm::Input(_)))
                 {
-                    if !out.contains(options) {
-                        out.push(options.clone());
+                    if !out.0.contains(options) {
+                        out.0.push(options.clone());
                     }
                 } else if !visiting.contains(i)
                     && let Some(inner) = &terms[*i]
@@ -1615,6 +1635,7 @@ fn entry_actions(s: &SourceSession) -> Result<(Vec<ControlEntry>, Vec<ControlAct
                     visiting.pop();
                 }
             }
+            InputTerm::Axis(axis) if !out.1.contains(axis) => out.1.push(axis.clone()),
             _ => {}
         }
     }
@@ -1624,12 +1645,13 @@ fn entry_actions(s: &SourceSession) -> Result<(Vec<ControlEntry>, Vec<ControlAct
         if matches!(term, InputTerm::Input(_)) {
             continue;
         }
-        let mut out = Vec::new();
+        let mut out = (Vec::new(), Vec::new());
         leaves(term, &terms, &records, &mut vec![i], &mut out);
-        if !out.is_empty() {
+        if !out.0.is_empty() || !out.1.is_empty() {
             actions.push(ControlAction {
                 name: record.1.clone(),
-                entries: out,
+                entries: out.0,
+                axes: out.1,
             });
         }
     }
@@ -1697,6 +1719,26 @@ mod tests {
         ensure!(action("Button_SSRight") == ["SSRight_Key"]);
         ensure!(action("Button_ActivateMap") == ["Activate_Map_Key"]);
         ensure!(action("TestInventoryMode") == ["Inventory_Key", "Inventory_Pad"]);
+        let axes = |name: &str| {
+            controls
+                .actions
+                .iter()
+                .find(|a| a.name == name)
+                .map(|a| a.axes.clone())
+                .unwrap_or_default()
+        };
+        let axis = |axis, min, max| ControlAxis { axis, min, max };
+        ensure!(axes("Button_Left") == [axis(0, -100, -20)]);
+        ensure!(
+            axes("Button_Up") == [axis(1, -110, -30)],
+            "{:?}",
+            axes("Button_Up")
+        );
+        ensure!(
+            axes("Button_SpeedUp") == [axis(1, -110, -90)],
+            "{:?}",
+            axes("Button_SpeedUp")
+        );
         let name = |input: ControlInput| {
             controls
                 .input_names

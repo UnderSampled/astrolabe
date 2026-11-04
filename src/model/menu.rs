@@ -31,6 +31,9 @@ pub struct MenuConfiguration {
     pub items: Vec<MenuItem>,
     /// Slider1..3 source positions before applying persisted option values.
     pub slider_positions: [[f32; 3]; 3],
+    /// The root's unnamed sprites: the localized stained-glass title tiles.
+    #[serde(default)]
+    pub title: Vec<MenuPicture>,
     /// The separate `Menu/control_back.bmp` root reached from the Controls item.
     #[serde(default)]
     pub controls: Option<MenuControls>,
@@ -125,6 +128,17 @@ pub struct ControlInputName {
 pub struct ControlAction {
     pub name: String,
     pub entries: Vec<String>,
+    /// Fixed joystick ranges the expression also ORs in.
+    #[serde(default)]
+    pub axes: Vec<ControlAxis>,
+}
+/// A joystick axis (0 X, 1 Y, 2 Z, 3..5 rotations) inside [min, max] on the
+/// source +-100 scale (IPT opcode f010, handler 004a7c20).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ControlAxis {
+    pub axis: u8,
+    pub min: i16,
+    pub max: i16,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MenuItem {

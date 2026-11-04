@@ -132,15 +132,31 @@ no row), the first Escape after confirming only disarms and the second closes
 the list, and reset restores every binding. The page has no mouse support,
 as in the source.
 
-Port departures: the Inventory row feeds the authored inventory host, and
-`TestInventoryMode`/`InventoryExit` stay unbound (stand-in 4-334 keeps that
-screen with the host). Bindings are saved at once rather than on resume or quit.
-F1, F5 and R stay reserved for the port session's panel, save and reload.
-The InputMap events for Ctrl/Shift/Alt match either side, because synthesized
-and replayed input carries no side. Pad buttons use the source index as the
-Godot button index, and pad directions are the D-pad; the source Paddle and
-Joystick device modes and the analog axes are not emulated. The F1 help popup
-is not drawn; its text is kept as `metadata/source_hint`.
+Bindings apply at once, as `IPT_fn_bChangeIPTValue` does, and reach
+`user://hype-settings.cfg` only at the source's `Current.cfg` write points
+(`FUN_00428910`): entering play (mode 3 → `FUN_00402780`), Resume Game (mode 0x12
+in `FUN_00404700`) and shutdown (`FUN_004026b0`). F1, F5 and R can be bound like
+any named key. The source's help routine `FUN_00414190` is a one-byte `ret`, so
+F1 shows nothing on these pages, as in the original. The port's session
+shortcuts (F1 panel, F5 save, R reload) have no source counterpart; each
+yields when the key is bound. No compiled AI reads Save_Key or Load_Key
+(F3/F2), and the exe does not look them up by name.
+
+Ctrl, Shift and Alt bindings keep their side. The other side also answers
+while no entry holds it, because synthesized and replayed input (gate probe,
+route bot) carries no side; once both sides are bound they are distinct.
+Pad buttons use the source index as the Godot button index; the paddle's
+digital directions (f00e) are the D-pad. The joystick ranges (f010, handler
+`004a7c20`: axis code − 4 selects X, Y, Z, Rx, Ry, Rz on a ±100 scale) become
+left-stick events with the range's inner bound as the action deadzone:
+X ≤ −20 / ≥ 20 turns, Y ≤ −30 walks, Y ≤ −90 runs. The source's release
+hysteresis (pressed actions hold to −20 or −75) has no InputMap equivalent and
+is dropped. Gamepad capture is checked with simulated joypad events through
+the `astrolabe_simulated_pad` Engine meta, because Godot cannot register a
+virtual pad; no physical pad was tested. The Inventory row feeds the authored
+inventory host, and `TestInventoryMode`/`InventoryExit` stay unbound (stand-in
+4-334). The Configure root's localized title tiles (`config_ta..td`) are drawn
+from its sprite list like the Controls title.
 
 The same dispatcher sends `Credits` to mode `0x16`; `FUN_00403fc0` enters credits
 mode `0x17`. `FUN_0040f3f0` loads `credits.ini`, selects `Playmo_Font2_0`, and

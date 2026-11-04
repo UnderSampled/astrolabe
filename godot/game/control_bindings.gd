@@ -8,6 +8,8 @@ extends Resource
 @export var entries: Array = []
 ## Script action -> the options entries its source expression ORs together.
 @export var actions: Dictionary = {}
+## Script action -> Vector3i(axis, min, max) joystick ranges (+-100 scale).
+@export var axes: Dictionary = {}
 ## Key id or pad button -> {label, texture, rect}. Only named inputs can be bound.
 @export var key_names: Dictionary = {}
 @export var pad_names: Dictionary = {}

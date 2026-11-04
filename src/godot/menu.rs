@@ -86,6 +86,10 @@ pub(super) fn export(
         }
         let background = source.load(&configuration.background)?;
         project.save(&configuration.background, background.as_ref())?;
+        for picture in &configuration.title {
+            let texture = source.load(&picture.texture)?;
+            project.save(&picture.texture, texture.as_ref())?;
+        }
         if let Some(controls) = &configuration.controls {
             export_controls(project, source, controls)?;
         }
@@ -427,8 +431,13 @@ fn configuration_scene(
         "Images" | "Controls" | "Sound" => initial.action.as_str(),
         action => anyhow::bail!("unsupported source configuration initial action {action}"),
     };
-    let ext_count =
-        2 + 1 + tabs.len() * 2 + sound_rows.len() + stereo_rows.len() * 2 + image_rows.len();
+    let ext_count = 2
+        + 1
+        + configuration.title.len()
+        + tabs.len() * 2
+        + sound_rows.len()
+        + stereo_rows.len() * 2
+        + image_rows.len();
     let load_steps = ext_count + 2; // one material subresource and the scene itself
     let mut text = format!("[gd_scene load_steps={load_steps} format=3]\n\n");
     for (id, kind, path) in [
@@ -451,6 +460,17 @@ fn configuration_scene(
             disk_path(&project.selection, &configuration.background.path, "png")
         ))
     )?;
+    for picture in &configuration.title {
+        writeln!(
+            text,
+            "[ext_resource type=\"Texture2D\" path={} id={}]",
+            quoted(&format!(
+                "res://{}",
+                disk_path(&project.selection, &picture.texture.path, "png")
+            )),
+            quoted(&picture.name)
+        )?;
+    }
     for (_, item) in tabs {
         for state in ["normal", "selected"] {
             writeln!(
@@ -486,6 +506,19 @@ fn configuration_scene(
         quoted(initial_page),
         quoted(&configuration.initial_item)
     )?;
+    // The root's stained-glass title tiles, drawn over the backdrop.
+    for picture in &configuration.title {
+        writeln!(
+            text,
+            "\n[node name={} type=\"TextureRect\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = {}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0",
+            quoted(&picture.name),
+            picture.center[0] - picture.size[0] * 0.5,
+            picture.center[1] - picture.size[1] * 0.5,
+            picture.center[0] + picture.size[0] * 0.5,
+            picture.center[1] + picture.size[1] * 0.5,
+            quoted(&picture.name)
+        )?;
+    }
     // Keep the original source tab artwork and graph navigation. The page state
     // remains selected after focus moves to a native control.
     for (page, item) in tabs {
@@ -909,6 +942,24 @@ fn controls_bindings(controls: &MenuControls, directory: &str) -> Result<String>
             )
         })
         .collect::<Vec<_>>();
+    // Fixed joystick ranges as Vector3i(axis, min, max) on the source +-100 scale.
+    let axes = controls
+        .actions
+        .iter()
+        .filter(|action| !action.axes.is_empty())
+        .map(|action| {
+            format!(
+                "{}: [{}]",
+                quoted(&action.name),
+                action
+                    .axes
+                    .iter()
+                    .map(|axis| format!("Vector3i({}, {}, {})", axis.axis, axis.min, axis.max))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })
+        .collect::<Vec<_>>();
     let mut key_names = Vec::new();
     let mut pad_names = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
@@ -940,9 +991,10 @@ fn controls_bindings(controls: &MenuControls, directory: &str) -> Result<String>
         "controls key-name mapping is incomplete"
     );
     Ok(format!(
-        "[gd_resource type=\"Resource\" script_class=\"ControlBindings\" load_steps=2 format=3]\n\n[ext_resource type=\"Script\" path=\"res://game/control_bindings.gd\" id=\"script\"]\n\n[resource]\nscript = ExtResource(\"script\")\nentries = [{}]\nactions = {{\n{}\n}}\nkey_names = {{\n{}\n}}\npad_names = {{\n{}\n}}\ncapture = {{\"label\": \"???\", \"texture\": {}, \"rect\": {}}}\n",
+        "[gd_resource type=\"Resource\" script_class=\"ControlBindings\" load_steps=2 format=3]\n\n[ext_resource type=\"Script\" path=\"res://game/control_bindings.gd\" id=\"script\"]\n\n[resource]\nscript = ExtResource(\"script\")\nentries = [{}]\nactions = {{\n{}\n}}\naxes = {{\n{}\n}}\nkey_names = {{\n{}\n}}\npad_names = {{\n{}\n}}\ncapture = {{\"label\": \"???\", \"texture\": {}, \"rect\": {}}}\n",
         entries.join(", "),
         actions.join(",\n"),
+        axes.join(",\n"),
         key_names.join(",\n"),
         pad_names.join(",\n"),
         quoted(&format!(
@@ -1290,6 +1342,8 @@ mod tests {
                 bindings_text.contains("{\"name\": \"Look_Key\", \"kind\": \"key\", \"default\": 4194438}"),
                 bindings_text.contains("{\"name\": \"Jump_Key\", \"kind\": \"key\", \"default\": 4299161622}"),
                 bindings_text.contains("\"label\": \"pad0\""),
+                bindings_text.contains("\"Button_SpeedUp\": [Vector3i(1, -110, -90)]"),
+                configuration_text.contains("[node name=\"Title0\" type=\"TextureRect\""),
             ];
             ensure!(
                 controls_checks.iter().all(|passed| *passed),

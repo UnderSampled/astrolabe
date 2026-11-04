@@ -656,6 +656,15 @@ fn import_menu_variant(game: &Path, selection: Selection, pause: bool) -> Result
                 imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
             }
         }
+        for picture in &mut configuration.title {
+            let entry = archive
+                .find_entry(picture.texture.path.file())
+                .context("configuration title absent from CNT")?;
+            picture.texture = entry.texture.clone();
+            if !imported.assets.contains(&entry.texture.path) {
+                imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+            }
+        }
         if let Some(controls) = &mut configuration.controls {
             for sprite in controls
                 .items_mut()

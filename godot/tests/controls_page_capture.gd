@@ -33,6 +33,7 @@ func run() -> void:
 	root.add_child(settings)
 	settings.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	await process_frame
+	await shot("port-configure")
 	settings.call("open_controls")
 	await shot("port-controls")
 	await key(KEY_ENTER)

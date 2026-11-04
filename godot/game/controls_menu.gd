@@ -116,12 +116,17 @@ func _select() -> void:
 	match str(_focused_row().get_meta("source_action")):
 		"KeyStrokes":
 			# The pad list aborts at once when no pad is present.
-			capturing = not gamepad or not Input.get_connected_joypads().is_empty()
+			capturing = not gamepad or _pad_present()
 		"DefaultValues":
 			confirm_armed = false
 			if preferences != null:
 				preferences.call("reset_control_bindings")
 	_refresh()
+
+## IPT_fn_bIsPaddleControlAvailable. Godot cannot register a virtual pad, so
+## tests that drive the list with simulated joypad events set this Engine meta.
+func _pad_present() -> bool:
+	return not Input.get_connected_joypads().is_empty() or bool(Engine.get_meta(&"astrolabe_simulated_pad", false))
 
 func _back() -> void:
 	if list_open and confirm_armed:

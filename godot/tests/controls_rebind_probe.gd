@@ -3,10 +3,12 @@ extends SceneTree
 ## restart. Run twice with the same private XDG_DATA_HOME:
 ##   godot --path godot --script res://tests/controls_rebind_probe.gd -- bind REPORT.json
 ##   godot --path godot --script res://tests/controls_rebind_probe.gd -- reload REPORT.json
-## "bind" rebinds from the main menu (move forward W, look V), plays, then
-## rebinds jump to Tab from the pause menu (inventory takes Left Ctrl by swap).
-## "reload" checks those bindings in a new process, plays with them, then
-## restores the defaults with the page's reset row.
+## "bind" rebinds from the main menu (move forward W, look V, sword F5), plays,
+## then from the pause menu rebinds jump to Tab (inventory takes Left Ctrl by
+## swap), action to Right Ctrl and the pad jump to button 5 (simulated joypad
+## events; no hardware). Bindings reach the file only at the source's write
+## points: entering play and Resume Game. "reload" checks them in a new
+## process, plays with them, then restores the defaults with the reset row.
 const BEHAVIOR = preload("res://addons/astrolabe/behavior/behavior.gd")
 var report: Dictionary = {"outcome": "running", "checks": []}
 var evidence_path := ""
@@ -60,6 +62,32 @@ func tap(code: Key, location := KEY_LOCATION_UNSPECIFIED) -> void:
 	key(code, false, location)
 	await process_frame
 	await process_frame
+
+func pad(button: int, pressed: bool) -> void:
+	var event := InputEventJoypadButton.new()
+	event.device = 0
+	event.button_index = button
+	event.pressed = pressed
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()
+
+func stick(value: float) -> void:
+	var event := InputEventJoypadMotion.new()
+	event.device = 0
+	event.axis = JOY_AXIS_LEFT_Y
+	event.axis_value = value
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()
+
+func saved_keys() -> Dictionary:
+	var saved := ConfigFile.new()
+	saved.load("user://hype-settings.cfg")
+	return saved.get_value("controls", "keys", {})
+
+func saved_pad() -> Dictionary:
+	var saved := ConfigFile.new()
+	saved.load("user://hype-settings.cfg")
+	return saved.get_value("controls", "pad", {})
 
 func settings() -> Node:
 	return root.get_node("UserSettings")
@@ -186,15 +214,18 @@ func run() -> void:
 		check("menu_binds_forward_to_w", binding("Up_Key") == KEY_W, binding("Up_Key"))
 		await rebind(14, KEY_V)
 		check("menu_binds_look_to_v", binding("Look_Key") == KEY_V, binding("Look_Key"))
+		await rebind(9, KEY_F5)
+		check("f5_is_bindable", binding("GetSword_Key") == KEY_F5, binding("GetSword_Key"))
 		await tap(KEY_ESCAPE) # Controls -> Configure
 		await tap(KEY_ESCAPE) # Configure -> main menu
-		var saved := ConfigFile.new()
-		saved.load("user://hype-settings.cfg")
-		var keys: Dictionary = saved.get_value("controls", "keys", {})
-		check("saved_to_settings_file", int(keys.get("Up_Key", 0)) == KEY_W and int(keys.get("Look_Key", 0)) == KEY_V, keys.get("Up_Key", 0))
+		check("not_written_before_play", int(saved_keys().get("Up_Key", 0)) != KEY_W, saved_keys().get("Up_Key", 0))
 		if not await load_game(menu):
 			finish("Load Game did not reach play")
 			return
+		check("written_when_play_starts", int(saved_keys().get("Up_Key", 0)) == KEY_W and int(saved_keys().get("Look_Key", 0)) == KEY_V and int(saved_keys().get("GetSword_Key", 0)) == KEY_F5, saved_keys().get("Up_Key", 0))
+		await hold(KEY_F5, 0.3)
+		await play(0.5)
+		check("bound_f5_does_not_save", not FileAccess.file_exists("user://manoir-save.cfg") and alive(), FileAccess.file_exists("user://manoir-save.cfg"))
 		check("script_actions_follow_bindings", action_keys("Button_Up") == ["W"] and action_keys("BT_Camera_Look").has("V") and action_keys("Button_Shield") == ["P"] and action_keys("Button_SSLeft") == ["A"] and action_keys("Button_MagicScroll") == ["Delete"] and action_keys("Button_ActivateMap") == ["End"] and action_keys("TestInventoryMode").is_empty(), {"up": action_keys("Button_Up"), "look": action_keys("BT_Camera_Look"), "shield": action_keys("Button_Shield"), "map": action_keys("Button_ActivateMap"), "inventory_test": action_keys("TestInventoryMode")})
 		var walked := await walk_distance(KEY_W, 1.5)
 		check("w_walks_forward", walked > 1.0 and alive(), walked)
@@ -213,7 +244,22 @@ func run() -> void:
 		check("pause_binds_jump_to_tab", binding("Jump_Key") == KEY_TAB, binding("Jump_Key"))
 		check("swap_gives_inventory_left_ctrl", binding("Inventory_Key") == KEY_CTRL + (1 << 32), binding("Inventory_Key"))
 		check("capture_key_did_not_open_inventory", not (is_instance_valid(inventory_view) and inventory_view.visible), "")
+		await rebind(8, KEY_CTRL, KEY_LOCATION_RIGHT)
+		check("right_ctrl_is_its_own_key", binding("Action_Key") == KEY_CTRL + (2 << 32) and binding("Inventory_Key") == KEY_CTRL + (1 << 32), [binding("Action_Key"), binding("Inventory_Key")])
+		Engine.set_meta(&"astrolabe_simulated_pad", true)
+		await tap(KEY_RIGHT) # gamepad tab
+		await tap(KEY_ENTER)
+		await tap(KEY_DOWN) # jump
+		await tap(KEY_ENTER)
+		pad(5, true)
+		await process_frame
+		pad(5, false)
+		await process_frame
+		await tap(KEY_ESCAPE)
+		check("simulated_pad_binds_jump_to_b6", binding("Jump_Pad") == 5 and binding("ScrollMagic_Pad") == 0, [binding("Jump_Pad"), binding("ScrollMagic_Pad")])
+		check("not_written_before_resume", int(saved_keys().get("Jump_Key", 0)) != KEY_TAB and int(saved_pad().get("Jump_Pad", -1)) != 5, saved_keys().get("Jump_Key", 0))
 		await close_to_play()
+		check("written_on_resume", int(saved_keys().get("Jump_Key", 0)) == KEY_TAB and int(saved_pad().get("Jump_Pad", -1)) == 5, [saved_keys().get("Jump_Key", 0), saved_pad().get("Jump_Pad", -1)])
 		check("back_in_play", not paused and alive(), paused)
 		var ground := actor().global_position.y
 		var highest: float = await hold(KEY_TAB, 0.2)
@@ -226,13 +272,44 @@ func run() -> void:
 		check("left_ctrl_opens_inventory", is_instance_valid(inventory_view) and inventory_view.visible, "")
 		await tap(KEY_CTRL, KEY_LOCATION_LEFT)
 		check("left_ctrl_closes_inventory", not inventory_view.visible, "")
+		await tap(KEY_CTRL, KEY_LOCATION_RIGHT)
+		inventory_view = game.get_node("InventoryHost").get("view")
+		check("right_ctrl_does_not_open_inventory", not inventory_view.visible and action_keys("Button_Hit") == ["Ctrl"], action_keys("Button_Hit"))
 	else:
-		check("reload_keeps_rebinds", binding("Up_Key") == KEY_W and binding("Look_Key") == KEY_V and binding("Jump_Key") == KEY_TAB and binding("Inventory_Key") == KEY_CTRL + (1 << 32), [binding("Up_Key"), binding("Look_Key"), binding("Jump_Key"), binding("Inventory_Key")])
+		check("reload_keeps_rebinds", binding("Up_Key") == KEY_W and binding("Look_Key") == KEY_V and binding("Jump_Key") == KEY_TAB and binding("Inventory_Key") == KEY_CTRL + (1 << 32) and binding("Action_Key") == KEY_CTRL + (2 << 32) and binding("GetSword_Key") == KEY_F5 and binding("Jump_Pad") == 5, [binding("Up_Key"), binding("Look_Key"), binding("Jump_Key"), binding("Inventory_Key")])
 		if not await load_game(menu):
 			finish("Load Game did not reach play")
 			return
 		var walked := await walk_distance(KEY_W, 1.5)
 		check("reloaded_w_walks", walked > 1.0 and alive(), walked)
+		# Simulated joypad events (no hardware): the persisted pad binding and
+		# the source stick ranges reach the compiled actions.
+		await hold(KEY_LEFT, 1.4)
+		await play(0.3)
+		var ground := actor().global_position.y
+		pad(5, true)
+		var highest: float = await play(0.2)
+		pad(5, false)
+		highest = maxf(highest, await play(1.5))
+		check("pad_button_6_jumps", highest - ground > 0.2 and alive(), highest - ground)
+		stick(-0.25)
+		await process_frame
+		var light := Input.is_action_pressed("Button_Up")
+		stick(-0.5)
+		await process_frame
+		var walk := Input.is_action_pressed("Button_Up") and not Input.is_action_pressed("Button_SpeedUp")
+		stick(-1.0)
+		await process_frame
+		var run := Input.is_action_pressed("Button_Up") and Input.is_action_pressed("Button_SpeedUp")
+		check("stick_thresholds_follow_f010", not light and walk and run, [light, walk, run])
+		stick(0.0)
+		stick(-0.5)
+		var start := actor().global_position
+		await play(1.5)
+		stick(0.0)
+		await play(0.5)
+		var moved := actor().global_position - start
+		check("stick_moves_hype", Vector2(moved.x, moved.z).length() > 1.0 and alive(), Vector2(moved.x, moved.z).length())
 		var page := await open_pause_controls()
 		if page == null:
 			finish("The Controls page did not open from the pause menu")
@@ -240,10 +317,11 @@ func run() -> void:
 		await tap(KEY_ENTER)
 		await tap(KEY_UP) # the ring wraps to "reset to default values"
 		await tap(KEY_ENTER)
-		check("reset_restores_source_defaults", binding("Up_Key") == KEY_UP and binding("Look_Key") == KEY_KP_0 and binding("Jump_Key") == KEY_CTRL + (1 << 32) and binding("Inventory_Key") == KEY_TAB, [binding("Up_Key"), binding("Jump_Key")])
+		check("reset_restores_source_defaults", binding("Up_Key") == KEY_UP and binding("Look_Key") == KEY_KP_0 and binding("Jump_Key") == KEY_CTRL + (1 << 32) and binding("Inventory_Key") == KEY_TAB and binding("Jump_Pad") == 0 and binding("GetSword_Key") == KEY_X, [binding("Up_Key"), binding("Jump_Key")])
 		await tap(KEY_ESCAPE)
 		await close_to_play()
-		check("reset_reaches_script_actions", not paused and action_keys("Button_Up") == ["Up"] and action_keys("Button_Jump") == ["Ctrl"], {"paused": paused, "up": action_keys("Button_Up"), "jump": action_keys("Button_Jump")})
+		check("reset_written_on_resume", int(saved_keys().get("Up_Key", 0)) == KEY_UP and int(saved_pad().get("Jump_Pad", -1)) == 0, saved_keys().get("Up_Key", 0))
+		check("reset_reaches_script_actions", not paused and action_keys("Button_Up") == ["Up"] and action_keys("Button_Jump") == ["Ctrl", "Ctrl"], {"paused": paused, "up": action_keys("Button_Up"), "jump": action_keys("Button_Jump")})
 		# Turn away from the wall the earlier walk approached (the yard is small).
 		await hold(KEY_LEFT, 1.4)
 		await play(0.3)

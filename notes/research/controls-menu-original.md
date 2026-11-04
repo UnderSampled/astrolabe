@@ -397,3 +397,21 @@ Resolved from section 7:
   works on glyph centres.
 - Pad codes in both the entry elements and the key-name table are
   PadButton codes 0x0a + index; codes below 0x0a are directions ("padup").
+
+## 9. Follow-up evidence (2026-11-04)
+
+- F1 help: `FUN_00414190` is a single `ret` (functions.tsv body 00414190..
+  00414190), so the help key draws nothing in this build [read].
+- Current.cfg writes: `FUN_00428910` is called from `FUN_00402780` (mode 3,
+  entering play), mode 0x12 in `FUN_00404700` (Resume Game) and `FUN_004026b0`
+  (shutdown) [read].
+- Entry names the exe looks up include Menu*, TestMenu, GamePause, SnapShot,
+  StopTheVideo, the inventory entries, Action_Key, Activate_Map_Key and a few
+  Button_* names; not Save_Key or Load_Key, which no compiled AI reads either
+  [read]. F1, F5 and R have key names, so the page can bind them [read].
+- Opcode table `0x5ee950` (low byte): f010 → `004a7c20` reads DIJOYSTATE axis
+  `code - 4` on joystick devices (type 4), scales by `100.0` (0x5c14fc), rounds
+  and tests [min, max]; f00e → `004a7980` tests digital direction bits on paddle
+  devices (type 3) [read]. Button_Up presses at Y ≤ −30 and holds while
+  Y ≤ −20; Button_SpeedUp presses at Y ≤ −90 and holds to −75; Button_Left/Right
+  use X beyond ±20 [read].

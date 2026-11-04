@@ -55,6 +55,10 @@ func close_pause() -> void:
         view.cancel_activation()
         view.hide()
     status.text = ""
+    # Resume Game (mode 0x12) writes the options file in the source (00404700).
+    var preferences := get_node_or_null("/root/UserSettings")
+    if preferences != null and preferences.has_method("commit_control_bindings"):
+        preferences.call("commit_control_bindings")
     if owns_pause and is_inside_tree(): get_tree().paused = false
     owns_pause = false
     var focused := previous_focus.get_ref() as Control if previous_focus != null else null

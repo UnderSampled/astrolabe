@@ -26,8 +26,8 @@ const CONTROL_BINDINGS := "res://generated/hype/shared/menu/controls/en/bindings
 ## the script's inventory-mode actions stay unbound and the host reads the
 ## Inventory_Key/Inventory_Pad bindings itself.
 const HOST_OWNED_ACTIONS := ["TestInventoryMode", "InventoryExit"]
-## The port session's own keys (F1 panel, F5 save, R reload) cannot be bound.
-const RESERVED_KEYS := [KEY_F1, KEY_F5, KEY_R]
+## Source joystick axes 0 (X) and 1 (Y) are the left stick; Hype reads no others.
+const JOY_AXES := {0: JOY_AXIS_LEFT_X, 1: JOY_AXIS_LEFT_Y}
 ## While aiming, the crossbow camera actions take these inputs instead.
 const AIM_ROUTES := {
 	"Button_Left": "BT_Camera_LookLeft",
@@ -46,6 +46,10 @@ var control_bindings: Resource
 ## Options entry -> key id (keycode + location << 32) or pad button index.
 var key_bindings: Dictionary = {}
 var pad_bindings: Dictionary = {}
+## What hype-settings.cfg holds. The source applies a change at once but only
+## writes Current.cfg when play starts, on Resume Game and at shutdown.
+var committed_key_bindings: Dictionary = {}
+var committed_pad_bindings: Dictionary = {}
 var reverse_stereo := false
 var _aim_mode := false
 var _reversed_audio_cache: Dictionary = {}
@@ -72,6 +76,7 @@ func _ready() -> void:
 		image_values["shadow_quality"] = clampi(int(file.get_value("video", "shadow_quality", IMAGE_DEFAULTS.shadow_quality)), 1, 4)
 		image_values["screen_framing"] = clampi(int(file.get_value("video", "screen_framing", IMAGE_DEFAULTS.screen_framing)), 60, 100)
 		_load_control_bindings(file)
+	_mark_committed()
 	get_tree().node_added.connect(_on_node_added)
 	configure_gameplay_inputs(false)
 	_apply()
@@ -172,7 +177,7 @@ func key_id(event: InputEventKey) -> int:
 
 ## IPT_fn_bChangeIPTValue accepts only inputs with a display name.
 func can_bind_key(id: int) -> bool:
-	return control_bindings != null and control_bindings.key_names.has(id) and not RESERVED_KEYS.has(id & 0xffffffff)
+	return control_bindings != null and control_bindings.key_names.has(id)
 
 ## Bind an input to an options entry. An entry of the same kind already using
 ## it receives this entry's previous input (FUN_004a4be0 swap, mode 1).
@@ -192,20 +197,63 @@ func bind_entry(entry: String, input: int) -> Dictionary:
 			break
 	bindings[entry] = input
 	configure_gameplay_inputs(_aim_mode)
-	return {"ok": true, "swapped": swapped, "saved": _save()}
+	return {"ok": true, "swapped": swapped}
 
 ## DefaultValues reloads every binding from the source defaults.
-func reset_control_bindings() -> bool:
+func reset_control_bindings() -> void:
 	_reset_control_binding_data()
 	configure_gameplay_inputs(_aim_mode)
+
+## Write the applied bindings, at the source's Current.cfg write points.
+func commit_control_bindings() -> bool:
+	if key_bindings == committed_key_bindings and pad_bindings == committed_pad_bindings:
+		return true
+	_mark_committed()
 	return _save()
+
+func _mark_committed() -> void:
+	committed_key_bindings = key_bindings.duplicate()
+	committed_pad_bindings = pad_bindings.duplicate()
+
+func _notification(what: int) -> void:
+	# Shutdown is the third write point (FUN_004026b0).
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_EXIT_TREE:
+		if control_bindings != null:
+			commit_control_bindings()
+
+## A Ctrl/Shift/Alt binding is side specific. Its other side, when no entry
+## holds it, also answers: synthesized and replayed input (gate probe, route
+## bot) carries no side.
+func _key_matches(id: int, key: InputEventKey) -> bool:
+	if int(key.physical_keycode) != id & 0xffffffff:
+		return false
+	var side := id >> 32
+	if side == 0 or int(key.location) == side:
+		return true
+	return not _key_held_by_any(_other_side(id))
+
+func _other_side(id: int) -> int:
+	return (id & 0xffffffff) + ((3 - (id >> 32)) << 32)
+
+func _key_held_by_any(id: int) -> bool:
+	for entry in key_bindings:
+		if int(key_bindings[entry]) == id:
+			return true
+	return false
+
+## True when a Controls binding owns this key (port shortcuts then yield).
+func key_is_bound(key: InputEventKey) -> bool:
+	for entry in key_bindings:
+		if _key_matches(int(key_bindings[entry]), key):
+			return true
+	return false
 
 ## True when the event presses one of the entries' bound inputs.
 func entry_event_pressed(event: InputEvent, entries: Array) -> bool:
 	for entry in entries:
 		if key_bindings.has(entry) and event is InputEventKey:
 			var key := event as InputEventKey
-			if key.pressed and not key.echo and int(key.physical_keycode) == int(key_bindings[entry]) & 0xffffffff:
+			if key.pressed and not key.echo and _key_matches(int(key_bindings[entry]), key):
 				return true
 		if pad_bindings.has(entry) and event is InputEventJoypadButton:
 			var button := event as InputEventJoypadButton
@@ -231,31 +279,46 @@ func configure_gameplay_inputs(aim_mode: bool) -> void:
 		if silent:
 			continue
 		for entry in control_bindings.actions[action]:
-			var event := _event_for_entry(str(entry))
-			if event != null and not InputMap.action_has_event(action, event):
-				InputMap.action_add_event(action, event)
+			for event in _events_for_entry(str(entry)):
+				if not InputMap.action_has_event(action, event):
+					InputMap.action_add_event(action, event)
+		# f010 ranges: the stick direction past the range's inner bound.
+		for range in control_bindings.axes.get(action, []):
+			var bounds: Vector3i = range
+			if not JOY_AXES.has(bounds.x) or (bounds.y < 0) != (bounds.z < 0):
+				continue
+			var motion := InputEventJoypadMotion.new()
+			motion.device = -1
+			motion.axis = JOY_AXES[bounds.x]
+			motion.axis_value = -1.0 if bounds.z < 0 else 1.0
+			InputMap.action_add_event(action, motion)
+			InputMap.action_set_deadzone(action, mini(absi(bounds.y), absi(bounds.z)) / 100.0)
 
-func _event_for_entry(entry: String) -> InputEvent:
+func _events_for_entry(entry: String) -> Array[InputEvent]:
+	var events: Array[InputEvent] = []
 	if key_bindings.has(entry):
 		var id := int(key_bindings[entry])
-		# The side of Ctrl/Shift/Alt names and identifies a binding, but the
-		# InputMap event matches either side: synthesized and replayed input
-		# (route bot, gate probe) carries no location.
 		var key := InputEventKey.new()
 		key.physical_keycode = id & 0xffffffff
-		return key
-	if pad_bindings.has(entry):
+		key.location = id >> 32
+		events.append(key)
+		if id >> 32 != 0 and not _key_held_by_any(_other_side(id)):
+			var either := InputEventKey.new()
+			either.physical_keycode = id & 0xffffffff
+			events.append(either)
+	elif pad_bindings.has(entry):
 		var button := InputEventJoypadButton.new()
 		button.device = -1
 		button.button_index = int(pad_bindings[entry])
-		return button
-	var item: Dictionary = control_bindings.entry(entry)
-	if str(item.get("kind", "")) == "pad_direction":
-		var direction := InputEventJoypadButton.new()
-		direction.device = -1
-		direction.button_index = int(item["default"])
-		return direction
-	return null
+		events.append(button)
+	else:
+		var item: Dictionary = control_bindings.entry(entry)
+		if str(item.get("kind", "")) == "pad_direction":
+			var direction := InputEventJoypadButton.new()
+			direction.device = -1
+			direction.button_index = int(item["default"])
+			events.append(direction)
+	return events
 
 func _reset_control_binding_data() -> void:
 	key_bindings.clear()
@@ -485,8 +548,8 @@ func _save() -> bool:
 	for setting in IMAGE_DEFAULTS:
 		file.set_value("video", setting, image_values[setting])
 	if control_bindings != null:
-		file.set_value("controls", "keys", key_bindings)
-		file.set_value("controls", "pad", pad_bindings)
+		file.set_value("controls", "keys", committed_key_bindings)
+		file.set_value("controls", "pad", committed_pad_bindings)
 	var error := file.save(FILE_PATH)
 	if error != OK:
 		push_warning("Could not save Hype preferences: " + error_string(error))
