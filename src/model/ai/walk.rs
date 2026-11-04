@@ -496,6 +496,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::WaypointReference(_)
                 | Expression::WaypointPosition(_)
                 | Expression::GameTime
+                | Expression::CollideNormal { .. }
                 | Expression::GameState
                 | Expression::SeePerso { .. }
                 | Expression::Variable(_)

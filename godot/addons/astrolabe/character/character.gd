@@ -1540,6 +1540,21 @@ func _collide_with_actor_zones() -> void:
 ## The mechanics collision path reports a contact result after each movement
 ## step. CharacterBody3D publishes the corresponding native result through its
 ## slide contacts; AI conditions run after _physics_process has moved the body.
+## Func_GetNormalCollideVector (0053b990) / Func_GetNormalGroundVector (0053ba40)
+## read the obstacle (report+0x30) or ground (report+0xa0) normal of the dynamics
+## collision report, zero without one. Native: this tick's wall or floor
+## contact normal in source axes, zero without a contact (stand-in
+## collide-normal-moment: whether the report keeps a stale normal is unread).
+func source_collide_normal(ground: bool) -> Vector3:
+    if not motion_enabled: return Vector3.ZERO
+    var normal := Vector3.ZERO
+    if ground:
+        if is_on_floor(): normal = get_floor_normal()
+    elif is_on_wall():
+        normal = get_wall_normal()
+    if normal == Vector3.ZERO: return Vector3.ZERO
+    return Vector3(normal.x, -normal.z, normal.y)
+
 func source_collide_with_nothing() -> bool:
     # 00533d20 reads the actor's dynamics collision report (0052ec80); an actor
     # without one answers false to every collision condition, Nothing included.

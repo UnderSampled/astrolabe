@@ -985,6 +985,7 @@ fn vector_expression(e: &Expression, model: &AiModel) -> bool {
         | Expression::SelfPositionField
         | Expression::WaypointPosition(_)
         | Expression::WaypointValuePosition(_)
+        | Expression::CollideNormal { .. }
         | Expression::SelfSighting
         | Expression::LaserDirection
         | Expression::VectorPlus(_, _)
@@ -2243,6 +2244,10 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         }
         Expression::WaypointPosition(reference) => waypoint_constant(reference),
         Expression::GameTime => "character().source_game_time()".into(),
+        Expression::CollideNormal { ground } => format!(
+            "character().source_collide_normal({})",
+            if *ground { "true" } else { "false" }
+        ),
         Expression::GameState => anyhow::bail!("game state must use guarded session query"),
         Expression::TimeElapsed { start, duration } => format!(
             "source_time_elapsed(int({}), int({}))",

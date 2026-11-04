@@ -2042,6 +2042,9 @@ impl Parser<'_> {
             }
             (1, 68) => Expression::RouteWaypointCount(self.route_slot(indent + 1, at)?),
             (3, 41) => Expression::GameTime,
+            (3, 153 | 174) => Expression::CollideNormal {
+                ground: id == 174,
+            },
             (3, 195) => Expression::GameState,
             (3, 27) => Expression::RandomInt {
                 lower: Box::new(self.expression(indent + 1)?),
@@ -3791,6 +3794,9 @@ impl Writer<'_> {
                 self.expression(sector, indent + 1)?;
             }
             Expression::GameTime => self.node(3, 41, indent),
+            Expression::CollideNormal { ground } => {
+                self.node(3, if *ground { 174 } else { 153 }, indent)
+            }
             Expression::GameState => self.node(3, 195, indent),
             Expression::RandomInt { lower, upper } => {
                 self.node(3, 27, indent);

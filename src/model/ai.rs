@@ -795,6 +795,11 @@ pub enum Expression {
     },
     /// Source gameplay clock value; its target implementation is owned by Godot.
     GameTime,
+    /// Func_GetNormalCollideVector (153, 0053b990: report+0x30, consumes but
+    /// ignores an Ultra receiver) and Func_GetNormalGroundVector (174,
+    /// 0053ba40: report+0xa0) read a normal of the caller's dynamics
+    /// collision report (0052ec80); zero without one.
+    CollideNormal { ground: bool },
     /// Func_GetGameState returns the shared session selector (0..8).
     /// Unrecognized combined masks leave the source result stale; targets must
     /// diagnose that unrepresented case rather than return the raw mask.

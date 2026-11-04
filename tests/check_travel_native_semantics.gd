@@ -231,6 +231,9 @@ func check_point_requests() -> bool:
     ticket = actor.source_begin_point_motion(Vector3(1,0,0.101),0.03)
     for _tick in 60: await physics_frame
     if not require(ticket > 0 and not actor.source_point_motion_finished(ticket) and actor.is_on_floor() and actor.is_on_wall() and actor.global_position.x < 0.41, "point steering bypassed Character native contact"): return false
+    var ground_normal: Vector3 = actor.source_collide_normal(true)
+    var wall_normal: Vector3 = actor.source_collide_normal(false)
+    if not require(ground_normal.z > 0.99 and wall_normal.x < -0.9 and absf(wall_normal.z) < 0.01, "collide normals are not the floor and wall contact normals in source axes: ground=%s wall=%s" % [ground_normal, wall_normal]): return false
     actor.source_cancel_point_motion(ticket)
     stopped = actor.global_position
     for _tick in 4: await physics_frame
