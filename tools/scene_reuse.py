@@ -119,14 +119,14 @@ def template_key(scene, structure_only=False):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("level_dir", type=Path)
-    ap.add_argument("--actors", default="persos", help="actor scene subdirectory (legacy layout)")
+    ap.add_argument("--actors", nargs="+", default=["persos", "actors"], help="actor scene subdirectories")
     ap.add_argument("--match", default="", help="only list groups containing this name")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
     level = parse(args.level_dir / "level.tscn")
     report = {"level": level_report(level)}
     instanced = set(report["level"]["instanced_scenes"])
-    actor_scenes = sorted(p for p in (args.level_dir / args.actors).glob("*.tscn")) if (args.level_dir / args.actors).is_dir() else []
+    actor_scenes = sorted(p for d in args.actors for p in (args.level_dir / d).glob("*.tscn"))
     groups = defaultdict(list)
     parsed = {}
     for path in actor_scenes:

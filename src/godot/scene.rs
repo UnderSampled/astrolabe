@@ -745,10 +745,7 @@ impl Project {
                     })?;
                 let character = format!("{}_character", names[&node.id]);
                 let target = format!("{}_character", names[&target_node.id]);
-                writeln!(
-                    self.builder,
-                    "    {character}.brain_dsg_{i} = {target}"
-                )?;
+                writeln!(self.builder, "    {character}.brain_dsg_{i} = {target}")?;
             }
         }
         if let Some(actor) = &scene.main_actor {
@@ -766,10 +763,7 @@ impl Project {
             // The normally saved level, not a test wrapper, owns gameplay
             // motion for the selected player. Other persos retain their
             // inspection pose until their own behavior path is supported.
-            writeln!(
-                self.builder,
-                "    {main}.motion_enabled = true"
-            )?;
+            writeln!(self.builder, "    {main}.motion_enabled = true")?;
             writeln!(
                 self.builder,
                 "    {scene_id}.set_meta(\"source_main_actor_asset\", {})",

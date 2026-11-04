@@ -921,11 +921,24 @@ fn placed_script(
     script.push_str("}\nvar _placed_parameters_applied := false\n");
     let mut group = "";
     for (property, _, kind, default) in &fields {
-        let next = if property.starts_with("brain_") { "Brain" } else { "Camera" };
+        let next = if property.starts_with("brain_") {
+            "Brain"
+        } else {
+            "Camera"
+        };
         if next != group {
             group = next;
-            let prefix = if group == "Brain" { "brain_" } else { "camera_" };
-            writeln!(script, "@export_group({}, {})", quoted(group), quoted(prefix))?;
+            let prefix = if group == "Brain" {
+                "brain_"
+            } else {
+                "camera_"
+            };
+            writeln!(
+                script,
+                "@export_group({}, {})",
+                quoted(group),
+                quoted(prefix)
+            )?;
         }
         writeln!(
             script,

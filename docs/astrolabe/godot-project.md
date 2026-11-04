@@ -252,11 +252,29 @@ preloads and autoloads. Authored scenes referencing converted resources require
 rehydration to open fully; identify those dependencies rather than supplying
 fake converted content or claiming the whole game runs dehydrated.
 
-Generated scenes expose their nested scene instances in the Scene dock by
-default, including the level inside `preview.tscn`. Conversion writes Godot's
-`editable` instance metadata at every nesting boundary; it preserves native
-PackedScene references and sharing. Expand `Model0` in the preview to browse the
-level tree, or open the neighboring `level.tscn` directly. Durable authored edits
+Generated scenes keep Godot's ordinary instance ownership: a level owns its
+source hierarchy and one instance root per placed actor, and no `editable`
+instance flags are written. An actor's internals (channels, payloads, collision,
+AnimationPlayer, Brain) live in its actor scene; open that scene to edit them.
+Placed actors whose converted trees are exactly equal below the root share one
+scene, `levels/<level>/actors/<label>__<signature>.tscn` (for example the Manor's
+three training mannequins or its 105 dummies); a unique actor keeps its own
+`persos/<name>__<digest>.tscn`. The builder compares every node, stored
+property, instance and connection below the root, plus the root's script and
+metadata keys, so any unknown difference keeps scenes apart.
+
+Per-instance data is stored on the placed instance root as ordinary property
+overrides: identity metadata, state, configuration, hit points, sector links and
+the typed exports of the actor's generated `placed_<digest>.gd` root script.
+That script exposes the Brain's designer variables (`brain_dsg_N`), behavior
+selections (`brain_current_normal`/`brain_current_reflex`) and AI/camera
+references (`brain_main_actor_path`, `brain_actor_brain_N_path`,
+`camera_initial_target_path`, all relative to the actor root) under Brain/Camera
+inspector groups. Root values are forwarded to those children once, before the
+children enter `_ready`. Mutable resources such as hit points are
+`resource_local_to_scene`, so each instance owns a copy. `tools/scene_reuse.py`
+reports a level's owned nodes, overrides inside instances, editable flags,
+instance sharing and remaining actor-scene variants. Durable authored edits
 still belong in `game/` compositions or inherited scenes.
 
 In the rehydrated project, developers open generated level/perso scenes directly,
