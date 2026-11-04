@@ -240,3 +240,26 @@ Quickest runtime discriminator (not run): during the bot's cast, sample on 154
   Gogoud's Normal4 reads 154.dsg_0 on a later tick, so the order is safe.
 - Normal19 exists only as the finimannequin dialogue continuation. It needs the
   dialogue to complete; skipping or aborting it never spawns the key.
+
+## Addendum (runtime and asset check, 2026-11-03)
+
+- **Fire does not move as an actor in the source either.** fix/817's AI has
+  no motion procedures, the model has no mechanics card, and its clips'
+  RootMotion track is zero in every key. The visible travel in Stephen's take
+  is channel animation: in `state_0` (16 frames) the fireball channels move
+  from about 0 to 2.7 m forward in the object's local frame. The static
+  5.9 m ZDE box centred at +2.761 covers that path. This is asset-level
+  evidence only: no decomp confirmation that card-less objects get no
+  dynamics. Until then the hold in place stays an unsourced adaptation (its
+  code comment still cites "with gravity it sank") and should become a
+  documented stand-in or be sourced.
+- **The bot's misses were facing and placement.** The route bot steered its
+  standing facing from a proximity cursor that stayed on the first sample of
+  a spot where the take stood and turned, and it cast while walking. With the
+  facing taken at the take's clock and actions waiting for facing in any gait,
+  two consecutive runs hit both arms, then reached Gogoud Normal18, Normal19 at
+  about 240.5 s and the key (Hype dsg_97 = 21).
+- **Crossbow variance had a port cause.** In a New Game session `_process`
+  returned before the crossbow pointer update even after the opening, so bolt
+  733's laser target was never valid and the bolt aimed at the world origin.
+  Fixed in game_session.gd.
