@@ -290,6 +290,12 @@ pub enum Statement {
         actor: ActorTarget,
         value: Expression,
     },
+    /// Proc_ChangeAction (218, 00542e60) under Operator_Ultra: the receiver's
+    /// action request; a refusal sets procedure control 2, as for self.
+    ActorChangeAction {
+        actor: ActorTarget,
+        action: Expression,
+    },
     /// Proc_TurnPerso under Operator_Ultra: the receiver turns toward the target.
     ActorTurnToward {
         actor: ActorTarget,

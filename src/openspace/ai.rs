@@ -703,6 +703,15 @@ impl Parser<'_> {
                         self.at = at;
                         Statement::Evaluate(self.expression(indent)?)
                     } else if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 218)
+                    {
+                        // 00542e60 takes Operator_Ultra's receiver.
+                        self.take(indent + 1)?;
+                        Statement::ActorChangeAction {
+                            actor: actor_target,
+                            action: self.expression(indent + 2)?,
+                        }
+                    } else if let Some(actor_target) = actor_target.clone()
                         && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && matches!(n.parameter, 185..=187))
                     {
                         // 00543130 takes Operator_Ultra's receiver.
@@ -2739,6 +2748,12 @@ impl Writer<'_> {
                 }
                 Statement::ActivateFade => self.node(4, 319, indent),
                 Statement::DeactivateFade => self.node(4, 320, indent),
+                Statement::ActorChangeAction { actor, action } => {
+                    self.node(2, 24, indent);
+                    self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                    self.node(4, 218, indent + 1);
+                    self.expression(action, indent + 2)?;
+                }
                 Statement::ActorSetTransparentDisplay { actor, enabled } => {
                     self.node(2, 24, indent);
                     self.expression(&Expression::Actor(actor.clone()), indent + 1)?;

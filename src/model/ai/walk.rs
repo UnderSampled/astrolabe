@@ -91,6 +91,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::TurnToward(value)
                 | Statement::ActorTurnToward { target: value, .. }
                 | Statement::ActorSetTransparency { value, .. }
+                | Statement::ActorChangeAction { action: value, .. }
                 | Statement::IncrementalTurnToward { frames: value, .. }
                 | Statement::SetVectorSpeed(value)
                 | Statement::AddWind(value)

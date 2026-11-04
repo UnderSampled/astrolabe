@@ -3309,6 +3309,32 @@ fn statements(
                     writeln!(out, "{pad}character().turn(float({value}), frame_seconds)")?;
                 }
             }
+            Statement::ActorChangeAction { actor, action } => {
+                let receiver = actor_target_code(actor);
+                let value = guarded_expression(out, action, model, depth, flow)?;
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var action_actor_{id}: Variant = {receiver}\n{pad}if not (action_actor_{id} is Node3D) or not is_instance_valid(action_actor_{id}) or not action_actor_{id}.has_method(\"request_action\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires a native actor for an Ultra ChangeAction",
+                        model.path
+                    ))
+                )?;
+                if flow.rule {
+                    writeln!(
+                        out,
+                        "{pad}if not action_actor_{id}.request_action(int({value})): return false"
+                    )?;
+                } else {
+                    writeln!(
+                        out,
+                        "{pad}while not action_actor_{id}.request_action(int({value})):\n{pad}    await {}\n{pad}    if not active_{group}(token): {exit}",
+                        flow.tick()
+                    )?;
+                }
+            }
             Statement::ActorSetTransparentDisplay { actor, enabled } => {
                 let receiver = actor_target_code(actor);
                 let id = flow.local;
