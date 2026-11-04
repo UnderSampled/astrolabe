@@ -15,6 +15,12 @@ pub struct ActorWayInspection {
     /// Script category 23 selects this actor-local slot, including empty slots.
     pub slots: Vec<Option<WayInspection>>,
     pub progress: Vec<[u8; 4]>,
+    /// The way component's first word when it is nonzero but has no
+    /// relocation (casino world/0/8). The engine (0043e340) follows any
+    /// nonzero word; this file word cannot be a list address, so no ways are
+    /// imported for the actor (stand-in `unrelocated-way-list`).
+    #[serde(default)]
+    pub unrelocated_list_word: Option<u32>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WayInspection {
@@ -91,18 +97,27 @@ pub(super) fn read_actor_ways(
         object_types,
         slots: Vec::new(),
         progress: Vec::new(),
+        unrelocated_list_word: None,
     };
-    let Some(component) = s.pointer(perso, 32)? else {
+    let Some(component) = s.pointer(perso, 32).context("perso way component (+32)")? else {
         return Ok(value);
     };
     // Only this documented first word of the component is inspected.
     let _: u32 = wire(s.bytes(component, 4)?)?;
-    let Some(header) = s.pointer(component, 0)? else {
+    let header = match s.pointer(component, 0) {
+        Ok(header) => header,
+        Err(error) if format!("{error:#}").contains("lacks relocation") => {
+            value.unrelocated_list_word = Some(wire::<u32>(s.bytes(component, 4)?)?);
+            return Ok(value);
+        }
+        Err(error) => return Err(error.context("way component header (+0)")),
+    };
+    let Some(header) = header else {
         return Ok(value);
     };
     let list: WayListWire = wire(s.bytes(header, 12)?)?;
     ensure!(list.count <= 256, "actor route count exceeds bound");
-    let mut entry = s.pointer(header, 0)?;
+    let mut entry = s.pointer(header, 0).context("way list head (+0)")?;
     let mut seen = BTreeSet::new();
     let mut previous = None;
     for _ in 0..list.count {
@@ -110,17 +125,19 @@ pub(super) fn read_actor_ways(
         ensure!(seen.insert(binding), "actor route list cycles");
         let b: WayBindingWire = wire(s.bytes(binding, 20)?)?;
         ensure!(
-            s.pointer(binding, 8)? == Some(header) && s.pointer(binding, 4)? == previous,
+            s.pointer(binding, 8).context("way binding owner (+8)")? == Some(header)
+                && s.pointer(binding, 4).context("way binding previous (+4)")? == previous,
             "actor route list ownership or previous link differs"
         );
         value.progress.push(b.progress);
         value.slots.push(
-            s.pointer(binding, 12)?
-                .map(|route| read_route(s, route))
+            s.pointer(binding, 12)
+                .context("actor route binding's route")?
+                .map(|route| read_route(s, route).with_context(|| format!("route at {route:?}")))
                 .transpose()?,
         );
         previous = Some(binding);
-        entry = s.pointer(binding, 0)?;
+        entry = s.pointer(binding, 0).context("way binding next (+0)")?;
     }
     ensure!(
         entry.is_none() && s.pointer(header, 4)? == previous,
@@ -143,8 +160,8 @@ fn read_route(s: &SourceSession, route: Address) -> Result<WayInspection> {
         let pp = s.required(route, 0)?;
         s.bytes(pp, h.count as usize * 4)?;
         for index in 0..h.count as usize {
-            let p = s.required(pp, index * 4)?;
-            value.points.push(read_point(s, p)?);
+            let p = s.required(pp, index * 4).with_context(|| format!("route point {index}"))?;
+            value.points.push(read_point(s, p).with_context(|| format!("route point {index}"))?);
         }
     }
     if h.count > 1 {
@@ -152,7 +169,8 @@ fn read_route(s: &SourceSession, route: Address) -> Result<WayInspection> {
         s.bytes(lp, (h.count as usize - 1) * 4)?;
         for index in 0..h.count as usize - 1 {
             value.links.push(
-                s.pointer(lp, index * 4)?
+                s.pointer(lp, index * 4)
+                    .with_context(|| format!("route link {index}"))?
                     .map(|a| -> Result<_> {
                         let raw: WayLinkWire = wire(s.bytes(a, 72)?)?;
                         ensure!(
@@ -302,6 +320,16 @@ pub(super) fn import_bindings(
     result: &mut super::scene::SceneImport,
 ) -> Result<Vec<crate::model::route::RouteBinding>> {
     let observed = read_actor_ways(s, perso, actor.clone(), types)?;
+    if let Some(word) = observed.unrelocated_list_word {
+        result.diagnostics.push(crate::model::io::Diagnostic {
+            code: "openspace.way.unrelocated_list".into(),
+            asset: Some(actor.clone()),
+            severity: crate::model::io::Severity::Warning,
+            message: format!(
+                "{actor}: way component list word {word:#010x} has no relocation; no ways imported (stand-in unrelocated-way-list)"
+            ),
+        });
+    }
     let mut bindings = Vec::new();
     for (slot, progress) in observed.slots.into_iter().zip(observed.progress) {
         let route = slot
