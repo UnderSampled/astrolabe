@@ -1530,7 +1530,18 @@ impl Parser<'_> {
                 {
                     return Ok(Expression::Unsupported(self.unsupported(
                         at,
-                        format!("unsupported actor field receiver or field at node {at}"),
+                        format!(
+                            "unsupported actor field receiver or field at node {at} ({})",
+                            [actor_at, actor_at + 1]
+                                .iter()
+                                .map(|i| self
+                                    .nodes
+                                    .get(*i)
+                                    .map(|n| format!("kind {} parameter {}", n.kind, n.parameter))
+                                    .unwrap_or_default())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
                     )?));
                 }
                 let (_, actor) = self.take(indent + 1)?;
