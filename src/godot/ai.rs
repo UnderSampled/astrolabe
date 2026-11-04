@@ -4279,13 +4279,23 @@ fn statements(
                     model.path, target.model.path
                 ));
                 let target_model_path = quoted(target.model.path.as_str());
+                // Procs 207/208 on the executing actor itself end in 005426f0 like
+                // ChangeBehavior: the same behavior again is a no-op; a change of
+                // the running group restarts its rules this frame (control bit 8,
+                // 00522840), so this script stops; the other group lets it continue
+                // (notes/research/self-behavior-change.md).
+                let self_change = if target.model.path == model.path {
+                    format!(
+                        "{pad}    if change_{target_group}({}, false):\n{pad}        {}",
+                        target.behavior,
+                        if target_group == group { exit } else { "pass" }
+                    )
+                } else {
+                    format!("{pad}    fail_unsupported({failure})\n{pad}    {exit}")
+                };
                 writeln!(
                     out,
-                    "{pad}var change_actor_{id}: Node3D = {actor_expression}\n{pad}if not is_instance_valid(change_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if change_actor_{id} == character():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var change_brain_{id}: Node = change_actor_{id}.get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid(change_brain_{id}) or str(change_brain_{id}.get(\"source_model_path\")) != {target_model_path} or not change_brain_{id}.has_method(\"change_{target_group}\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}change_brain_{id}.call(\"change_{target_group}\", {}, false)",
-                    quoted(&format!(
-                        "{} external {target_group} request cannot switch the currently executing actor because its source control-status semantics are unresolved",
-                        model.path
-                    )),
+                    "{pad}var change_actor_{id}: Node3D = {actor_expression}\n{pad}if not is_instance_valid(change_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if change_actor_{id} == character():\n{self_change}\n{pad}else:\n{pad}    var change_brain_{id}: Node = change_actor_{id}.get_node_or_null(\"Brain\")\n{pad}    if not is_instance_valid(change_brain_{id}) or str(change_brain_{id}.get(\"source_model_path\")) != {target_model_path} or not change_brain_{id}.has_method(\"change_{target_group}\"):\n{pad}        fail_unsupported({failure})\n{pad}        {exit}\n{pad}    change_brain_{id}.call(\"change_{target_group}\", {}, false)",
                     target.behavior
                 )?;
             }
