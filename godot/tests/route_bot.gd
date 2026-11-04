@@ -866,7 +866,7 @@ func follow(plan: Dictionary) -> bool:
 				if not spot.is_empty():
 					_follow_spot = spot
 					var off := Vector2(spot["point"]).distance_to(position())
-					var turn := absf(wrapf(float(spot["facing"]) - heading(), -PI, PI))
+					var turn := absf(wrapf((Vector2(spot["aim"]) - position()).angle() - heading(), -PI, PI))
 					if off > 0.5 or turn > 0.05:
 						_follow_hold += 1.0 / Engine.physics_ticks_per_second
 						shift -= 1.0 / Engine.physics_ticks_per_second
@@ -921,17 +921,18 @@ func follow(plan: Dictionary) -> bool:
 				_follow_key(int(code), false)
 				_follow_key_release.erase(code)
 		var watch := []
-		for watched in ["i_Gogood_MasterYoda", "i_Mannequin_Magie"]:
+		for watched in ["i_Gogood_MasterYoda", "i_Mannequin_Epee", "i_Mannequin_Arbalete", "i_Mannequin_Magie"]:
 			var watched_brain := brain_of(watched)
 			watch.append([watched_brain.get("dsg_0"), watched_brain.get("dsg_1"), watched_brain.get("dsg_2"), watched_brain.get("current_normal")] if watched_brain != null else null)
+		_trace_bolts(clock)
 		var watch_screen: Node = brain_of("hype").call("source_ui") if brain_of("hype") != null else null
 		var watch_box: Node = watch_screen.get("dialogue") if watch_screen != null else null
 		var watch_item: Resource = watch_box.get("item") if watch_box != null and watch_box.visible else null
 		watch.append([watch_item.resource_path.get_file() if watch_item != null else "", watch_box.get("page_start") if watch_item != null else -1, watch_box.get("mode") if watch_item != null else -1])
 		var watch_hype := brain_of("hype")
-		watch.append([watch_hype.get("dsg_17"), watch_hype.get("dsg_70"), watch_hype.get("dsg_97"), _held(actor().get("source_inventory"))])
+		watch.append([watch_hype.get("dsg_17"), watch_hype.get("dsg_55"), watch_hype.get("dsg_58"), watch_hype.get("dsg_0"), watch_hype.get("dsg_70"), watch_hype.get("dsg_97"), _held(actor().get("source_inventory"))])
 		if watch != _watch:
-			print("WATCH ", JSON.stringify({"take": snappedf(clock, 0.01), "gogoud": watch[0], "mannequin": watch[1], "dialogue_page_mode": watch[2], "hype_17_70_97_held": watch[3]}))
+			print("WATCH ", JSON.stringify({"take": snappedf(clock, 0.01), "gogoud": watch[0], "epee": watch[1], "arbalete": watch[2], "magie": watch[3], "dialogue_page_mode": watch[4], "hype_17_55_58_0_70_97_held": watch[5]}))
 			_watch = watch
 		# A dialogue the take has already left is advanced with Space.
 		if _port_mode() == "dialogue" and _take_mode(track, landmarks, clock) == "play":
@@ -1040,7 +1041,7 @@ func follow(plan: Dictionary) -> bool:
 		_follow_facing_off = absf(facing_error) > 0.35 or (take_speed < 1.0 and to.length() > 0.5)
 		if _gait == "stand" and not _follow_spot.is_empty():
 			# At or turning toward the action spot: fine turn taps.
-			var aim := wrapf((float(_follow_spot["facing"]) if to.length() <= 0.5 else to.angle()) - heading(), -PI, PI)
+			var aim := wrapf(((Vector2(_follow_spot["aim"]) - position()).angle() if to.length() <= 0.5 else to.angle()) - heading(), -PI, PI)
 			left = aim > 0.06 or (left and aim > 0.02)
 			right = aim < -0.06 or (right and aim < -0.02)
 		elif _gait == "stand":
@@ -1121,13 +1122,17 @@ func _track_at(track: Array, t: float) -> Dictionary:
 	return {"point": _track_point(track[i]).lerp(_track_point(track[j]), w), "facing": facing}
 
 ## The take's spot for an action at t: its last sample before the press, if the
-## take was idle or finishing a stop there. Samples are 2 Hz and the action's
+## take was idle there. Samples are 2 Hz and the action's
 ## own lunge or recoil lands in the next one, so only the sample before counts.
 func _track_spot(track: Array, t: float) -> Dictionary:
 	var i := -1
 	while i + 1 < track.size() and float(track[i + 1][0]) <= t: i += 1
-	if i < 0 or track[i].size() < 7 or int(track[i][4]) not in [4, 29, 30, 48]: return {}
-	return {"point": _track_point(track[i]), "facing": float(track[i][6])}
+	if i < 0 or track[i].size() < 7 or int(track[i][4]) != 4: return {}
+	# Aim through the point the take aimed at (3 m ahead, the training
+	# range) rather than copying its heading, so a spot reached only to
+	# 0.5 m still puts a bolt, swing or cast where the take's went.
+	var facing := float(track[i][6])
+	return {"point": _track_point(track[i]), "facing": facing, "aim": _track_point(track[i]) + Vector2.from_angle(facing) * 3.0}
 
 func _track_point(row: Array) -> Vector2:
 	return Vector2(float(row[1]), float(row[2]))
@@ -1190,6 +1195,25 @@ func _follow_skip(rules: Array, row: Array) -> bool:
 			_follow_skipped.erase(int(row[1]))
 			return true
 	return false
+
+## Per-tick trace of live crossbow bolts (fix model 733): position, slide
+## contacts, behavior, dsg_120, and what the crossbow mannequin's zone query sees.
+func _trace_bolts(clock: float) -> void:
+	var hype := brain_of("hype")
+	if hype == null or not bool(hype.get("dsg_17")) or int(actor().get("source_inventory").get("selected_weapon")) != 80: return
+	var mannequin_brain := brain_of("i_Mannequin_Arbalete")
+	var mannequin: Node = mannequin_brain.get_parent() if mannequin_brain != null else null
+	for node in game.get("level").find_children("*", "CharacterBody3D", true, false):
+		var brain: Node = node.get_node_or_null("Brain")
+		if brain == null or str(brain.get("source_model_path")) != "fix:/ai/models/733": continue
+		var contacts := []
+		for i in node.get_slide_collision_count():
+			var collider: Object = node.get_slide_collision(i).get_collider()
+			contacts.append(str(collider.get_path()).get_slice("/", -1) if collider is Node else str(collider))
+		var zones := []
+		if mannequin != null:
+			for zone in [1, 2, 3, 4]: zones.append(bool(mannequin.call("source_collide_perso_zde_no_with_type_zde", zone, 2)))
+		print("BOLT ", JSON.stringify({"take": snappedf(clock, 0.01), "frame": Engine.get_physics_frames(), "id": node.get_instance_id() % 10000, "pos": [snappedf(node.global_position.x, 0.01), snappedf(-node.global_position.z, 0.01), snappedf(node.global_position.y, 0.01)], "normal": brain.get("current_normal"), "dsg_120": brain.get("dsg_120"), "active": node.get("source_object_active"), "contacts": contacts, "mannequin_zones": zones, "mannequin_dist": snappedf(node.global_position.distance_to(mannequin.global_position), 0.01) if mannequin != null else -1}))
 
 func _port_mode() -> String:
 	var inventory_host: Node = game.get("inventory_host")
