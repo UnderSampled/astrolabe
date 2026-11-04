@@ -859,7 +859,19 @@ func follow(plan: Dictionary) -> bool:
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
 				shift -= 1.0 / Engine.physics_ticks_per_second
 				break
-			if bool(row[2]) and int(row[1]) in ACTION_KEYS and (_follow_gap > 1.0 or (_follow_facing_off and wanted == "play")) and _follow_hold < 12.0:
+			# Where the take stood still to act (casts, swings, shots), the zones
+			# leave centimetres of margin: reach its spot and facing first.
+			if bool(row[2]) and int(row[1]) in ACTION_KEYS and wanted == "play" and _port_mode() == "play" and _follow_hold < 6.0:
+				var spot := _track_spot(track, float(row[0]))
+				if not spot.is_empty():
+					_follow_spot = spot
+					var off := Vector2(spot["point"]).distance_to(position())
+					var turn := absf(wrapf(float(spot["facing"]) - heading(), -PI, PI))
+					if off > 0.5 or turn > 0.05:
+						_follow_hold += 1.0 / Engine.physics_ticks_per_second
+						shift -= 1.0 / Engine.physics_ticks_per_second
+						break
+			if bool(row[2]) and int(row[1]) in ACTION_KEYS and _follow_spot.is_empty() and (_follow_gap > 1.0 or (_follow_facing_off and wanted == "play")) and _follow_hold < 12.0:
 				# An action waits for Hype to reach and face the take's spot;
 				# facing makes him settle to a stand and turn (aimed casts).
 				_follow_aiming = _follow_facing_off and wanted == "play"
@@ -877,8 +889,11 @@ func follow(plan: Dictionary) -> bool:
 					for arrow in ["ArrowUp", "ArrowLeft", "ArrowRight"]: _follow_steer(arrow, false)
 					shift -= 1.0 / Engine.physics_ticks_per_second
 					break
+			if _follow_hold > 0.0 and not _follow_spot.is_empty():
+				print("SPOT ", JSON.stringify({"take": float(row[0]), "held": snappedf(_follow_hold, 0.01), "off": snappedf(Vector2(_follow_spot["point"]).distance_to(position()), 0.01), "turn": snappedf(wrapf(float(_follow_spot["facing"]) - heading(), -PI, PI), 0.01)}))
 			_follow_hold = 0.0
 			_follow_aiming = false
+			_follow_spot = {}
 			# Inventory choices go by item identity: the take's cursor moves are
 			# dropped with its arrows, so its Enter becomes a request for the item.
 			if bool(row[2]) and int(row[1]) == KEY_ENTER and _port_mode() == "inventory" and _follow_select(plan.get("select", []), float(row[0])):
@@ -886,6 +901,11 @@ func follow(plan: Dictionary) -> bool:
 				continue
 			if int(row[1]) == KEY_SHIFT:
 				_follow_take_shift = bool(row[2])
+				next_key += 1
+				continue
+			# Route annotation: a press the take needed but the port no longer
+			# does (the stage already counted), as a player who saw it would.
+			if _follow_skip(plan.get("skip_if", []), row):
 				next_key += 1
 				continue
 			_follow_key(int(row[1]), bool(row[2]))
@@ -969,6 +989,9 @@ func follow(plan: Dictionary) -> bool:
 				target = _track_point(sample)
 				playable = true
 				shift -= 1.0 / Engine.physics_ticks_per_second
+		if not _follow_spot.is_empty():
+			target = _follow_spot["point"]
+			playable = true
 		var to := target - position()
 		var error := wrapf(to.angle() - heading(), -PI, PI)
 		# Gait ladder (run, walk, stand): follow the take's speed, run to catch
@@ -989,6 +1012,12 @@ func follow(plan: Dictionary) -> bool:
 		if want == "stand" and _gait == "run": want = "walk"
 		if want == "stand" and _gait == "walk" and _gait_time < 0.4: want = "walk"
 		if not playable: want = "stand"
+		# Spot approach: turn toward the spot standing, walk in, then stand.
+		if not _follow_spot.is_empty():
+			# Walking from a stand moves about half a metre, so position is
+			# taken to 0.5 m on the way in and only the facing is fine-tuned.
+			want = "walk" if to.length() > 0.5 or (_gait == "walk" and to.length() > 0.35) else "stand"
+			if want == "stand" and _gait == "run": want = "walk"
 		if want != _gait:
 			_gait = want
 			_gait_time = 0.0
@@ -1009,7 +1038,12 @@ func follow(plan: Dictionary) -> bool:
 		# Moving, an action only waits when Hype faces well away from the take.
 		# Where the take moved slowly, an action also waits for Hype to reach it.
 		_follow_facing_off = absf(facing_error) > 0.35 or (take_speed < 1.0 and to.length() > 0.5)
-		if _gait == "stand":
+		if _gait == "stand" and not _follow_spot.is_empty():
+			# At or turning toward the action spot: fine turn taps.
+			var aim := wrapf((float(_follow_spot["facing"]) if to.length() <= 0.5 else to.angle()) - heading(), -PI, PI)
+			left = aim > 0.06 or (left and aim > 0.02)
+			right = aim < -0.06 or (right and aim < -0.02)
+		elif _gait == "stand":
 			# Standing: face where the take faced (aimed shots and talks).
 			_follow_facing_off = absf(facing_error) > 0.1 or to.length() > 0.5
 			left = facing_error > 0.15 or (left and facing_error > 0.05)
@@ -1076,6 +1110,25 @@ func _track_last_in(track: Array, level: String) -> int:
 		_last_in_cache[level] = found
 	return int(_last_in_cache[level])
 
+## The take's position and facing at time t, interpolated between samples.
+func _track_at(track: Array, t: float) -> Dictionary:
+	var i := 0
+	while i + 1 < track.size() and float(track[i + 1][0]) <= t: i += 1
+	var j := mini(i + 1, track.size() - 1)
+	var span := float(track[j][0]) - float(track[i][0])
+	var w := clampf((t - float(track[i][0])) / span, 0.0, 1.0) if span > 0.0 else 0.0
+	var facing := float(track[i][6]) + wrapf(float(track[j][6]) - float(track[i][6]), -PI, PI) * w if track[i].size() > 6 else NAN
+	return {"point": _track_point(track[i]).lerp(_track_point(track[j]), w), "facing": facing}
+
+## The take's spot for an action at t: its last sample before the press, if the
+## take was idle or finishing a stop there. Samples are 2 Hz and the action's
+## own lunge or recoil lands in the next one, so only the sample before counts.
+func _track_spot(track: Array, t: float) -> Dictionary:
+	var i := -1
+	while i + 1 < track.size() and float(track[i + 1][0]) <= t: i += 1
+	if i < 0 or track[i].size() < 7 or int(track[i][4]) not in [4, 29, 30, 48]: return {}
+	return {"point": _track_point(track[i]), "facing": float(track[i][6])}
+
 func _track_point(row: Array) -> Vector2:
 	return Vector2(float(row[1]), float(row[2]))
 
@@ -1122,6 +1175,22 @@ func _held(inventory: Resource) -> Dictionary:
 		if definition != null and int(definition.quantity) > 0: held[int(definition.item_id)] = int(definition.quantity)
 	return held
 
+## skip_if rows: [take time, perso, field, value]. A press within 0.05 s of the
+## time, and its release, are dropped while the perso's Brain field equals value.
+func _follow_skip(rules: Array, row: Array) -> bool:
+	for rule in rules:
+		var near := absf(float(rule[0]) - float(row[0])) < 0.05
+		if bool(row[2]) and near:
+			var brain := brain_of(str(rule[1]))
+			if brain != null and int(brain.get(str(rule[2]))) == int(rule[3]):
+				print("SKIP ", JSON.stringify({"take": float(row[0]), "rule": rule}))
+				_follow_skipped[int(row[1])] = true
+				return true
+		elif not bool(row[2]) and _follow_skipped.has(int(row[1])):
+			_follow_skipped.erase(int(row[1]))
+			return true
+	return false
+
 func _port_mode() -> String:
 	var inventory_host: Node = game.get("inventory_host")
 	if inventory_host != null and is_instance_valid(inventory_host.get("view")) and inventory_host.get("view").visible: return "inventory"
@@ -1142,6 +1211,8 @@ var _follow_facing := NAN
 var _follow_key_release := {}
 var _follow_facing_off := false
 var _follow_aiming := false
+var _follow_skipped := {}
+var _follow_spot := {}
 var _follow_quiet_frames := 0
 var _turn_since := 0.0
 var _follow_take_shift := false

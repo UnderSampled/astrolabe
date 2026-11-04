@@ -41,6 +41,8 @@ def main():
     parser.add_argument('--until', type=float, default=650.0)
     parser.add_argument('--select', action='append', default=[], metavar='TIME:ITEM',
                         help='inventory selection by item identity at the Enter press near TIME')
+    parser.add_argument('--skip-if', action='append', default=[], metavar='TIME:PERSO:FIELD:VALUE',
+                        help="drop the press at TIME while the perso's Brain field equals VALUE")
     args = parser.parse_args()
     events = Path(args.take) / 'recording/events.jsonl'
     track, keys, landmarks = [], [], []
@@ -86,7 +88,8 @@ def main():
         'seed': 1,
         'steps': [{'follow': {'take_zero': zero, 'track': track, 'keys': keys, 'landmarks': landmarks,
                               'until': args.until,
-                              'select': [[float(s.split(':')[0]), int(s.split(':')[1])] for s in args.select]}}],
+                              'select': [[float(s.split(':')[0]), int(s.split(':')[1])] for s in args.select],
+                              'skip_if': [[float(p[0]), p[1], p[2], int(p[3])] for p in (s.split(':') for s in args.skip_if)]}}],
     }
     Path(args.out).write_text(json.dumps(route))
     print(f'zero {zero:.1f} s, {len(track)} positions, {len(keys)} key edges, '
