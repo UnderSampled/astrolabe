@@ -189,7 +189,15 @@ then pauses the tree and shows the same on screen. `ASTROLABE_STRICT_STAND_INS=e
 quits with code 70 instead, for unattended runs; `=1` stops and shows.
 `ASTROLABE_STRICT_ALLOW=drop-shadow,speech-gain` lets listed ids pass. With it
 off, play continues and each stand-in is warned about once. The gate's default
-is off. (`ASTROLABE_STRICT_BEHAVIOR=1` is separate and older: it only stops the
+is off.
+
+`ASTROLABE_STRICT_STAND_INS=collect` stops nothing and records every site
+instead: one row per id, context and script line, with the script, AI model
+(`level:/816`, `fix:/437`), first actor, actor count, scene, first and last hit
+(`Time.get_ticks_msec()`) and hit count. It writes them, in first-hit order, to
+`ASTROLABE_STAND_IN_REPORT` (default `user://stand-ins-collected.json`) when a
+new site appears, at most every two seconds while hits accrue, and at exit.
+[stand-in-priorities.md](stand-in-priorities.md) is built from these reports. (`ASTROLABE_STRICT_BEHAVIOR=1` is separate and older: it only stops the
 Brain that reached the stand-in.)
 
 ## Side-by-side videos
