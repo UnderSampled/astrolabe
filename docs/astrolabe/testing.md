@@ -197,6 +197,7 @@ instead: one row per id, context and script line, with the script, AI model
 (`Time.get_ticks_msec()`) and hit count. It writes them, in first-hit order, to
 `ASTROLABE_STAND_IN_REPORT` (default `user://stand-ins-collected.json`) when a
 new site appears, at most every two seconds while hits accrue, and at exit.
+[stand-in-priorities.md](stand-in-priorities.md) is built from these reports.
 [stand-in-priorities.md](stand-in-priorities.md) is built from these reports. (`ASTROLABE_STRICT_BEHAVIOR=1` is separate and older: it only stops the
 Brain that reached the stand-in.)
 

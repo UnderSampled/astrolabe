@@ -27,8 +27,10 @@ the rest of the code needs what was missing, that coroutine ends with a script
 error, which is logged. Calls with no table entry use
 the `generic` stand-in, which skips the call and reads as zero.
 
-Stand-ins most reached in the gate are the squirrel (model 816) and pigeons
-(model 779), which are ambient, and camera angle requests from model 437.
+[stand-in-priorities.md](stand-in-priorities.md) lists what the Manoir to Brigand
+paths reach, from collect-mode runs, and orders the work. The most reached are
+the squirrels' untyped scripts (models 816 and 1862), the Brigand thieves'
+Ultra call (1060) and the pigeons (779).
 
 To retire a stand-in, implement the call, delete its table row and delete its
 row here. Replace them in order of what blocks play.
