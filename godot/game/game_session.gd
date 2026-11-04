@@ -1000,7 +1000,7 @@ func _process(delta: float) -> void:
         return
     if new_game:
         update_opening_status()
-        return
+        if not opening_finished: return
     var magick: Resource = actor.get("source_magick")
     if magick != null:
         mana_label.text = "Fire  %d / %d mana" % [int(magick.get("current_points")), int(magick.get("maximum_points"))]
