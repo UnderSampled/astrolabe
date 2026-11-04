@@ -1,5 +1,8 @@
 # Stand-in priorities
 
+For every level of the game (conversion results, all stand-in, guard and
+diagnostic sites, and saves) see [full-game AI sites](full-game-ai-sites.md).
+
 A to-do list for static work: porting the original's behavior in place of each
 [stand-in](stand-ins.md) and runtime guard. It comes from
 [strict stand-in collect mode](testing.md#strict-stand-in-mode) runs over the
