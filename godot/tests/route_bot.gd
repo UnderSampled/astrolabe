@@ -865,6 +865,17 @@ func follow(plan: Dictionary) -> bool:
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
 				shift -= 1.0 / Engine.physics_ticks_per_second
 				break
+			# Hype's movement rules precede his action rules, so an action
+			# pressed with an arrow held is lost. Release the arrows for one
+			# frame, then press with steering held off on that frame too.
+			if bool(row[2]) and int(row[1]) in ACTION_KEYS and wanted == "play":
+				var steering := false
+				for arrow in ["ArrowUp", "ArrowLeft", "ArrowRight"]: steering = steering or bool(_steer_state.get(arrow, false))
+				_follow_quiet_frames = 2 if steering else 1
+				if steering:
+					for arrow in ["ArrowUp", "ArrowLeft", "ArrowRight"]: _follow_steer(arrow, false)
+					shift -= 1.0 / Engine.physics_ticks_per_second
+					break
 			_follow_hold = 0.0
 			_follow_aiming = false
 			# Inventory choices go by item identity: the take's cursor moves are
@@ -892,10 +903,14 @@ func follow(plan: Dictionary) -> bool:
 		for watched in ["i_Gogood_MasterYoda", "i_Mannequin_Magie"]:
 			var watched_brain := brain_of(watched)
 			watch.append([watched_brain.get("dsg_0"), watched_brain.get("dsg_1"), watched_brain.get("dsg_2"), watched_brain.get("current_normal")] if watched_brain != null else null)
+		var watch_screen: Node = brain_of("hype").call("source_ui") if brain_of("hype") != null else null
+		var watch_box: Node = watch_screen.get("dialogue") if watch_screen != null else null
+		var watch_item: Resource = watch_box.get("item") if watch_box != null and watch_box.visible else null
+		watch.append([watch_item.resource_path.get_file() if watch_item != null else "", watch_box.get("page_start") if watch_item != null else -1, watch_box.get("mode") if watch_item != null else -1])
 		var watch_hype := brain_of("hype")
 		watch.append([watch_hype.get("dsg_17"), watch_hype.get("dsg_70"), watch_hype.get("dsg_97"), _held(actor().get("source_inventory"))])
 		if watch != _watch:
-			print("WATCH ", JSON.stringify({"take": snappedf(clock, 0.01), "gogoud": watch[0], "mannequin": watch[1], "hype_17_70_97_held": watch[2]}))
+			print("WATCH ", JSON.stringify({"take": snappedf(clock, 0.01), "gogoud": watch[0], "mannequin": watch[1], "dialogue_page_mode": watch[2], "hype_17_70_97_held": watch[3]}))
 			_watch = watch
 		# A dialogue the take has already left is advanced with Space.
 		if _port_mode() == "dialogue" and _take_mode(track, landmarks, clock) == "play":
@@ -938,7 +953,7 @@ func follow(plan: Dictionary) -> bool:
 		var ahead := cursor
 		var travelled := 0.0
 		var limit := horizon + (1.0 if _track_point(track[cursor]).distance_to(here) < 1.0 else 0.0)
-		while ahead + 1 < track.size() and float(track[ahead + 1][0]) <= limit and str(track[ahead + 1][5]) == level and travelled < 1.2:
+		while ahead + 1 < track.size() and float(track[ahead + 1][0]) <= limit and str(track[ahead + 1][5]) == level and travelled < (2.4 if _gait == "run" else 1.2):
 			travelled += _track_point(track[ahead]).distance_to(_track_point(track[ahead + 1]))
 			ahead += 1
 		var sample: Array = track[ahead]
@@ -964,7 +979,10 @@ func follow(plan: Dictionary) -> bool:
 		_follow_gap = to.length() if playable else 0.0
 		var want := "stand"
 		if playable:
-			if (take_speed < 0.3 or _follow_aiming) and to.length() < 1.5: want = "stand"
+			# Standing starts again only for a clear reason (no stand-walk flapping).
+			# Stand only on the take's spot (walking closes the last metre).
+			var stay := _gait == "stand" and take_speed < 0.8 and to.length() < 0.8
+			if stay or ((take_speed < 0.3 or _follow_aiming) and to.length() < 0.4): want = "stand"
 			elif to.length() > 2.0 or take_speed > 3.5: want = "run"
 			else: want = "walk"
 		if want == "stand" and _gait == "run": want = "walk"
@@ -975,7 +993,9 @@ func follow(plan: Dictionary) -> bool:
 			_gait_time = 0.0
 		_gait_time += dt
 		var turning_hard := absf(error) > 1.2
-		_follow_steer("ArrowUp", _gait != "stand" and not turning_hard)
+		var quiet := _follow_quiet_frames > 0
+		if quiet: _follow_quiet_frames -= 1
+		_follow_steer("ArrowUp", _gait != "stand" and not turning_hard and not quiet)
 		var run := _gait == "run"
 		if run != bool(_steer_state.get("run", false)):
 			_steer_state["run"] = run
@@ -986,16 +1006,31 @@ func follow(plan: Dictionary) -> bool:
 		var right := bool(_steer_state.get("ArrowRight", false))
 		var facing_error := 0.0 if is_nan(_follow_facing) else wrapf(_follow_facing - heading(), -PI, PI)
 		# Moving, an action only waits when Hype faces well away from the take.
-		_follow_facing_off = absf(facing_error) > 0.35
+		# Where the take moved slowly, an action also waits for Hype to reach it.
+		_follow_facing_off = absf(facing_error) > 0.35 or (take_speed < 1.0 and to.length() > 0.5)
 		if _gait == "stand":
 			# Standing: face where the take faced (aimed shots and talks).
 			_follow_facing_off = absf(facing_error) > 0.1 or to.length() > 0.5
 			left = facing_error > 0.15 or (left and facing_error > 0.05)
 			right = facing_error < -0.15 or (right and facing_error < -0.05)
 		else:
-			left = error > 0.2 or (left and error > 0.08)
-			right = error < -0.2 or (right and error < -0.08)
-		if left != bool(_steer_state.get("ArrowLeft", false)) or right != bool(_steer_state.get("ArrowRight", false)):
+			# Moving: wider band and a minimum time between turn-key changes,
+			# so Hype holds a line instead of weaving.
+			var on := 0.3 if _gait == "run" else 0.22
+			left = error > on or (left and error > 0.06)
+			right = error < -on or (right and error < -0.06)
+		var changed := left != bool(_steer_state.get("ArrowLeft", false)) or right != bool(_steer_state.get("ArrowRight", false))
+		_turn_since += dt
+		if changed and _gait != "stand" and _turn_since < 0.2 and absf(error) < 0.8:
+			left = bool(_steer_state.get("ArrowLeft", false))
+			right = bool(_steer_state.get("ArrowRight", false))
+			changed = false
+		if quiet:
+			changed = changed or left or right
+			left = false
+			right = false
+		if changed:
+			_turn_since = 0.0
 			_follow_metrics["turn_toggles"] += 1
 		_follow_steer("ArrowLeft", left)
 		_follow_steer("ArrowRight", right)
@@ -1106,6 +1141,8 @@ var _follow_facing := NAN
 var _follow_key_release := {}
 var _follow_facing_off := false
 var _follow_aiming := false
+var _follow_quiet_frames := 0
+var _turn_since := 0.0
 var _follow_take_shift := false
 var _follow_hold := 0.0
 var _steer_state := {}
