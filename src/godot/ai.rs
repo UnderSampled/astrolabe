@@ -1164,7 +1164,9 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         Expression::BehaviorLiteral(target) => target.model.path != model.path,
         Expression::Variable(index) => unresolved_variable(model, *index),
         Expression::ActorListContains { actor, .. } => needs_guard(actor, model),
-        Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => true,
+        Expression::ActorFieldRead { .. }
+        | Expression::MainActorFieldRead(_)
+        | Expression::CastActorFieldRead { .. } => true,
         Expression::Vector(values) => values.iter().any(|value| needs_guard(value, model)),
         Expression::Multiply(a, b)
         | Expression::Plus(a, b)
@@ -1892,6 +1894,23 @@ fn guarded_expression(
             )?;
             expression(e, model)?
         }
+        Expression::CastActorFieldRead {
+            actor, variable, ..
+        } => {
+            // A non-Perso cast is null, and Dot would dereference it.
+            let value = guarded_expression(out, actor, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            let failure = quoted(&format!(
+                "{} requires a cast actor's Brain field {variable}",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}var cast_actor_{id} = {value}\n{pad}if typeof(cast_actor_{id}) != TYPE_OBJECT or not is_instance_valid(cast_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var cast_brain_{id}: Node = cast_actor_{id}.get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid(cast_brain_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var partial_expr_{id} = cast_brain_{id}.get(\"dsg_{variable}\")"
+            )?;
+            format!("partial_expr_{id}")
+        }
         Expression::MainActorFieldRead(variable) => {
             let id = flow.local;
             flow.local += 1;
@@ -2486,7 +2505,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             expression(a, model)?,
             expression(b, model)?
         ),
-        Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => {
+        Expression::ActorFieldRead { .. }
+        | Expression::MainActorFieldRead(_)
+        | Expression::CastActorFieldRead { .. } => {
             anyhow::bail!("actor field reads require guarded compilation")
         }
         Expression::Modulus(a, b) => format!(

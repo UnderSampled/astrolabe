@@ -942,6 +942,13 @@ pub enum Expression {
     },
     SelfFieldRead(u16),
     MainActorFieldRead(u16),
+    /// Operator_Dot on Operator_ModelCast (00525990): the actor's own Brain
+    /// field. The source never compares the model; it names the numbering.
+    CastActorFieldRead {
+        actor: Box<Expression>,
+        model: AssetRef<AiModel>,
+        variable: u16,
+    },
     /// A category-32 behavior literal (leaf 005221c0, value tag 35). DSG type
     /// 13 stores it; live type-13 words point into the model's behavior set.
     BehaviorLiteral(BehaviorRef),

@@ -38,6 +38,9 @@ pub struct AiScriptCodec {
     pub button_handles: Vec<(String, u32)>,
     pub behaviors: BTreeMap<usize, BehaviorRef>,
     pub behavior_handles: Vec<(BehaviorRef, u32)>,
+    /// Category-39 Model leaves (Operator_ModelCast's first operand).
+    pub models: BTreeMap<usize, AssetRef<AiModel>>,
+    pub model_handles: Vec<(AssetRef<AiModel>, u32)>,
     pub actors: BTreeMap<usize, AssetRef<Perso>>,
     pub actor_handles: Vec<(AssetRef<Perso>, u32)>,
     /// Category-27 source SuperObjects resolve named scene sector nodes.
@@ -1526,6 +1529,41 @@ impl Parser<'_> {
                     return Ok(Expression::Unsupported(
                         self.unsupported(at, "position field needs actor".into())?,
                     ));
+                }
+                if self.nodes.get(actor_at).is_some_and(|cast| {
+                    cast.indent == indent + 1 && cast.kind == 2 && cast.parameter == 25
+                }) && self
+                    .nodes
+                    .get(actor_at + 1)
+                    .is_some_and(|leaf| leaf.indent == indent + 2 && leaf.kind == 39)
+                {
+                    // ((Model)actor).field: Operator_ModelCast (00525990)
+                    // evaluates the Model leaf and returns the actor's Perso.
+                    let Some(cast_model) = self.codec.models.get(&(actor_at + 1)).cloned() else {
+                        return Ok(Expression::Unsupported(self.unsupported(
+                            at,
+                            format!("unbound Model operand at node {}", actor_at + 1),
+                        )?));
+                    };
+                    self.take(indent + 1)?;
+                    self.take(indent + 2)?;
+                    let actor = self.expression(indent + 2)?;
+                    if !self
+                        .nodes
+                        .get(self.at)
+                        .is_some_and(|field| field.indent == indent + 1 && field.kind == 11)
+                    {
+                        return Ok(Expression::Unsupported(self.unsupported(
+                            at,
+                            format!("cast actor field at node {at} is not a designer field"),
+                        )?));
+                    }
+                    let (_, field) = self.take(indent + 1)?;
+                    return Ok(Expression::CastActorFieldRead {
+                        actor: Box::new(actor),
+                        model: cast_model,
+                        variable: field.parameter.try_into()?,
+                    });
                 }
                 if !self.nodes.get(actor_at).is_some_and(|actor| {
                     actor.indent == indent + 1
@@ -3727,6 +3765,24 @@ impl Writer<'_> {
                 self.expression(duration, indent + 1)?;
             }
             Expression::BehaviorLiteral(target) => self.behavior(target, indent)?,
+            Expression::CastActorFieldRead {
+                actor,
+                model,
+                variable,
+            } => {
+                let handle = self
+                    .codec
+                    .model_handles
+                    .iter()
+                    .find(|(r, _)| r == model)
+                    .context("missing assigned AI model handle")?
+                    .1;
+                self.node(2, 12, indent);
+                self.node(2, 25, indent + 1);
+                self.node(39, handle, indent + 2);
+                self.expression(actor, indent + 2)?;
+                self.node(11, u32::from(*variable), indent + 1);
+            }
             Expression::IsInBehavior { actor, target } => {
                 self.node(
                     1,
@@ -4489,6 +4545,35 @@ mod partial_tests {
                 group: BehaviorGroup::Normal,
                 pause_after: false
             }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn model_cast_field_read_is_typed_and_reconstructs() -> Result<()> {
+        // brigand guard 927: x := ((Model 927) dsg_2).dsg_14. Live, the kind-39
+        // word was the guard's own model address.
+        let (mut codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (2, 12, 2),
+            (2, 25, 3),
+            (39, 151_092_380, 4),
+            (11, 2, 4),
+            (11, 14, 3),
+            (8, 0, 0),
+        ]);
+        let model: AssetRef<AiModel> = AssetRef::new("level:/ai/models/927")?;
+        codec.models.insert(4, model.clone());
+        codec.model_handles.push((model.clone(), 151_092_380));
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::Assign {
+                variable: 0,
+                value: Expression::CastActorFieldRead { actor, model: cast, variable: 14 },
+            } if cast == &model && matches!(**actor, Expression::Variable(2))
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

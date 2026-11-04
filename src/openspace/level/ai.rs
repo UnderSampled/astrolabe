@@ -475,6 +475,7 @@ fn decode_script(
     waypoints: &BTreeMap<Address, AssetRef<crate::model::route::Waypoint>>,
     sectors: &BTreeMap<Address, AssetRef<crate::model::scene::Scene>>,
     behaviors: &BTreeMap<Address, BehaviorRef>,
+    models: &BTreeMap<Address, AssetRef<AiModel>>,
     script: &SourceScript,
 ) -> Result<Script> {
     let mut codec = AiScriptCodec {
@@ -561,6 +562,14 @@ fn decode_script(
         {
             codec.behaviors.insert(i, reference.clone());
         }
+        // Category 39 is a Model leaf (00521db0, tag 41); live, the word was
+        // the cast model's address (Operator_ModelCast in brigand).
+        if n.kind == 39
+            && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
+            && let Some(reference) = models.get(&target)
+        {
+            codec.models.insert(i, reference.clone());
+        }
         if n.kind == 34 {
             let event = sounds
                 .events
@@ -608,6 +617,7 @@ fn decode_set(
     waypoints: &BTreeMap<Address, AssetRef<crate::model::route::Waypoint>>,
     sectors: &BTreeMap<Address, AssetRef<crate::model::scene::Scene>>,
     behaviors: &BTreeMap<Address, BehaviorRef>,
+    models: &BTreeMap<Address, AssetRef<AiModel>>,
     set: &SourceSet,
 ) -> Result<BehaviorSet> {
     Ok(BehaviorSet {
@@ -626,7 +636,7 @@ fn decode_set(
                                 .map(|script| {
                                     decode_script(
                                         s, sounds, states, actors, waypoints, sectors, behaviors,
-                                        script,
+                                        models, script,
                                     )
                                 })
                                 .transpose()
@@ -637,7 +647,8 @@ fn decode_set(
                         .as_ref()
                         .map(|script| {
                             decode_script(
-                                s, sounds, states, actors, waypoints, sectors, behaviors, script,
+                                s, sounds, states, actors, waypoints, sectors, behaviors, models,
+                                script,
                             )
                         })
                         .transpose()?,
@@ -992,6 +1003,10 @@ pub(super) fn import(
             entry.insert([source_set(s, model, 0)?, source_set(s, model, 4)?]);
         }
     }
+    let mut model_index: BTreeMap<Address, AssetRef<AiModel>> = BTreeMap::new();
+    for &model in source_sets.keys() {
+        model_index.insert(model, AssetRef::from_path(path(s, model)?));
+    }
     let mut behavior_index: BTreeMap<Address, BehaviorRef> = BTreeMap::new();
     for (&model, sets) in &source_sets {
         let model_path = path(s, model)?;
@@ -1113,6 +1128,7 @@ pub(super) fn import(
                             &waypoints,
                             &sectors,
                             &behavior_index,
+                            &model_index,
                             set,
                         )
                     })
@@ -1129,6 +1145,7 @@ pub(super) fn import(
                             &waypoints,
                             &sectors,
                             &behavior_index,
+                            &model_index,
                             set,
                         )
                     })

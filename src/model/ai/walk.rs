@@ -382,6 +382,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Cosine(value)
                 | Expression::ActorLocalSourceXYDistance(value)
                 | Expression::IsValidActor(value)
+                | Expression::CastActorFieldRead { actor: value, .. }
                 | Expression::ApplyArmoredDamage(value)
                 | Expression::IsInAction(value)
                 | Expression::ActionFinished(Some(value))

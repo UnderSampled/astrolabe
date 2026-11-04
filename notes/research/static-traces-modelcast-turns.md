@@ -24,14 +24,24 @@ The operator table at 0x005fff44 names operator 25 Operator_ModelCast
   numbering applies.
 
 The six brigand sites read `((Model)dsg_2).field` in models 927 and 1060. The
-receiver is an actor held in a designer variable. Typing them needs two things
-in the converter:
-- a kind-39 binding to a model;
-- a field read on a runtime actor.
+receiver is an actor held in a designer variable.
 
-Kind 39 has no binding yet and its live value is unchecked, so this is not
-ported. The converter's message names the shape: kind 2 parameter 25 and
-kind 39.
+Live check (Orrery, disposable copy, brigand), from model 927's normal 13
+rule 1:
+- node 5 is Dot;
+- node 6 is ModelCast;
+- node 7 is kind 39 with word 0x033b7c9c, the guard's own live model;
+- node 8 is the actor, dsg 2;
+- node 9 is the field, dsg 14.
+
+The thief model 1060's casts hold its own address, 0x033c6ab0. The static
+words (0x09017c9c and 0x09026ab0) are 0x05c60000 above, one relocation.
+Raw result: kip-zephyr `cache/scratch/live/kind39_live.json`.
+
+The converter now binds kind 39 to the AI model at that address and types
+the read as `CastActorFieldRead`. In Godot, it reads `dsg_N` from the actor's
+Brain and fails explicitly when the actor or its Brain is missing (the source
+dereferences null there).
 
 ## Directional turns (procedures 36, 37, 38, 43)
 
