@@ -280,6 +280,16 @@ pub enum Statement {
     /// Proc_TurnPerso (217) requests the absolute horizontal heading toward
     /// an actor's origin. This is an immediate mechanics request, not Meta23.
     TurnToward(Expression),
+    /// Proc_TransparentDisplay/NotTransparentDisplay/SetTransparency (185 to
+    /// 187, 00543130) under Operator_Ultra apply to the receiver.
+    ActorSetTransparentDisplay {
+        actor: ActorTarget,
+        enabled: bool,
+    },
+    ActorSetTransparency {
+        actor: ActorTarget,
+        value: Expression,
+    },
     /// Proc_TurnPerso under Operator_Ultra: the receiver turns toward the target.
     ActorTurnToward {
         actor: ActorTarget,

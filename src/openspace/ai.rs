@@ -703,6 +703,22 @@ impl Parser<'_> {
                         self.at = at;
                         Statement::Evaluate(self.expression(indent)?)
                     } else if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && matches!(n.parameter, 185..=187))
+                    {
+                        // 00543130 takes Operator_Ultra's receiver.
+                        let (_, operation) = self.take(indent + 1)?;
+                        if operation.parameter == 187 {
+                            Statement::ActorSetTransparency {
+                                actor: actor_target,
+                                value: self.expression(indent + 2)?,
+                            }
+                        } else {
+                            Statement::ActorSetTransparentDisplay {
+                                actor: actor_target,
+                                enabled: operation.parameter == 185,
+                            }
+                        }
+                    } else if let Some(actor_target) = actor_target.clone()
                         && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 217)
                     {
                         // 00542c80 takes Operator_Ultra's receiver as the turner.
@@ -2723,6 +2739,17 @@ impl Writer<'_> {
                 }
                 Statement::ActivateFade => self.node(4, 319, indent),
                 Statement::DeactivateFade => self.node(4, 320, indent),
+                Statement::ActorSetTransparentDisplay { actor, enabled } => {
+                    self.node(2, 24, indent);
+                    self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                    self.node(4, if *enabled { 185 } else { 186 }, indent + 1);
+                }
+                Statement::ActorSetTransparency { actor, value } => {
+                    self.node(2, 24, indent);
+                    self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                    self.node(4, 187, indent + 1);
+                    self.expression(value, indent + 2)?;
+                }
                 Statement::ActorTurnToward { actor, target } => {
                     self.node(2, 24, indent);
                     self.expression(&Expression::Actor(actor.clone()), indent + 1)?;

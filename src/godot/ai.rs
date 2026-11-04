@@ -3309,6 +3309,33 @@ fn statements(
                     writeln!(out, "{pad}character().turn(float({value}), frame_seconds)")?;
                 }
             }
+            Statement::ActorSetTransparentDisplay { actor, enabled } => {
+                let receiver = actor_target_code(actor);
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var transparent_actor_{id}: Variant = {receiver}\n{pad}if not (transparent_actor_{id} is Node3D) or not is_instance_valid(transparent_actor_{id}) or not transparent_actor_{id}.has_method(\"source_set_transparent_display\") or not transparent_actor_{id}.source_set_transparent_display({enabled}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires supported native transparent display materials on an Ultra receiver",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::ActorSetTransparency { actor, value } => {
+                let receiver = actor_target_code(actor);
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var transparent_actor_{id}: Variant = {receiver}\n{pad}if not (transparent_actor_{id} is Node3D) or not is_instance_valid(transparent_actor_{id}) or not transparent_actor_{id}.has_method(\"source_set_transparency\") or not transparent_actor_{id}.source_set_transparency(int({value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires supported native opacity materials on an Ultra receiver",
+                        model.path
+                    ))
+                )?;
+            }
             Statement::ActorTurnToward { actor, target } => {
                 let receiver = actor_target_code(actor);
                 let value = guarded_expression(out, target, model, depth, flow)?;
