@@ -1455,6 +1455,12 @@ impl Parser<'_> {
                 ),
             },
             (11, n) => Expression::Variable(n.try_into()?),
+            (32, _) => match self.codec.behaviors.get(&at) {
+                Some(target) => Expression::BehaviorLiteral(target.clone()),
+                None => Expression::Unsupported(
+                    self.unsupported(at, format!("unbound behavior at node {at}"))?,
+                ),
+            },
             (1, 53) => {
                 let (_, list) = self.take(indent + 1)?;
                 ensure!(
@@ -3717,6 +3723,7 @@ impl Writer<'_> {
                 self.expression(start, indent + 1)?;
                 self.expression(duration, indent + 1)?;
             }
+            Expression::BehaviorLiteral(target) => self.behavior(target, indent)?,
             Expression::IsInBehavior { actor, target } => {
                 self.node(
                     1,
@@ -4479,6 +4486,30 @@ mod partial_tests {
                 group: BehaviorGroup::Normal,
                 pause_after: false
             }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn behavior_literal_assignment_is_typed_and_reconstructs() -> Result<()> {
+        // A guard's normal 9 stores behavior literals into its DSG type-13
+        // fields (brigand4 model 493); live, the words are its normal entries.
+        let (mut codec, bytes) = partial(&[(2, 11, 1), (11, 46, 2), (32, 151_053_296, 2), (8, 0, 0)]);
+        let target = BehaviorRef {
+            model: AssetRef::new("level:/ai/models/493")?,
+            group: BehaviorGroup::Normal,
+            behavior: 8,
+        };
+        codec.behaviors.insert(2, target.clone());
+        codec.behavior_handles.push((target.clone(), 151_053_296));
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::Assign {
+                variable: 46,
+                value: Expression::BehaviorLiteral(bound),
+            } if bound == &target
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

@@ -939,6 +939,9 @@ pub enum Expression {
     },
     SelfFieldRead(u16),
     MainActorFieldRead(u16),
+    /// A category-32 behavior literal (leaf 005221c0, value tag 35). DSG type
+    /// 13 stores it; live type-13 words point into the model's behavior set.
+    BehaviorLiteral(BehaviorRef),
     IsInBehavior {
         actor: ActorTarget,
         target: BehaviorRef,
@@ -1391,6 +1394,42 @@ impl AiModel {
                     .chain(behavior.schedule.iter())
             })
             .collect()
+    }
+
+    /// The behavior group a DSG type-13 variable holds: its default's, or with
+    /// a null default, the group of this model's own writes when every write is
+    /// a behavior literal of this model in one group (the guard plan; live
+    /// values were entries of the actor's own normal set).
+    pub fn behavior_variable_group(&self, variable: u16) -> Option<BehaviorGroup> {
+        match self.variables.get(usize::from(variable)).map(|v| &v.default) {
+            Some(DesignerValue::Behavior(Some(r))) => {
+                return (r.model.path == self.path).then_some(r.group);
+            }
+            Some(DesignerValue::Behavior(None)) => {}
+            _ => return None,
+        }
+        let mut group = None;
+        for (node, _) in self.scripts().into_iter().flat_map(Script::walk) {
+            let written = match node {
+                AstNode::Statement(Statement::Assign { variable: v, value }) if *v == variable => {
+                    value
+                }
+                AstNode::Statement(
+                    Statement::SubtractAssign { variable: v, .. }
+                    | Statement::AddAssign { variable: v, .. }
+                    | Statement::MultiplyAssign { variable: v, .. },
+                ) if *v == variable => return None,
+                _ => continue,
+            };
+            let Expression::BehaviorLiteral(r) = written else {
+                return None;
+            };
+            if r.model.path != self.path || group.is_some_and(|g| g != r.group) {
+                return None;
+            }
+            group = Some(r.group);
+        }
+        group
     }
 
     pub fn particle_generators(&self) -> Vec<AssetRef<super::particle::ParticleGenerator>> {

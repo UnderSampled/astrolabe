@@ -1160,6 +1160,8 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::CameraShiftAlpha { .. }
         | Expression::CameraShiftTeta { .. } => true,
         Expression::IsInBehavior { .. } => true,
+        // The port stores a behavior as its index, valid only in its own model.
+        Expression::BehaviorLiteral(target) => target.model.path != model.path,
         Expression::Variable(index) => unresolved_variable(model, *index),
         Expression::ActorListContains { actor, .. } => needs_guard(actor, model),
         Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => true,
@@ -1808,6 +1810,17 @@ fn guarded_expression(
             )?;
             local
         }
+        Expression::BehaviorLiteral(target) => {
+            writeln!(
+                out,
+                "{pad}fail_unsupported({})\n{pad}{exit}",
+                quoted(&format!(
+                    "{} behavior literal of another model {}",
+                    model.path, target.model.path
+                ))
+            )?;
+            "-1".into()
+        }
         Expression::Unsupported(fragment) => {
             let id = flow.local;
             flow.local += 1;
@@ -2333,6 +2346,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             format!("character().source_is_type_of_gmt_collide({kind})")
         }
         Expression::InTopOfJump => "character().source_in_top_of_jump()".into(),
+        Expression::BehaviorLiteral(target) => target.behavior.to_string(),
         Expression::IsInBehavior { actor, target } => {
             format!(
                 "character().source_actor_is_in_behavior({}, &\"{}\", {})",
@@ -4483,10 +4497,7 @@ fn statements(
             } => {
                 let target_group = group_name(*requested);
                 let same_group = target_group == group;
-                let typed = matches!(
-                    model.variables.get(usize::from(*variable)).map(|v| &v.default),
-                    Some(DesignerValue::Behavior(Some(r))) if r.model.path == model.path && r.group == *requested
-                );
+                let typed = model.behavior_variable_group(*variable) == Some(*requested);
                 if !typed {
                     writeln!(
                         out,
@@ -4498,6 +4509,15 @@ fn statements(
                     )?;
                     continue;
                 }
+                // A null word is unassigned; 005216e0 would dereference it.
+                writeln!(
+                    out,
+                    "{pad}if int(dsg_{variable}) < 0:\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} behavior request through unassigned dsg_{variable}",
+                        model.path
+                    ))
+                )?;
                 writeln!(
                     out,
                     "{pad}if change_{target_group}(int(dsg_{variable}), {}):",
@@ -5482,6 +5502,72 @@ mod source_position_tests {
             "{generated}"
         );
         assert!(!generated.contains("float(dsg_1[int(0)])"), "{generated}");
+        Ok(())
+    }
+
+    #[test]
+    fn behavior_variable_with_null_default_follows_its_own_literal_writes() -> anyhow::Result<()> {
+        // The guard plan: a schedule stores this model's normal behavior into
+        // a type-13 variable, and a later request goes through it.
+        let path = AssetPath::new("level:/ai/models/guard_plan")?;
+        let target = BehaviorRef {
+            model: AssetRef::from_path(path.clone()),
+            group: BehaviorGroup::Normal,
+            behavior: 1,
+        };
+        let behavior = |id, statements| Behavior {
+            id,
+            rules: Vec::new(),
+            schedule: Some(Script { statements }),
+            unknown: [0; 3],
+        };
+        let mut model = AiModel {
+            path,
+            name: "Guard plan".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![
+                    behavior(0, vec![
+                        Statement::Assign {
+                            variable: 0,
+                            value: Expression::BehaviorLiteral(target.clone()),
+                        },
+                        Statement::ChangeBehaviorVariable {
+                            variable: 0,
+                            group: BehaviorGroup::Normal,
+                            pause_after: false,
+                        },
+                    ]),
+                    behavior(1, vec![Statement::Noop]),
+                ],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: vec![DesignerVariable {
+                default: DesignerValue::Behavior(None),
+                save: 0,
+                initialize: 0,
+            }],
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let generated = compile(&model, &[])?;
+        assert!(generated.contains("dsg_0 = int(1)"), "{generated}");
+        assert!(generated.contains("if int(dsg_0) < 0:"), "{generated}");
+        assert!(generated.contains("change_normal(int(dsg_0), false)"), "{generated}");
+        // A write of anything but this model's behavior leaves it untyped.
+        if let Some(Behavior { schedule: Some(script), .. }) =
+            model.normal.as_mut().and_then(|set| set.behaviors.first_mut())
+        {
+            script.statements[0] = Statement::Assign {
+                variable: 0,
+                value: Expression::Integer(1),
+            };
+        }
+        let generated = compile(&model, &[])?;
+        assert!(!generated.contains("change_normal(int(dsg_0)"), "{generated}");
+        assert!(generated.contains("needs a behavior variable"), "{generated}");
         Ok(())
     }
 

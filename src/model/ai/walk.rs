@@ -531,6 +531,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::InTopOfJump
                 | Expression::ActorFieldRead { .. }
                 | Expression::SelfFieldRead(_)
+                | Expression::BehaviorLiteral(_)
                 | Expression::MainActorFieldRead(_)
                 | Expression::IsInBehavior { .. }
                 | Expression::Button { .. }

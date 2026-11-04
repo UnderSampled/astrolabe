@@ -26,23 +26,48 @@ Across a behavior change, Hype's normal behavior read as follows:
 So +0x0c holds the behavior left on each real change, as 005216e0 writes it.
 The port's `previous_normal` and `previous_reflex` follow the same rule.
 
-## DSG type 13: field types confirmed; pointer values not yet observed
+## DSG type 13: confirmed, including non-null values
 
 - Live designer definitions (model +8, 16-byte rows of offset, type, save and
   initialize) give type 13 for model 927 fields 45 and 46 (the brigand guard)
   and model 1060 field 51 (all four thieves), matching the converter.
-- All five actors' type-13 words were 0 (null). They stayed null after 20 s
-  more.
-  - Every actor was still in normal 0. The only assignment found, model
-    927's normal 1 schedule, stores a behavior literal (a category-32 node,
-    which the port does not yet accept in expression position) and had not
-    run.
-  - The original runs AI only near the player. Getting Hype there would mean
-    driving him (bot work, out of scope).
-- Still static for the non-null case:
-  - the descriptor table 0x005fdcc0 gives type 13 value kind 0x23
-    (comport);
-  - the type's writer copies the word;
-  - the assignment's value is a behavior literal.
+- In brigand all five words stayed null: no assigning AI ran.
+  - The thieves are inactive (StandardGame +0x1c, the byte 00437740 sets, is
+    0).
+  - The guard is active but about 400 units from Hype, and its per-pass
+    fields (50, 20) were never written.
+  - Hop placement (`behavior_compare.py`'s method) failed there. The floor
+    under a far target is not active, Hype fell, and the level restarted
+    (phase 38). Pinning his position also failed: z kept sinking.
+- A sweep of the 14 other levels with type-13 assigners entered each level
+  from the manor save with `navigate_level` (no placement or driving). It
+  waited 15 s, then read every assigner (raw result
+  `cache/scratch/live/type13_sweep.log`).
+  - 22 actors in 9 levels had run their AI.
+  - Every non-null word was an entry of that actor's own normal behavior set.
 
-  A live non-null value needs an assigning actor running near Hype.
+| Level (model) | Actors with a value | Field: normal entry |
+| --- | --- | --- |
+| brigand4 (493) | 2 | 46: 8, 47: 10 |
+| fort3 (804) | 4 | 46: 2 |
+| fort4 (624) | 3 | 46: 2 |
+| labo (1122) | 2 | 46: 5, 47: 6 |
+| manoir4 (266) | 1 | 46: 2 |
+| monast3 (379) | 2 | 46: 2; 46: 8, 47: 10 |
+| toras4 (937) | 2 | 46: 5, 47: 6; 46: 2 |
+| village4 (334) | 2 | 46: 2; 46: 8, 47: 10 |
+
+- The guard models share one plan:
+  - normal 1 and 4 store a category-32 literal into field 46;
+  - normal 7 stores two literals into fields 46 and 47, 12 bytes apart;
+  - normal 9 stores two literals into fields 46 and 47, 24 bytes apart.
+
+  In model 493 the literals are 0x0900e8a8 (normal 1), 0x0900e8cc and
+  0x0900e8d8 (normal 7), and 0x0900e8f0 and 0x0900e908 (normal 9). With
+  12-byte entries these are entries 2, 5 and 6, and 8 and 10 of one array,
+  the live values above. The brigand4 guards' previous behavior was 9.
+- The category-32 leaf 005221c0 gives value tag 35 (0x23), the type's value
+  kind in the descriptor table 0x005fdcc0. The writer copies the word.
+
+So a type-13 value is a behavior pointer into the model's set. The port stores
+it as the behavior's index.
