@@ -1,7 +1,11 @@
 # Inventory, menu and dialogue presentation checklist
 
 Kept by hand. Built from the byte-coverage report of the Fix blocks these screens
-read, plus what the port shows today. Regenerate the coverage with:
+read, plus what the port shows today. The two-layer version, which splits each item
+into its data (source records, Rete, runtime memory map) and its UI behavior, and
+adds the save, map and motor-mode flows and the manor cheat scripts with a priority
+order, is [notes/research/inventory-menu-two-layer.md](../../notes/research/inventory-menu-two-layer.md)
+(2026-11-04). Regenerate the coverage with:
 
 ```sh
 for c in menu inventory pause-menu; do
