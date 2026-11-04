@@ -271,8 +271,8 @@ func source_select_primary(context: Variant, previous_policy: Variant, placement
     var reset_selected := not source_viewport_registered
     if not reset_selected:
         placement = 0
-    if placement in [1, 2]:
-        # Pose copy and the optimal-placement solver have wider matrix contracts.
+    if placement == 2:
+        # The optimal-placement solver (005285f0) has a wider matrix contract.
         return false
     if reset_selected and not _source_can_reset_for_selection(): return false
     if reset_previous == 1 and (not previous.has_method("_source_can_reset_for_selection") or not bool(previous.call("_source_can_reset_for_selection"))):
@@ -295,8 +295,15 @@ func source_select_primary(context: Variant, previous_policy: Variant, placement
         previous.set("source_viewport_context", 0)
         previous.set("source_secondary_viewport_context", 0)
         previous.set("source_auxiliary_viewport_context", 0)
+    if placement == 1:
+        # 00546210 copies the previous owner's global matrix (+0x24) into the
+        # selected camera's local and global matrices, then shares the sector
+        # query below at that eye (Brigand cutscene cameras, e.g. Maliq's).
+        var previous_owner := previous.get_parent() as Node3D
+        if previous_owner == null: return false
+        owner.global_transform = previous_owner.global_transform
     # Placement zero still performs the sector query at the existing eye.
-    # Other source placement words, except 1/2, also take this same branch.
+    # Other source placement words, except 2, also take this same branch.
     return _source_refresh_selection_sector(owner)
 
 func _source_can_reset_for_selection() -> bool:

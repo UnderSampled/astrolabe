@@ -70,3 +70,31 @@ Red-capable assertion (isolated Godot test, no race state): load Brigand from th
 | 4 | Brain 1892 (world/0/181) runs while idle in the original, so z < -16 fires the hole respawn | 1892.gd:65; fix/1.gd:417-439; recording z at 426-439 s; manoir-checklist.md:108 |
 
 Not claimed: that the camera fix removes the teleport or the reverse. Symptom 4 depends on Hype's path crossing z < -16 (the recording does so at about (47, -26) and on the save statue), so Stephen's route may cross it before Maliq. Check that the teleport time in the port log is before the 575 trigger.
+
+## Outcome (2026-11-04, owner run)
+
+Symptom 3, camera: fixed. 00546210 placement 1 (hype-decomp src/camera/camera_change_procedure.c)
+copies the previous viewport owner's global matrix into the selected camera's local and global
+matrices, then runs the same 00447bf0 sector refresh as placement 0. source_camera.gd now does that;
+placement 2 (005285f0) is still refused. Probe `maliq` (godot/tests/brigand_actor_probe.gd) starts
+Hype at the take's own stop (source 40.1, -71.0, -15.0) after Gogoud's map scene has finished, as in
+the take. Results:
+- Scene samples on I_Brigand_Camera_Theif_Cam: 18 of 18. The old file gave 0 of 18 (red).
+- Dialogue completion puts Maliq in normal 0, thief 88 is activated at his spot (normals 7, 14, 5,
+  6), and the view returns to StdCamer at 4.75 s (original: about 8 s, 467 to 475 s).
+- No Hype jump. The operand order (viewport, reset_previous, placement, camera) is the clean C's
+  evaluation order, not a parser assumption.
+- Caveat: if Gogoud's map dialogue is still pending, it opens over Maliq's and replaces his pending
+  completion. Maliq then stays in normal 2 and the camera stays on Theif_Cam. The take never
+  overlaps them. Whether the original keeps both is not checked.
+
+Symptom 4, fade and warp past the boars: reproduced, not fixed. Probe `hole` starts at the take's
+426 s position (source 47, -26, -16.9). In the port, 181 iDummy_Brigand1_Trous (1892, the race's water
+respawn, switched by the race kid 1800: normal 1 to 2, normals 2 and 7 to 0) goes 0 to 1 and warps
+Hype to (137.93, -137.39, -14.66) within 1 s. The original takes no warp at z -16.9 (426 s), -16.68
+(427 to 439 s) or -16.0 (816 s, walking past Maliq). 181 starts in normal 0 in the level data and
+has no inactive flag. So the original must keep it asleep by sector activation (00437b10 sleep, wake
+00449cd0, static-checklist-records.md section 8), which the port lacks. Remaining: a live read on a
+private disposable original of 181's StandardGame +0x1c and normal at Brigand arrival, and at the
+426 s spot. Then the source sleep/wake rule for actors leaving or entering Hype's sector activity
+set, scoped to that evidence. An earlier plain rule was reverted (manoir-checklist).

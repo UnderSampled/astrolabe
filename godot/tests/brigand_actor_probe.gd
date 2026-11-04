@@ -11,9 +11,13 @@ const BRIGAND_CAMERA_ENTRY := "i_brigand_dummy_gogood_camera"
 # Placement starts, source coordinates are exported as level.tscn world/0/N.
 const CASES := {
 	"wolves": {"watch": [119, 120], "near": 120, "offset": Vector3(0.0, 0.0, -12.0), "seconds": 30.0},
+	# The take at 426 s: Hype at source (47, -26, -16.9), below the -16 that
+	# iDummy_Brigand1_Trous (181, model 1892) tests, with no fade or warp.
+	"hole": {"watch": [181, 178], "near": 181, "at": Vector3(47.0, -16.9, 26.0), "seconds": 8.0, "map_first": true},
 	"wolves_bite": {"watch": [119, 120], "near": 120, "offset": Vector3(0.0, 0.0, -12.0), "seconds": 24.0, "bite": true},
 	"bats": {"watch": [45, 46, 47, 48, 49, 50, 51], "near": 51, "offset": Vector3(0.0, 0.0, 6.0), "seconds": 12.0},
-	"maliq": {"watch": [20, 21, 19, 4, 6], "near": 20, "offset": Vector3(2.5, 0.0, -14.0), "seconds": 30.0, "walk": true},
+	# The original take's own stop at Maliq (467 s): source (40.1, -71.0, -15.0).
+	"maliq": {"watch": [20, 21, 19, 4, 6, 181, 88], "near": 20, "at": Vector3(40.1, -15.0, 71.0), "seconds": 30.0, "map_first": true},
 }
 
 var transition_service: Node
@@ -84,8 +88,20 @@ func run() -> void:
 	while int(hype_brain.get("current_normal")) != 4 and Time.get_ticks_msec() < deadline:
 		await physics_frame
 	report["arrival_normal"] = hype_brain.get("current_normal")
+	if spec.get("map_first", false):
+		# The take finished Gogoud's map scene (i_Gogood_Brigand_Carte, about
+		# 341 s) long before Maliq; let it run and page it where Hype arrived.
+		var map_brain := actor_of(world, 192).get_node("Brain")
+		var tick := 0
+		deadline = Time.get_ticks_msec() + 40000
+		while Time.get_ticks_msec() < deadline and not (int(map_brain.get("current_normal")) == 2 and int(hype_brain.get("current_normal")) == 4):
+			if int(hype_brain.get("current_normal")) == 28 and tick % 30 == 0: press_hit(true)
+			elif tick % 30 == 3: press_hit(false)
+			tick += 1
+			await physics_frame
+		report["map_done"] = [map_brain.get("current_normal"), hype_brain.get("current_normal")]
 	var anchor := actor_of(world, spec["near"])
-	var start: Vector3 = anchor.global_position + (spec["offset"] as Vector3)
+	var start: Vector3 = spec["at"] if spec.has("at") else anchor.global_position + (spec["offset"] as Vector3)
 	hype.global_position = start
 	hype.velocity = Vector3.ZERO
 	report["start"] = vec(start)
@@ -98,6 +114,10 @@ func run() -> void:
 	var before := {}
 	for b in all_brains: before[b] = [b.get("current_normal"), b.get("current_reflex")]
 	report["brain_changes"] = []
+	report["dialogue_changes"] = []
+	var screens := level.find_children("*", "", true, false).filter(func(n): return n.has_method("source_run_dialog"))
+	var screen: Node = screens[0] if not screens.is_empty() else null
+	var last_dialogue := ""
 	var steps := int(float(spec["seconds"]) * Engine.physics_ticks_per_second)
 	var shot_every := int(Engine.physics_ticks_per_second * 2)
 	for step in steps:
@@ -110,7 +130,14 @@ func run() -> void:
 		elif phase == 3:
 			press_hit(false)
 		await physics_frame
-		if step < Engine.physics_ticks_per_second * 2:
+		if screen != null:
+			var box: Node = screen.get("dialogue")
+			var item: Variant = box.get("item") if box != null else null
+			var state := "%s pending=%s normal=%s brain=%s over=%s" % [item.identity if item != null else "-", screen.get("completion_pending"), screen.get("completion_normal"), str(screen.get("completion_brain").get_path()) if is_instance_valid(screen.get("completion_brain")) else "-", box.call("is_over") if box != null else "?"]
+			if state != last_dialogue:
+				report["dialogue_changes"].append([step, state])
+				last_dialogue = state
+		if true:
 			for b in all_brains:
 				var now := [b.get("current_normal"), b.get("current_reflex")]
 				if now != before[b]:
@@ -160,6 +187,27 @@ func finish_case(case_name: String) -> void:
 					finish(false, "wolf %s took the tree sidestep (normal 12) away from its tree" % key); return
 				if float(report["moved"][key]) < 3.0 or float(closest[key]) > 8.0:
 					finish(false, "wolf %s did not move to Hype: moved %s, closest %s" % [key, report["moved"][key], closest[key]]); return
+		"hole":
+			var first: Array = samples[0]["hype"]
+			for row in samples:
+				if Vector3(row["hype"][0], row["hype"][1], row["hype"][2]).distance_to(Vector3(first[0], first[1], first[2])) > 4.0:
+					finish(false, "Hype was moved from %s to %s at %s s (181 normals %s); the take has no warp here" % [first, row["hype"], row["t"], visited.get("181", {}).keys()]); return
+		"maliq":
+			# 575 normal 3 selects world/0/21 (Proc141 placement 1) for the scene.
+			var scene_rows := samples.filter(func(row): return int(row.get("hype_normal", -1)) in [48, 28])
+			if scene_rows.is_empty():
+				finish(false, "Maliq's scene did not start at the take's stop point"); return
+			var on_cam := scene_rows.filter(func(row): return str(row.get("camera", {}).get("name", "")).contains("world/0/21/"))
+			report["scene_rows"] = scene_rows.size()
+			report["theif_cam_rows"] = on_cam.size()
+			if on_cam.size() * 2 < scene_rows.size():
+				finish(false, "Maliq's scene ran on %s, not I_Brigand_Camera_Theif_Cam (%d of %d samples)" % [scene_rows[0].get("camera", {}).get("name", ""), on_cam.size(), scene_rows.size()]); return
+			# The original keeps Hype in place: no jump past the boars.
+			var previous: Array = samples[0]["hype"]
+			for row in samples:
+				if Vector3(row["hype"][0], row["hype"][1], row["hype"][2]).distance_to(Vector3(previous[0], previous[1], previous[2])) > 4.0:
+					finish(false, "Hype jumped from %s to %s at %s s" % [previous, row["hype"], row["t"]]); return
+				previous = row["hype"]
 		"wolves_bite":
 			var lives := samples.map(func(row): return int(row.get("hype_life", -1)))
 			if not (visited["119"].has(5) or visited["120"].has(5)) or lives.min() >= lives[0]:
