@@ -10,12 +10,14 @@ and the per-level port logs, and counts by level and model:
   - converter diagnostics: codes in the port log;
   - save-related sites: save procedures, Global (level-carried) Brain field
     writes, and inventory/progress calls.
-Nothing is run. usage: full_game_ai_sites.py PROJECT LOG_DIR OUT_TSV
+Nothing is run. usage: full_game_ai_sites.py PROJECT LOG_DIR OUT_TSV [LOG_PREFIX]
+(LOG_PREFIX defaults to "port-": logs are LOG_DIR/<prefix><level>.log)
 """
 import collections, json, re, sys
 from pathlib import Path
 
 project, logs, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+prefix = sys.argv[4] if len(sys.argv) > 4 else "port-"
 STAND = re.compile(r'stand_in\("([^"]+)"')
 GUARD = re.compile(r'fail_unsupported\("((?:[^"\\]|\\.)*)"')
 SAVE_PROCS = {"4-95": "Proc_LevelSaveRotationSector", "4-96": "Proc_PlayerSaveRotationSector",
@@ -61,7 +63,7 @@ for level_dir in sorted((project / "generated/hype/levels").iterdir()):
         for m in GLOBAL_WRITE.finditer(text):
             if m.group(1) in to_global.get(res, ()): rows[(level, model, "global_write", m.group(2))] += 1
         for m in INVENTORY.finditer(text): rows[(level, model, "inventory_call", m.group(0))] += 1
-    log = logs / f"port-{level}.log"
+    log = logs / f"{prefix}{level}.log"
     if log.exists():
         for code in re.findall(r'"code":"([^"]+)"', log.read_text(errors="replace")):
             rows[(level, "-", "diagnostic", code)] += 1
