@@ -5,6 +5,7 @@ extends MeshInstance3D
 ## they are built; add a case to _place for each. The texture is a stand-in for
 ## Fix fixtex/character shadows/fake_sh%d.
 
+const StandInReport = preload("res://addons/astrolabe/behavior/stand_in_report.gd")
 const REACH := 1.0
 const START_HEIGHT := 0.2
 const FLOOR_NORMAL_MINIMUM := 0.3
@@ -27,6 +28,7 @@ static func attach(owner_actor: CollisionObject3D, quality: int, scale_pair: Vec
 	owner_actor.add_child(shadow)
 
 func _ready() -> void:
+	StandInReport.reached(actor, "drop-shadow", "kind %d drawn as a gradient blob, not Fake_Sh" % kind)
 	top_level = true
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	layers = 2

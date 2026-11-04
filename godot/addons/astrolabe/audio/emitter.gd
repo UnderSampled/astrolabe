@@ -2,6 +2,7 @@ extends Node3D
 ## Engine sound semantics over converted waveforms. Resource selection is compiled code.
 const Mixer = preload("res://addons/astrolabe/audio/mixer.gd")
 const SpatialGain = preload("res://addons/astrolabe/audio/spatial_gain.gd")
+const StandInReport = preload("res://addons/astrolabe/behavior/stand_in_report.gd")
 signal voice_started(info: Dictionary)
 signal voice_completed(info: Dictionary)
 @export var bus: StringName = &"Astrolabe Effects"
@@ -348,6 +349,7 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
         player.top_level = true
         player.global_transform = global_transform
     var info := {"event": identity, "stream": voice.stream.resource_path, "sample": voice.source_sample, "pitch": player.pitch_scale, "gain": voice.gain * SOURCE_SPEECH_GAIN if _dialogue_speech_request else voice.gain, "choices": voice.trace, "spatial": spatial, "source_parameter_conversion": voice.source_parameter_conversion, "stoppable": stoppable, "dynamic": dynamic, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request, "module": _request_module(), "bus": player.bus}
+    if _dialogue_speech_request: StandInReport.reached(self, "speech-gain", "dialogue speech at 0.7 times resource gain")
     _publish_voice_gain(info)
     if spatial and voice.source_parameter_conversion and info.source_spatial_state == &"unbound_microphone":
         push_warning("Source sound has no bound Micro pose: " + identity)

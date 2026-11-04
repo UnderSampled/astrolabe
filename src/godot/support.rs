@@ -19,6 +19,8 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/ui/map_names.gd.uid",
     "addons/astrolabe/behavior/behavior.gd",
     "addons/astrolabe/behavior/behavior.gd.uid",
+    "addons/astrolabe/behavior/stand_in_report.gd",
+    "addons/astrolabe/behavior/stand_in_report.gd.uid",
     "addons/astrolabe/character/mechanics.gd.uid",
     "addons/astrolabe/character/physical_environment.gd.uid",
     "addons/astrolabe/character/cue.gd.uid",

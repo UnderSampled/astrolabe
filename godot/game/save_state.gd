@@ -12,6 +12,7 @@ const PLAYER := "level:/persos/world/0/0"
 const SCHEMA := 4
 const CHECKPOINT := "manor-idle-v1"
 const SNAPSHOT = preload("res://addons/astrolabe/character/snapshot_values.gd")
+const StandInReport = preload("res://addons/astrolabe/behavior/stand_in_report.gd")
 const LIFE = preload("res://addons/astrolabe/character/hit_points.gd")
 const ARMOR = preload("res://addons/astrolabe/character/armor_catalog.gd")
 const DUMMY := "level:/persos/world/0/27"
@@ -360,6 +361,7 @@ static func load_candidates() -> Array[Dictionary]:
 
 
 static func write_travel(level_name: String, snapshot: Dictionary, pose: Transform3D) -> String:
+    if StandInReport.reached(null, "travel-save", "saving outside the manor writes one travel slot, not the source record table"): return "Strict stand-in mode stopped the save."
     var config := ConfigFile.new()
     config.set_value("save", "level", level_name)
     config.set_value("save", "snapshot", snapshot)

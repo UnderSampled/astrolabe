@@ -37,6 +37,7 @@ renderer/rendering_method.mobile="gl_compatibility"
 
 [astrolabe]
 
+debug/strict_stand_ins=false
 rendering/parity_lighting=true
 
 [shader_globals]

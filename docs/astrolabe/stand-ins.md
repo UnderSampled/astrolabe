@@ -16,6 +16,11 @@ Brains are strict by default, which every test relies on: a stand-in or runtime
 guard stops the Brain with `unsupported_failure`. `game/bootstrap.gd` turns that
 off for the game. `ASTROLABE_STRICT_BEHAVIOR=1` keeps it on.
 
+Hand-written stand-ins (the ids in the table and the multi-level rows) report
+themselves through `addons/astrolabe/behavior/stand_in_report.gd`, as compiled
+ones do. Strict stand-in mode stops the game at the first one reached; see
+[testing.md](testing.md#strict-stand-in-mode).
+
 Runtime guards (`fail_unsupported`) have one shared stand-in, recorded under the
 id `guard`: skip the call and continue, so a schedule can't strand its actor. If
 the rest of the code needs what was missing, that coroutine ends with a script
@@ -54,17 +59,19 @@ row here. Replace them in order of what blocks play.
 | `4-140` | Procedure_Camera_ShowInfo | Debug text is not shown | None needed if it stays debug-only |
 | `3-75` | Function_Camera_GetLookVertex | Origin | Read source_camera.gd |
 | `generator-contact` | Cond28 (zone contact) from a generated Object, e.g. Hype's crossbow bolt | The Object never selects the Perso that generated it. Without this the bolt overlaps Hype's own body zone on its first tick and kills itself, so a bolt could never reach the mannequin | Find how the original keeps a bolt from striking its shooter (spawn offset, zone type or owner test) |
+| `card-less hold` | Generated object with no mechanics card, e.g. Hype's Fire (fix/817) | Held at its spawn transform with no dynamics. Asset evidence agrees (no AI motion, zero root motion, the fireball travels by channel animation inside its 5.9 m ZDE box; notes/research/magic-mannequin-chain.md), but no decomp source yet | Confirm in the decomp that card-less objects get no dynamics, then retire |
+| `hud-count-offset` | The weapon count on the HUD (FUN_0040ca40, FON 3D projection) | Label at an offset measured on the linear take's frame 469 | Port the FON projection |
 | `item point contact` | Generated objects without a movement zone (barrel and enemy drops, families 21 to 25) | A 0.1 sphere at the origin gives them world contact, so they bounce and rest instead of falling through the floor. Projectiles (mechanics type 11) are left alone | Find what the source DNM collides when an actor has no ZDM |
 
 ## Multi-level stand-ins
 
 | Stand-in | Guess | Replaced by |
 | --- | --- | --- |
-| Travel save | One slot outside the manor; each level actor keeps its fields, behavior, pose and links, not the source record table | Source per-level records and level history |
-| Drop shadow | Every kind draws a ground-tilted gradient blob | Fake_Sh textures, projected realistic kind 2, light-placed kinds 3 and 4 |
-| Micro basis | A main actor with no imported Micro listens along its own axes | The Micro of the destination level |
-| Speech gain | Dialogue plays non-positional at 0.7 times resource gain, fitted to measured lines | Read the speech event's own volume |
-| Kill without reset | An actor whose activation was not converted, or whose kill resets components, is deactivated and its AI stopped; the reset its revival performs is not done | Convert activation flags and implement the component reset |
+| Travel save (`travel-save`) | One slot outside the manor; each level actor keeps its fields, behavior, pose and links, not the source record table | Source per-level records and level history |
+| Drop shadow (`drop-shadow`) | Every kind draws a ground-tilted gradient blob | Fake_Sh textures, projected realistic kind 2, light-placed kinds 3 and 4 |
+| Micro basis (`micro-basis`) | A main actor with no imported Micro listens along its own axes | The Micro of the destination level |
+| Speech gain (`speech-gain`) | Dialogue plays non-positional at 0.7 times resource gain, fitted to measured lines | Read the speech event's own volume |
+| Kill without reset (`kill-without-reset`) | An actor whose activation was not converted, or whose kill resets components, is deactivated and its AI stopped; the reset its revival performs is not done | Convert activation flags and implement the component reset |
 
 ## Randomness
 

@@ -23,6 +23,7 @@ var _frame_panel: Control
 var _cash_panel: Control
 ## FUN_0043ab40 draws each piece of the selected armor at Fix.sda rectangle 2.
 const ARMOR_RECT := Rect2(10, 420, 48, 48)
+const StandInReport = preload("res://addons/astrolabe/behavior/stand_in_report.gd")
 var _armor := Control.new()
 ## Spell slots and magic-points arc (0043a450, 0043a6a0/00439e50), drawn from
 ## the HUD Source node's metadata and the actor's magick and inventory.
@@ -46,6 +47,7 @@ func _ready() -> void:
     # text offset, then FON projects it in 3D (not ported). Stand-in: the label
     # sits at a measured offset from that anchor, matched to the linear take's
     # frame 469 (glyph box within 1 px). Font: the HUD counter.
+    StandInReport.reached(self, "hud-count-offset", "weapon count at a measured offset, FON 3D projection not ported")
     var anchor := get_parent().get_node_or_null("Source/WeaponCountAnchor") as Control
     _weapon_count.position = (anchor.position if anchor != null else WEAPON_RECT.position) + COUNT_GLYPH_OFFSET
     _weapon_count.size = Vector2(128, 28)

@@ -174,6 +174,24 @@ link with targeted logging (the route bot's `follow` step prints `WATCH`,
 passes. A port behavior that departs from the source needs source evidence or
 a documented entry in [stand-ins.md](./stand-ins.md).
 
+## Strict stand-in mode
+
+The project setting `astrolabe/debug/strict_stand_ins` (default off), or the
+environment variable `ASTROLABE_STRICT_STAND_INS`, stops the game at the first
+[stand-in](stand-ins.md) or runtime guard reached during play: compiled
+`stand_in()` and `fail_unsupported` sites and the hand-written stand-ins
+(`load-placement`, `generator-contact`, `item point contact`, `card-less hold`,
+`hud-count-offset` and the multi-level rows). It prints and logs one line,
+
+    STRICT_STAND_IN {"id": ..., "context": ..., "site": "res://...gd:LINE function", "script": ..., "actor": ...}
+
+then pauses the tree and shows the same on screen. `ASTROLABE_STRICT_STAND_INS=exit`
+quits with code 70 instead, for unattended runs; `=1` stops and shows.
+`ASTROLABE_STRICT_ALLOW=drop-shadow,speech-gain` lets listed ids pass. With it
+off, play continues and each stand-in is warned about once. The gate's default
+is off. (`ASTROLABE_STRICT_BEHAVIOR=1` is separate and older: it only stops the
+Brain that reached the stand-in.)
+
 ## Side-by-side videos
 
 `tools/video/` makes an original-versus-port video from a take and a route-bot

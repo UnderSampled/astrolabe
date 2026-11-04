@@ -13,6 +13,7 @@ const SAVE_STARTUP = preload("res://game/save_startup.gd")
 const NATIVE_AUDIO_EMITTER = preload("res://addons/astrolabe/audio/emitter.gd")
 const SOURCE_CAMERA = preload("res://addons/astrolabe/camera/source_camera.gd")
 const SCRIPT_WARMUP = preload("res://game/script_warmup.gd")
+const StandInReport = preload("res://addons/astrolabe/behavior/stand_in_report.gd")
 const LOADING_SCREEN_PATH := NodePath("/root/LevelTransition/LoadingScreen")
 const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
 const LEVEL_END_META := "astrolabe_level_end"
@@ -212,6 +213,7 @@ func request_initial_level() -> void:
         if not new_game:
             var travel: Dictionary = SAVE_STATE.read_for_load(str(get_tree().root.get_meta(SAVE_STATE.LOAD_SOURCE_META, "")))
             if str(travel.get("source", "")) == SAVE_STATE.TRAVEL_SOURCE and travel["status"] == "loaded":
+                if StandInReport.reached(self, "travel-save", "a travel save loads its level fresh, without per-level world records"): return
                 initial_level_name = str(travel["level"])
                 level_path = "res://generated/hype/levels/%s/level.tscn" % initial_level_name
         if bool(transitions.call("request_initial_level", initial_level_name)):
@@ -367,6 +369,7 @@ func open_level() -> void:
         fail(source_error)
         return
     if str(selected_save["source"]).begins_with(SAVE_STATE.ORIGINAL_SOURCE):
+        if StandInReport.reached(actor, "load-placement", "Hype placed at the live-measured manor spot after an original load"): return
         MANOIR_START.place(actor, fixture)
         var candidate_path: String = SAVE_STATE.ORIGINAL_SAVES.path_join(str(selected_save["source"]).get_slice(":", 1))
         selected_save["records"] = SAVE_STATE.apply_source_records(level, candidate_path)
@@ -432,6 +435,7 @@ func _bind_main_microphone(main: Node3D, owner_brain: Node) -> void:
     var emitter: GDScript = load("res://addons/astrolabe/audio/emitter.gd")
     # Stand-in: a main actor without an imported Micro listens along its own axes.
     var basis: Variant = emitter.call("microphone_basis_for", main)
+    if basis == null and StandInReport.reached(main, "micro-basis", "main actor without an imported Micro listens along its own axes"): return
     emitter.call("switch_micro_perso", owner_brain, null, main, Basis.IDENTITY if basis == null else basis)
 
 

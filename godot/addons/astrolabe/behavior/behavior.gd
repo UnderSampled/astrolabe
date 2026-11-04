@@ -2,6 +2,7 @@ extends Node3D
 const NativeCharacter = preload("res://addons/astrolabe/character/character.gd")
 const NativeAudioEmitter = preload("res://addons/astrolabe/audio/emitter.gd")
 const NativeAudioMixer = preload("res://addons/astrolabe/audio/mixer.gd")
+const StandInReport = preload("res://addons/astrolabe/behavior/stand_in_report.gd")
 ## Timing and actor/audio bindings for compiled behavior code. No source trees are loaded.
 signal normal_tick
 signal reflex_tick
@@ -170,12 +171,13 @@ func stand_in(id: String, context: String) -> bool:
 	_record_stand_in(id, context)
 	return false
 
+## Strict stand-in mode (stand_in_report.gd) stops the game here.
 func _record_stand_in(id: String, context: String) -> void:
 	var key := id + " " + context
 	if not stand_ins_reached.has(key):
 		stand_ins_reached[key] = {"id": id, "context": context, "count": 0}
-		push_warning("Stand-in reached: " + key)
 	stand_ins_reached[key]["count"] += 1
+	StandInReport.reached(self, id, context)
 
 ## Overridden by compiled scripts whose initial behavior selects native state.
 func source_restore_initial_selections() -> void:

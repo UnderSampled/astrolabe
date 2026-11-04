@@ -10,6 +10,7 @@ const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd"
 const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
 const SOURCE_RENDERING = preload("res://addons/astrolabe/character/rendering.gd")
+const StandInReport = preload("res://addons/astrolabe/behavior/stand_in_report.gd")
 const CONFIGURED_BANK = preload("res://addons/astrolabe/character/configured_bank.gd")
 const SOURCE_LIFT_MOTION = preload("res://addons/astrolabe/character/lift_motion.gd")
 const SOURCE_CHANNEL_ATTACHMENT = preload("res://addons/astrolabe/character/channel_attachment.gd")
@@ -854,6 +855,7 @@ func source_kill() -> bool:
 func source_kill_perso() -> bool:
     var generated := has_meta("astrolabe_generated_template")
     if not generated and (not source_activation_known or source_kill_resets_components):
+        if StandInReport.reached(self, "kill-without-reset", "killed without the source component reset"): return false
         source_kill_reset_pending = true
     source_set_object_active_state(false)
     source_return_suppressed = true
@@ -1257,11 +1259,14 @@ func source_execute_action_and_generate_object(template_path: String, action: in
         # as Hype's Fire effect (model 817), stays where it was generated; with
         # gravity it sank, and its fireball hit the mannequin's body, not the arm.
         generated.set("motion_enabled", generated.get("current_mechanics") != null)
+        if generated.get("current_mechanics") == null and StandInReport.reached(generated, "card-less hold", "card-less generated object held at its spawn transform"):
+            return -1
         # Stand-in "item point contact": dropped items (families 21 to 25) carry
         # no movement zone, yet bounce and rest on the floor in the source.
         # A small sphere at the origin stops them falling through the world.
         var item_mechanics: Resource = generated.get("current_mechanics")
         if item_mechanics != null and not generated.call("_has_movement_shape") and int(item_mechanics.mode) != 11:
+            if StandInReport.reached(generated, "item point contact", "0.1 sphere added to an item without a movement zone"): return -1
             var point := CollisionShape3D.new()
             point.name = "ItemPointContact"
             var sphere := SphereShape3D.new()
@@ -1939,7 +1944,9 @@ func _source_contact_actor(collider: CollisionObject3D) -> Node3D:
 func _source_contact_candidate(actor: Node3D, physical: bool) -> bool:
     if actor == null or actor == self or not actor.source_contact_eligible or not actor.source_object_active:
         return false
-    if actor == source_generator: return false
+    if actor == source_generator:
+        StandInReport.reached(self, "generator-contact", "contact query skips its generator " + str(actor.name))
+        return false
     if physical and not actor.is_visible_in_tree(): return false
     var own_sector := source_contact_sector()
     var target_sector: Node3D = actor.source_contact_sector()
