@@ -429,6 +429,9 @@ impl Parser<'_> {
                     radius: self.expression(indent + 1)?,
                     horizontal: id == 33,
                 },
+                (5, 25) => Statement::GoToWaypoint {
+                    waypoint: self.expression(indent + 1)?,
+                },
                 (5, 2) => Statement::PursueActor {
                     actor: self.expression(indent + 1)?,
                     radius: self.expression(indent + 1)?,
@@ -610,9 +613,14 @@ impl Parser<'_> {
                         .is_some_and(|child| child.kind == 24 && child.indent == indent + 1)
                         || !self.codec.actors.contains_key(&operand)
                     {
+                        let shape = self
+                            .nodes
+                            .get(operand)
+                            .map(|child| format!("kind {} parameter {}", child.kind, child.parameter))
+                            .unwrap_or_default();
                         out.push(Statement::Unsupported(self.unsupported(
                             at,
-                            format!("unbound camera actor at node {operand}"),
+                            format!("unbound camera actor at node {operand} ({shape})"),
                         )?));
                         continue;
                     }
@@ -2295,6 +2303,10 @@ impl Writer<'_> {
                     self.node(5, if *horizontal { 33 } else { 32 }, indent);
                     self.expression(point, indent + 1)?;
                     self.expression(radius, indent + 1)?;
+                }
+                Statement::GoToWaypoint { waypoint } => {
+                    self.node(5, 25, indent);
+                    self.expression(waypoint, indent + 1)?;
                 }
                 Statement::PursueActor { actor, radius } => {
                     self.node(5, 2, indent);

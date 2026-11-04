@@ -149,6 +149,20 @@ func check_point_requests() -> bool:
     var stopped: Vector3 = actor.global_position
     for _tick in 4: await physics_frame
     if not require(actor.global_position.is_equal_approx(stopped), "completed Mass point retained velocity"): return false
+    # Meta25 reads its waypoint anew each update: moving it mid-request redirects.
+    var waypoint = load("res://addons/astrolabe/character/waypoint.gd").new()
+    waypoint.supported = true
+    waypoint.radius = 0.04
+    waypoint.source_position = source_position(Vector3(0.6,0.5,0.4))
+    ticket = actor.source_begin_waypoint_motion(waypoint)
+    if not require(ticket > 0, "finite waypoint request did not start"): return false
+    for _tick in 2: await physics_frame
+    var moved := Vector3(0.3,0.5,-0.2)
+    waypoint.source_position = source_position(moved)
+    for _tick in 96:
+        await physics_frame
+        if actor.source_point_motion_finished(ticket): break
+    if not require(actor.source_point_motion_finished(ticket) and actor.source_point_motion_failure(ticket).is_empty() and actor.global_position.distance_to(moved) <= 0.04, "waypoint request did not follow its moved waypoint within its radius"): return false
     # Missing dynamics completes before the zero-radius snap. Finite equality
     # and the source's zero-radius0.25 fallback have separate assertions.
     actor.source_motion_binding_present = false

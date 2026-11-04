@@ -2573,6 +2573,10 @@ fn blocking(
     } else {
         None
     };
+    if let Statement::GoToWaypoint { waypoint } = statement {
+        let value = guarded_expression(out, waypoint, model, depth, flow)?;
+        writeln!(out, "{pad}var request_waypoint_{id}: Variant = {value}")?;
+    }
     if let Statement::CameraGoToWaypoint { camera, waypoint } = statement {
         let camera = guarded_expression(out, camera, model, depth, flow)?;
         writeln!(out, "{pad}var request_camera_{id}: Variant = {camera}")?;
@@ -2705,6 +2709,14 @@ fn blocking(
             point_motion_guard(out, model, &pad, id, exit)?;
             format!("character().source_point_motion_finished(motion_ticket_{id})")
         }
+        Statement::GoToWaypoint { .. } => {
+            writeln!(
+                out,
+                "{pad}    var motion_ticket_{id}: int = character().source_begin_waypoint_motion(request_waypoint_{id})",
+            )?;
+            point_motion_guard(out, model, &pad, id, exit)?;
+            format!("character().source_point_motion_finished(motion_ticket_{id})")
+        }
         Statement::PursueActor { .. } => {
             writeln!(
                 out,
@@ -2812,6 +2824,7 @@ fn blocking(
         statement,
         Statement::GoToPosition { .. }
             | Statement::GoToNextWaypoint(_)
+            | Statement::GoToWaypoint { .. }
             | Statement::PursueActor { .. }
     ) {
         // Query the completed request before cancellation clears its state.
@@ -4291,6 +4304,7 @@ fn statements(
             | Statement::IncrementalTurnToward { .. }
             | Statement::IncrementalTurnPosition { .. }
             | Statement::GoToPosition { .. }
+            | Statement::GoToWaypoint { .. }
             | Statement::PursueActor { .. }
             | Statement::MoveLift { .. }
             | Statement::GoToNextWaypoint(_)

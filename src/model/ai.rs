@@ -302,6 +302,10 @@ pub enum Statement {
         radius: Expression,
         horizontal: bool,
     },
+    /// Meta25 Action_GoToWP: its update 0054b110 recomputes the waypoint's
+    /// location (WP_fnv_WayPoint_ComputeLocation) and reads its radius on every
+    /// update, then moves as GoToPosition does (0054a960).
+    GoToWaypoint { waypoint: Expression },
     /// Meta2 captures an actor and radius once, then follows that actor's
     /// current origin through the same contact movement as GoToPosition.
     PursueActor {
@@ -2138,6 +2142,9 @@ impl Script {
                     Statement::PursueActor { actor, radius } => {
                         expression(actor, variables, depth + 1, count)?;
                         expression(radius, variables, depth + 1, count)?;
+                    }
+                    Statement::GoToWaypoint { waypoint } => {
+                        expression(waypoint, variables, depth + 1, count)?;
                     }
                     Statement::ActivateActorAtPosition { actor, point } => {
                         expression(actor, variables, depth + 1, count)?;

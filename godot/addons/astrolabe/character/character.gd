@@ -101,6 +101,8 @@ var _source_point_target: Vector3 = Vector3.ZERO
 var _source_point_arrival: Vector3 = Vector3.ZERO
 var _source_point_actor: Node3D
 var _source_point_pursuit: bool = false
+## Meta25's waypoint: its location and radius are read anew on each update.
+var _source_point_waypoint: Resource
 var _source_point_radius: float = 0.0
 var _source_point_horizontal: bool = false
 var _source_point_route_slot: int = -1
@@ -600,6 +602,25 @@ func source_begin_actor_pursuit(actor: Node3D, radius: float) -> int:
         return _source_fail_point_request("pursuit radius exceeds source real range")
     return _source_start_point_request()
 
+## Meta25 Action_GoToWP: its update 0054b110 recomputes the waypoint's location
+## and reads its radius every update, then moves as Meta32 does (0054a960), so
+## an actor-relative waypoint is followed as its actor moves.
+func source_begin_waypoint_motion(waypoint: Variant) -> int:
+    _source_new_point_request()
+    if not waypoint is Resource or not waypoint.has_method("source_world_position"):
+        return _source_fail_point_request("GoToWP requires a converted waypoint")
+    _source_point_waypoint = waypoint
+    if not _source_refresh_waypoint_target():
+        return _source_fail_point_request("GoToWP requires a resolved finite waypoint")
+    return _source_start_point_request()
+
+func _source_refresh_waypoint_target() -> bool:
+    var point: Variant = _source_point_waypoint.call("source_world_position", self)
+    if not point is Vector3 or not point.is_finite(): return false
+    _source_point_target = Vector3(point.x, point.z, -point.y)
+    _source_point_radius = PackedFloat32Array([float(_source_point_waypoint.get("radius"))])[0]
+    return is_finite(_source_point_radius)
+
 ## Meta30 selects a single next waypoint. A failed slot lookup retains the
 ## preceding captured route, matching its initializer's failed replacement.
 func source_begin_next_waypoint(slot: int) -> int:
@@ -624,6 +645,7 @@ func _source_new_point_request() -> void:
     _source_point_horizontal = false
     _source_point_actor = null
     _source_point_pursuit = false
+    _source_point_waypoint = null
     _source_point_failure = ""
 
 func _source_start_point_request() -> int:
@@ -776,6 +798,9 @@ func _source_point_control() -> bool:
         if not _source_point_target.is_finite():
             _source_fail_point_request("pursuit actor origin must be finite")
             return false
+    if _source_point_waypoint != null and not _source_refresh_waypoint_target():
+        _source_fail_point_request("GoToWP waypoint no longer resolves")
+        return false
     if _source_point_horizontal: _source_point_target.y = global_position.y+0.05
     # The source returns completion before arrival/snap if dynamics is absent.
     var moving := source_motion_binding_present

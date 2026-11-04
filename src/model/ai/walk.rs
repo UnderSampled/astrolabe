@@ -137,6 +137,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::PursueActor { actor, radius } => {
                     self.expressions(child_depth, &[actor, radius]);
                 }
+                Statement::GoToWaypoint { waypoint } => {
+                    self.expressions(child_depth, &[waypoint]);
+                }
                 Statement::ActivateActorAtPosition { actor, point } => {
                     self.expressions(child_depth, &[actor, point]);
                 }
