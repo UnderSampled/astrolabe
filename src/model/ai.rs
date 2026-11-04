@@ -282,6 +282,15 @@ pub enum Statement {
     AddWind(Expression),
     /// The way operand selects one of the actor's own routes.
     ResetRoute(RouteSlot),
+    /// Proc_ReInitWayBack (221): progress at the last point, ready to walk
+    /// back (005187c0; notes/research/way-procedures.md).
+    ResetRouteBack(RouteSlot),
+    /// Proc_InitWayWithWp (222): progress at the first point matching the
+    /// waypoint, if any (00518840).
+    InitRouteAtWaypoint {
+        slot: RouteSlot,
+        waypoint: Expression,
+    },
     GoOverRoute(RouteSlot),
     /// Meta30 visits the next selected waypoint in one actor-local route slot.
     /// Unlike GoOverRoute, it completes after that point's progress update.
@@ -819,6 +828,9 @@ pub enum Expression {
     CollideWithPerso,
     /// Func_CloserWP: the nearest waypoint of an actor-local route slot.
     CloserRouteWaypoint(u8),
+    /// Cond_IsValidWay (1-68, 005344a0): the way's point count, or zero when
+    /// the actor has no such way.
+    RouteWaypointCount(RouteSlot),
     /// Cond_CollideWithWall: the actor's last move touched a wall.
     CollideWithWall,
     /// Cond_IsValidWayPoint: the operand names a waypoint.

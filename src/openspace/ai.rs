@@ -448,15 +448,13 @@ impl Parser<'_> {
                 },
                 (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
                 (4, 30) => Statement::AddWind(self.expression(indent + 1)?),
+                (4, 221) => Statement::ResetRouteBack(self.route_slot(indent + 1, at)?),
+                (4, 222) => Statement::InitRouteAtWaypoint {
+                    slot: self.route_slot(indent + 1, at)?,
+                    waypoint: self.expression(indent + 1)?,
+                },
                 (4, 220) | (5, 27 | 30) => {
-                    // Kind 23 is a literal way index; a kind-11 designer
-                    // variable of type Way holds the same index.
-                    let (_, slot) = self.take(indent + 1)?;
-                    let slot = match slot.kind {
-                        23 => RouteSlot::Slot(slot.parameter.try_into()?),
-                        11 => RouteSlot::Variable(slot.parameter.try_into()?),
-                        _ => bail!("route call lacks a way operand at node {at}"),
-                    };
+                    let slot = self.route_slot(indent + 1, at)?;
                     if kind == 4 {
                         Statement::ResetRoute(slot)
                     } else if id == 30 {
@@ -1254,6 +1252,16 @@ impl Parser<'_> {
             pause_after,
         })
     }
+    /// A way operand: kind 23 is a literal way index; a kind-11 designer
+    /// variable of type Way holds the same index (0043e370).
+    fn route_slot(&mut self, indent: u8, at: usize) -> Result<RouteSlot> {
+        let (_, slot) = self.take(indent)?;
+        Ok(match slot.kind {
+            23 => RouteSlot::Slot(slot.parameter.try_into()?),
+            11 => RouteSlot::Variable(slot.parameter.try_into()?),
+            _ => bail!("route call lacks a way operand at node {at}"),
+        })
+    }
     fn change_actor_behavior(&mut self, id: u32, indent: u8, start: usize) -> Result<Statement> {
         let actor = match self.expression(indent + 1)? {
             Expression::Actor(actor) => actor,
@@ -2014,6 +2022,7 @@ impl Parser<'_> {
                 let (_, slot) = self.take(indent + 1)?;
                 Expression::CloserRouteWaypoint(slot.parameter.try_into()?)
             }
+            (1, 68) => Expression::RouteWaypointCount(self.route_slot(indent + 1, at)?),
             (3, 41) => Expression::GameTime,
             (3, 195) => Expression::GameState,
             (3, 27) => Expression::RandomInt {
@@ -2048,6 +2057,12 @@ impl Writer<'_> {
             .1;
         self.node(24, handle, indent);
         Ok(())
+    }
+    fn route_slot(&mut self, slot: &RouteSlot, indent: u8) {
+        match slot {
+            RouteSlot::Slot(slot) => self.node(23, u32::from(*slot), indent),
+            RouteSlot::Variable(variable) => self.node(11, u32::from(*variable), indent),
+        }
     }
     fn node(&mut self, kind: u8, parameter: u32, indent: u8) {
         self.nodes.push(NodeWire {
@@ -2324,12 +2339,16 @@ impl Writer<'_> {
                     } else {
                         self.node(5, 27, indent);
                     }
-                    match slot {
-                        RouteSlot::Slot(slot) => self.node(23, u32::from(*slot), indent + 1),
-                        RouteSlot::Variable(variable) => {
-                            self.node(11, u32::from(*variable), indent + 1)
-                        }
-                    }
+                    self.route_slot(slot, indent + 1);
+                }
+                Statement::ResetRouteBack(slot) => {
+                    self.node(4, 221, indent);
+                    self.route_slot(slot, indent + 1);
+                }
+                Statement::InitRouteAtWaypoint { slot, waypoint } => {
+                    self.node(4, 222, indent);
+                    self.route_slot(slot, indent + 1);
+                    self.expression(waypoint, indent + 1)?;
                 }
                 Statement::GoRelative => self.node(4, 34, indent),
                 Statement::KillSelf => {
@@ -3497,6 +3516,10 @@ impl Writer<'_> {
             Expression::CloserRouteWaypoint(slot) => {
                 self.node(3, 12, indent);
                 self.node(23, *slot as u32, indent + 1);
+            }
+            Expression::RouteWaypointCount(slot) => {
+                self.node(1, 68, indent);
+                self.route_slot(slot, indent + 1);
             }
             Expression::IsValidWaypoint(value) => {
                 self.node(1, 65, indent);
@@ -4979,6 +5002,43 @@ mod partial_tests {
                 Statement::GoOverRoute(RouteSlot::Slot(6))
             ]
         ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn way_procedures_and_way_condition_decode_and_reconstruct() -> Result<()> {
+        // The guards (927, 1060): InitWayWithWp(way 0, CloserWP(way 0)),
+        // ReInitWayBack and an IsValidWay test.
+        let (codec, bytes) = partial(&[
+            (4, 222, 1),
+            (23, 0, 2),
+            (3, 12, 2),
+            (23, 0, 3),
+            (4, 221, 1),
+            (11, 4, 2),
+            (0, 0, 1),
+            (1, 68, 2),
+            (23, 1, 3),
+            (0, 1, 1),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![
+                Statement::InitRouteAtWaypoint {
+                    slot: RouteSlot::Slot(0),
+                    waypoint: Expression::CloserRouteWaypoint(0),
+                },
+                Statement::ResetRouteBack(RouteSlot::Variable(4)),
+                Statement::If {
+                    condition: Expression::RouteWaypointCount(RouteSlot::Slot(1)),
+                    then: Vec::new(),
+                    otherwise: None,
+                },
+            ]
+        );
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())
     }

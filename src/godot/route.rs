@@ -80,6 +80,14 @@ pub(super) fn export_route(
             point.radius
         )?;
     }
+    // A link's last sample index: its sampling rate, or 0 for StaticLine
+    // (00526c90); ReInitWayBack and InitWayWithWp seed progress with it.
+    let rates = route
+        .links
+        .iter()
+        .map(|l| l.as_ref().and_then(|l| l.curve.as_ref()).map_or(0, |c| c.rate).to_string())
+        .collect::<Vec<_>>();
+    writeln!(project.builder, "    {id}.link_rates = PackedByteArray([{}])", rates.join(", "))?;
     for (index, link) in route.links.iter().enumerate() {
         let curve = format!("{id}_link_{index}");
         writeln!(project.builder, "    var {curve} := Curve3D.new()")?;

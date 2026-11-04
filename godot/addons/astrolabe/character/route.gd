@@ -11,4 +11,6 @@ extends Resource
 ## Per link: the Bezier or circle-arc link as a native curve from waypoint i
 ## to its end; empty (no points) for StaticLine.
 @export var link_curves: Array[Curve3D] = []
+## Per link: its last sample index (the source sampling rate; 0 for StaticLine).
+@export var link_rates: PackedByteArray
 @export var source_identity: String

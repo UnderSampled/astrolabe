@@ -519,6 +519,51 @@ func source_reset_route(slot: int) -> bool:
         source_cancel_point_motion(source_point_revision)
     return true
 
+## Proc_ReInitWayBack (221, 005187c0): the last point, with the last sample
+## index of the link before it; no previous point. Like 222, it rewrites only
+## the progress and leaves a running action alone (00542ff0).
+func source_reset_route_back(slot: int) -> bool:
+    if slot < 0 or slot >= source_routes.size(): return false
+    if not _source_route_progress_present(): return false
+    var route = source_routes[slot]
+    var count: int = route.curve.point_count if route != null and route.curve != null else 0
+    if count < 2: return false
+    source_route_points[slot] = count-1
+    source_route_samples[slot] = _source_link_rate(route, count-2)
+    source_route_previous_points[slot] = -1
+    source_route_previous_samples[slot] = -1
+    return true
+
+## Proc_InitWayWithWp (222, 00518840): the first point i < count-1 that is the
+## given waypoint; nothing changes when none is. The source compares waypoint
+## pointers; here a route-point waypoint names its index, and any other
+## waypoint matches by its exact source position.
+func source_init_route_at_waypoint(slot: int, waypoint: Resource) -> bool:
+    if slot < 0 or slot >= source_routes.size(): return false
+    if not _source_route_progress_present(): return false
+    var route = source_routes[slot]
+    if route == null or route.curve == null: return false
+    if waypoint == null: return true
+    for i in route.curve.point_count-1:
+        var point: Vector3 = route.curve.get_point_position(i)
+        if str(waypoint.get("source_identity")) == str(route.source_identity, "#", i) or waypoint.get("source_position") == Vector3(point.x, -point.z, point.y):
+            source_route_points[slot] = i
+            source_route_samples[slot] = 0 if i == 0 else _source_link_rate(route, i-1)
+            source_route_previous_points[slot] = -1
+            source_route_previous_samples[slot] = -1
+            return true
+    return true
+
+## Cond_IsValidWay (1-68, 005344a0): the way's point count, 0 when absent.
+func source_route_waypoint_count(slot: int) -> int:
+    if slot < 0 or slot >= source_routes.size() or source_routes[slot] == null: return 0
+    var route = source_routes[slot]
+    return route.curve.point_count if route.curve != null else 0
+
+func _source_link_rate(route: Resource, link: int) -> int:
+    var rates: Variant = route.get("link_rates")
+    return int(rates[link]) if rates is PackedByteArray and link >= 0 and link < rates.size() else 0
+
 func _source_route_progress_present() -> bool:
     var count := source_routes.size()
     return source_route_points.size() == count and source_route_samples.size() == count and source_route_previous_points.size() == count and source_route_previous_samples.size() == count

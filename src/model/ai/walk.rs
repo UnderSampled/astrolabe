@@ -91,6 +91,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::IncrementalTurnToward { frames: value, .. }
                 | Statement::SetVectorSpeed(value)
                 | Statement::AddWind(value)
+                | Statement::InitRouteAtWaypoint {
+                    waypoint: value, ..
+                }
                 | Statement::SetImpulse(value)
                 | Statement::SetLaserPointerSniperMode(value)
                 | Statement::SetLaserPointerFlyMode(value)
@@ -305,6 +308,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::ChangeBehavior { .. }
                 | Statement::ChangeActorBehavior { .. }
                 | Statement::ResetRoute(_)
+                | Statement::ResetRouteBack(_)
                 | Statement::GoOverRoute(_)
                 | Statement::GoToNextWaypoint(_)
                 | Statement::GoRelative
@@ -500,6 +504,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::CollideWithWall
                 | Expression::CollideWithPerso
                 | Expression::CloserRouteWaypoint(_)
+                | Expression::RouteWaypointCount(_)
                 | Expression::CollidePersoZdeNoWithTypeZde { .. }
                 | Expression::CollideWithSlope
                 | Expression::IsTypeOfGmtCollide(_)

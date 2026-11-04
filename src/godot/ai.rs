@@ -2405,6 +2405,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::CloserRouteWaypoint(slot) => {
             format!("character().source_closer_route_waypoint({slot})")
         }
+        Expression::RouteWaypointCount(slot) => {
+            format!("character().source_route_waypoint_count({})", route_slot(slot))
+        }
         Expression::VectorNorm(value) => format!("Vector3({}).length()", expression(value, model)?),
         Expression::VectorNormalize(value) => {
             format!("Vector3({}).normalized()", expression(value, model)?)
@@ -3286,6 +3289,23 @@ fn statements(
             }
             Statement::GoRelative => {
                 writeln!(out, "{pad}character().source_go_relative()")?;
+            }
+            Statement::ResetRouteBack(slot) => {
+                let slot = route_slot(slot);
+                writeln!(
+                    out,
+                    "{pad}if not character().source_reset_route_back({slot}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!("{} requires actor-local route slot {slot}", model.path))
+                )?;
+            }
+            Statement::InitRouteAtWaypoint { slot, waypoint } => {
+                let slot = route_slot(slot);
+                let waypoint = guarded_expression(out, waypoint, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_init_route_at_waypoint({slot}, {waypoint}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!("{} requires actor-local route slot {slot}", model.path))
+                )?;
             }
             Statement::ResetRoute(slot) => {
                 let slot = route_slot(slot);
