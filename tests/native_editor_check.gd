@@ -43,12 +43,16 @@ func check_scene_dock(file: String, level_path: NodePath) -> bool:
         if node.has_meta("source_node_id"): source_nodes += 1
         if node.has_meta("source_perso"): persos += 1
         if node.has_meta("configuration_slot"): parts += 1
-        if not require(rows.has(node.get_path()), "Scene dock hides " + str(scene.get_path_to(node))): return false
+        # The dock lists the opened scene's own nodes and instance roots; an
+        # instance's internals stay in its own scene unless made editable.
+        var owned := node.owner == scene
+        if not require(rows.has(node.get_path()) == owned, ("Scene dock hides " if owned else "Scene dock exposes instance internal ") + str(scene.get_path_to(node))): return false
     if not require(source_nodes == 150 and persos == 108 and parts == 899, "Scene dock content coverage differs"): return false
     var hero := level.get_node("world/0/0/Hype")
     if not require(not hero.scene_file_path.is_empty(), "Scene dock exposure unpacked the shared character"): return false
+    if not require(level != scene or (rows.has(hero.get_path()) and not rows.has(hero.get_node("Channels").get_path())), "level dock must show the actor root and hide its internals"): return false
     EditorInterface.get_selection().clear()
-    EditorInterface.get_selection().add_node(hero.get_node("Channels/channel_0"))
+    EditorInterface.get_selection().add_node(hero)
     print("NATIVE_SCENE_DOCK_OK ", JSON.stringify({"file":file,"rows":rows.size(),"source_nodes":source_nodes,"persos":persos,"parts":parts}))
     return true
 

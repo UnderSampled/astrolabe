@@ -159,7 +159,10 @@ pub(super) fn export_program(
         super::character::export_perso(project, source, &perso, written)?;
         templates.push((
             reference,
-            format!("res://{}", super::character::perso_path(project, &perso)),
+            format!(
+                "res://{}",
+                super::character::own_scene_path(project, &perso)?
+            ),
         ));
     }
     let mut events = Vec::new();
@@ -726,7 +729,7 @@ fn route_slot(slot: &RouteSlot) -> String {
         RouteSlot::Variable(index) => format!("int(dsg_{index})"),
     }
 }
-fn value_type(v: &DesignerValue) -> &'static str {
+pub(super) fn value_type(v: &DesignerValue) -> &'static str {
     match v {
         DesignerValue::Boolean(_) => "bool",
         DesignerValue::Integer(_)

@@ -35,7 +35,7 @@ func check():
         if node.has_meta("source_node_id"): source_nodes += 1
         if node.has_meta("configuration_slot"): native_parts += 1
         if not node.has_meta("source_perso"): continue
-        if not node is CharacterBody3D:
+        if not node is CharacterBody3D or node.get_parent().name == "Globals":
             # Fix-owned global actors are nonvisual Node3D holders of Brain state.
             if not require(node.get_node_or_null("Brain") != null, "global actor lost its Brain"): return
             continue

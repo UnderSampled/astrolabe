@@ -36,6 +36,8 @@ pub struct Project {
     pub(super) builder: String,
     pub(super) builder_functions: String,
     pub(super) character_rigs: BTreeSet<String>,
+    /// Source persos registered with the builder's placed-actor grouping.
+    pub(super) actors: BTreeSet<String>,
     pub(super) scene: String,
     pub(super) preview_instances: Vec<String>,
     pub(super) instance_count: usize,
@@ -71,6 +73,7 @@ impl Project {
             builder: include_str!("scripts/build.gd").into(),
             builder_functions: String::new(),
             character_rigs: BTreeSet::new(),
+            actors: BTreeSet::new(),
             scene: String::new(),
             preview_instances: Vec::new(),
             instance_count: 0,
@@ -249,21 +252,10 @@ environment = SubResource("environment")
             .expect("maintained builder template has build function")
             + marker.len();
         self.builder.insert_str(start, &script_checks);
-        for path in self
-            .generated
-            .iter()
-            .filter(|p| p.ends_with(".tscn"))
-            .cloned()
-            .chain(std::iter::once(self.level_path("preview.tscn")))
-        {
-            writeln!(
-                self.builder,
-                "    expose_scene_tree({})",
-                quoted(&format!("res://{path}"))
-            )?;
-        }
         self.builder.push_str(&format!(
-            r#"    var file = FileAccess.open({}, FileAccess.WRITE)
+            r#"    evidence["actor_scenes"] = finish_actors()
+    free_actor_trees()
+    var file = FileAccess.open({}, FileAccess.WRITE)
     file.store_string(JSON.stringify(evidence, "  "))
     file.close()
     quit(0)
@@ -362,6 +354,22 @@ environment = SubResource("environment")
             return Err(error);
         }
         self.reserve(&self.level_path("validation.json"))?;
+        // Placed-actor scenes are grouped by the builder from their finished
+        // native trees; it reports every scene file it saved.
+        let evidence: serde_json::Value = serde_json::from_slice(&fs::read(
+            self.stage.path().join(self.level_path("validation.json")),
+        )?)?;
+        for path in evidence["actor_scenes"]
+            .as_array()
+            .context("builder evidence lacks actor scenes")?
+        {
+            let path = path.as_str().context("actor scene path")?.to_owned();
+            ensure!(
+                path.starts_with(&self.level_path("")),
+                "actor scene outside level: {path}"
+            );
+            self.reserve(&path)?;
+        }
         // Preserve path-derived resource/node identities across edits and cache rebuilds.
         for path in &self.generated {
             if path.ends_with(".tscn") || path.ends_with(".tres") {

@@ -346,7 +346,7 @@ func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
         slide_contacts.append({
             "collider": str(collider.get_path()) if collider != null else "",
             "source_node_id": str(owner.get_meta("source_node_id", "")) if owner != null else "",
-            "source_perso": str(collider.get_meta("source_collision_perso", "")) if collider != null else "",
+            "source_perso": str(collider.owner.get_meta("source_perso", "")) if collider != null and collider.owner != null else "",
             "position": [point.x, point.y, point.z],
             "normal": [normal.x, normal.y, normal.z],
         })

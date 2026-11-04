@@ -213,14 +213,14 @@ fn movement_collision(
     perso: &Perso,
     actor: &str,
     base: &str,
-) -> Result<()> {
+) -> Result<Option<String>> {
     let Some(collisions) = &perso.collisions else {
-        return Ok(());
+        return Ok(None);
     };
     collisions.validate()?;
     let group = &collisions.groups[2];
     let Some(reference) = &group.profile else {
-        return Ok(());
+        return Ok(None);
     };
     let profile = source.load(reference)?;
     profile.validate_reference(&reference.path)?;
@@ -229,7 +229,7 @@ fn movement_collision(
         profile.selection(id)?;
     }
     let Some(geometry) = &profile.geometry else {
-        return Ok(());
+        return Ok(None);
     };
     let past_slots = profile
         .selections
@@ -282,14 +282,14 @@ fn movement_collision(
         }
     }
     if shapes.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     writeln!(
         project.builder,
         "    {actor}.collision_layer = 2\n    {actor}.collision_mask = 1"
     )?;
     let Some(activations) = &profile.activations else {
-        return Ok(());
+        return Ok(None);
     };
     let mut cases: BTreeMap<Option<u32>, Vec<String>> = BTreeMap::new();
     for activation in activations {
@@ -314,14 +314,25 @@ fn movement_collision(
         }
     }
     script.push_str("        _: pass\n");
-    let path = perso_path(project, perso).replace(".tscn", "_collisions.gd");
-    project.write(path.clone(), script.as_bytes())?;
+    // Content-addressed beside its base, so equal activation tables share one script.
+    let path = format!(
+        "{}/movement_{}.gd",
+        base.trim_start_matches("res://")
+            .rsplit_once('/')
+            .context("movement script base has a directory")?
+            .0,
+        &super::digest(script.as_bytes())[..12]
+    );
+    if !project.generated.contains(&path) {
+        project.write(path.clone(), script.as_bytes())?;
+    }
+    let script = format!("res://{path}");
     writeln!(
         project.builder,
         "    {actor}.set_script(native_resource({}))",
-        quoted(&format!("res://{path}"))
+        quoted(&script)
     )?;
-    Ok(())
+    Ok(Some(script))
 }
 
 fn auxiliary_collision(
@@ -382,8 +393,7 @@ fn auxiliary_collision(
     let area = format!("{actor}_{}", label.to_lowercase());
     writeln!(
         project.builder,
-        "    var {area} = {native_type}.new()\n    {area}.name = \"{label}\"\n    {area}.collision_layer = {layer}\n    {area}.collision_mask = 0\n    {area}.set_meta(\"source_collision_perso\", {})\n    {actor}.add_child({area})\n    {area}.owner = {actor}",
-        quoted(perso.path.as_str())
+        "    var {area} = {native_type}.new()\n    {area}.name = \"{label}\"\n    {area}.collision_layer = {layer}\n    {area}.collision_mask = 0\n    {actor}.add_child({area})\n    {area}.owner = {actor}"
     )?;
     if group_index == 1 {
         writeln!(
@@ -531,7 +541,11 @@ pub(super) fn export_perso(
         project.character_rigs.insert(rig_id.clone());
     }
     let path = perso_path(project, perso);
-    project.reserve(&path)?;
+    project.actors.insert(perso.path.as_str().to_owned());
+    let controller = format!(
+        "res://{}/actions.gd",
+        rig_directory(project, &family, &rig_id)
+    );
     let name = format!(
         "perso_{}",
         &super::digest(perso.path.as_str().as_bytes())[..12]
@@ -542,7 +556,8 @@ pub(super) fn export_perso(
         .map_or(-1, i64::from);
     writeln!(
         project.builder,
-        "    var {name} = {rig_id}()\n    {name}.name = {}\n    {name}.set_meta(\"source_perso_name\", {})\n    {name}.set_meta(\"source_perso\", {})",
+        "    var {name} = {rig_id}(native_resource({}))\n    {name}.name = {}\n    {name}.set_meta(\"source_perso_name\", {})\n    {name}.set_meta(\"source_perso\", {})",
+        quoted(&controller),
         quoted(&label(&perso.name)),
         quoted(&perso.name),
         quoted(perso.path.as_str())
@@ -602,10 +617,6 @@ pub(super) fn export_perso(
             microphone.eligible != 0
         )?;
     }
-    let controller = format!(
-        "res://{}/actions.gd",
-        rig_directory(project, &family, &rig_id)
-    );
     if let Some(component) = &perso.particles {
         if component.selected.is_some() || component.enabled {
             project.diagnostic(format!(
@@ -620,7 +631,8 @@ pub(super) fn export_perso(
     }
     auxiliary_collision(project, source, perso, &family, &name, 1)?;
     auxiliary_collision(project, source, perso, &family, &name, 3)?;
-    movement_collision(project, source, perso, &name, &controller)?;
+    let root_script =
+        movement_collision(project, source, perso, &name, &controller)?.unwrap_or(controller);
     let choices = configurations
         .iter()
         .map(|config| {
@@ -812,10 +824,25 @@ pub(super) fn export_perso(
         )?;
     }
     super::ai::component(project, source, perso, &name, written)?;
+    if let Some(placed) = placed_script(
+        project,
+        source,
+        perso,
+        &root_script,
+        &rig_directory(project, &family, &rig_id),
+    )? {
+        writeln!(
+            project.builder,
+            "    replace_root_script({name}, native_resource({}))",
+            quoted(&placed)
+        )?;
+    }
     writeln!(
         project.builder,
-        "    {name}.source_set_object_active_state({name}.source_object_active and not {name}.source_return_suppressed)\n    {name}.refresh_configured_participation()\n    save_scene({name}, {})\n    {name}.free()",
-        quoted(&format!("res://{path}"))
+        "    {name}.source_set_object_active_state({name}.source_object_active and not {name}.source_return_suppressed)\n    {name}.refresh_configured_participation()\n    register_actor({name}, {}, {}, {})",
+        quoted(&format!("res://{path}")),
+        quoted(&format!("res://{}", project.level_path("actors"))),
+        quoted(&label(&family.name))
     )?;
     if state < 0 {
         project.diagnostic(format!(
@@ -825,6 +852,108 @@ pub(super) fn export_perso(
     }
     project.diagnostic(format!("{}: native sampled poses; native translation tracks available; gameplay visibility overrides, root rotation, lip sync and complete AI control remain unsupported",perso.path));
     Ok(())
+}
+
+/// Placed-actor parameters: per-instance values of an actor's children exposed
+/// as typed exports on its root, so a shared actor scene can be placed with its
+/// own designer values, behavior selections and scene references. Each value
+/// is forwarded to the child field it stands for; the builder copies the built
+/// child values here before grouping.
+fn placed_script(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    perso: &Perso,
+    base: &str,
+    directory: &str,
+) -> Result<Option<String>> {
+    let mut fields: Vec<(String, String, String, String)> = Vec::new();
+    if let Some(brain) = &perso.brain {
+        let model = source.load(&brain.model)?;
+        for (i, v) in model.variables.iter().enumerate() {
+            fields.push((
+                format!("brain_dsg_{i}"),
+                format!("Brain:dsg_{i}"),
+                format!(": {}", super::ai::value_type(&v.default)),
+                String::new(),
+            ));
+        }
+        for name in ["current_normal", "current_reflex"] {
+            fields.push((
+                format!("brain_{name}"),
+                format!("Brain:{name}"),
+                ": int".into(),
+                " = -1".into(),
+            ));
+        }
+        for i in 0..model.actor_field_targets().len() {
+            fields.push((
+                format!("brain_actor_brain_{i}_path"),
+                format!("Brain:actor_brain_{i}_path"),
+                ": NodePath".into(),
+                String::new(),
+            ));
+        }
+        fields.push((
+            "brain_main_actor_path".into(),
+            "Brain:main_actor_path".into(),
+            ": NodePath".into(),
+            String::new(),
+        ));
+    }
+    if perso.camera.is_some() {
+        fields.push((
+            "camera_initial_target_path".into(),
+            "SourceCamera:initial_target_path".into(),
+            ": NodePath".into(),
+            String::new(),
+        ));
+    }
+    if fields.is_empty() {
+        return Ok(None);
+    }
+    let mut script = format!(
+        "extends {}\n## Placed-actor parameters. A placed actor stores these per-instance values\n## on its root; each is forwarded to the child field named in PLACED_PARAMETERS.\n## NodePaths are relative to this root.\nconst PLACED_PARAMETERS := {{\n",
+        quoted(base)
+    );
+    for (property, target, _, _) in &fields {
+        writeln!(script, "    &{}: ^{},", quoted(property), quoted(target))?;
+    }
+    script.push_str("}\nvar _placed_parameters_applied := false\n");
+    let mut group = "";
+    for (property, _, kind, default) in &fields {
+        let next = if property.starts_with("brain_") { "Brain" } else { "Camera" };
+        if next != group {
+            group = next;
+            let prefix = if group == "Brain" { "brain_" } else { "camera_" };
+            writeln!(script, "@export_group({}, {})", quoted(group), quoted(prefix))?;
+        }
+        writeln!(
+            script,
+            "@export var {property}{kind}{default}:\n    set(value):\n        {property} = value\n        _forward_placed_parameter(&{}, value)",
+            quoted(property)
+        )?;
+    }
+    script.push_str(
+        "\nfunc _forward_placed_parameter(property: StringName, value: Variant) -> void:\n    var target: NodePath = PLACED_PARAMETERS[property]\n    var child := get_node_or_null(NodePath(target.get_concatenated_names()))\n    if child == null: return\n    if value is NodePath and not value.is_empty() and not value.is_absolute():\n        value = NodePath(\"..\" if str(value) == \".\" else \"../\" + str(value))\n    child.set(target.get_concatenated_subnames(), value)\n\n# Root values are authoritative: apply them once, before children enter _ready.\nfunc _notification(what: int) -> void:\n    if what == NOTIFICATION_ENTER_TREE and not _placed_parameters_applied:\n        _placed_parameters_applied = true\n        for property in PLACED_PARAMETERS:\n            _forward_placed_parameter(property, get(property))\n",
+    );
+    let path = format!(
+        "{directory}/placed_{}.gd",
+        &super::digest(script.as_bytes())[..12]
+    );
+    if !project.generated.contains(&path) {
+        project.write(path.clone(), script.as_bytes())?;
+    }
+    Ok(Some(format!("res://{path}")))
+}
+
+/// A perso's own scene path, for consumers that spawn that specific actor.
+pub(super) fn own_scene_path(project: &mut Project, perso: &Perso) -> Result<String> {
+    writeln!(
+        project.builder,
+        "    require_own_actor_scene({})",
+        quoted(perso.path.as_str())
+    )?;
+    Ok(perso_path(project, perso))
 }
 
 fn rig_directory(project: &Project, family: &Family, rig_id: &str) -> String {
@@ -1071,8 +1200,7 @@ fn export_rig(
         super::action::compile(family)?.as_bytes(),
     )?;
     let mut function = format!(
-        "\nfunc {rig_id}() -> Node3D:\n    var actor = CharacterBody3D.new()\n    actor.set_script(native_resource({}))\n    actor.set_meta(\"source_family\", {})\n    actor.collision_layer = 0\n    actor.collision_mask = 1\n    var motion = Node3D.new()\n    motion.name = \"RootMotion\"\n    actor.add_child(motion)\n    motion.owner = actor\n    var channels = Node3D.new()\n    channels.name = \"Channels\"\n    actor.add_child(channels)\n    channels.owner = actor\n",
-        quoted(&format!("res://{controller}")),
+        "\nfunc {rig_id}(script: Script) -> Node3D:\n    var actor = CharacterBody3D.new()\n    actor.set_script(script)\n    actor.set_meta(\"source_family\", {})\n    actor.collision_layer = 0\n    actor.collision_mask = 1\n    var motion = Node3D.new()\n    motion.name = \"RootMotion\"\n    actor.add_child(motion)\n    motion.owner = actor\n    var channels = Node3D.new()\n    channels.name = \"Channels\"\n    actor.add_child(channels)\n    channels.owner = actor\n",
         quoted(family.path.as_str())
     );
     for channel in &channels {
@@ -1543,12 +1671,14 @@ impl Project {
     ) -> Result<()> {
         let perso = source.load(reference)?;
         perso.validate_reference(&reference.path)?;
-        let path = perso_path(self, &perso);
-        ensure!(self.generated.contains(&path), "missing character scene");
+        ensure!(
+            self.actors.contains(perso.path.as_str()),
+            "missing character scene"
+        );
         writeln!(
             self.builder,
-            "    var {parent}_character = load({}).instantiate()\n    {parent}.add_child({parent}_character)\n    {parent}_character.owner = {owner}",
-            quoted(&format!("res://{path}"))
+            "    var {parent}_character = instance_actor({})\n    {parent}.add_child({parent}_character)\n    {parent}_character.owner = {owner}",
+            quoted(perso.path.as_str())
         )?;
         Ok(())
     }

@@ -616,7 +616,7 @@ impl Project {
             let character = format!("{}_character", names[&node.id]);
             writeln!(
                 self.builder,
-                "    {scene_id}.set_editable_instance({character}, true)\n    {character}.source_state_owner_path = {character}.get_path_to({scene_id})"
+                "    {character}.source_state_owner_path = {character}.get_path_to({scene_id})"
             )?;
             writeln!(
                 self.builder,
@@ -677,7 +677,7 @@ impl Project {
                 let character = format!("{}_character", names[&node.id]);
                 writeln!(
                     self.builder,
-                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.physical_environment = {physical}"
+                    "    {character}.physical_environment = {physical}"
                 )?;
             }
             let model = source.load(&brain.model)?;
@@ -725,7 +725,7 @@ impl Project {
                 let character = format!("{}_character", names[&node.id]);
                 writeln!(
                     self.builder,
-                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.get_node(\"Brain\").set(\"actor_brain_{i}_path\", {character}.get_node(\"Brain\").get_path_to({target_name}.get_node(\"Brain\")))"
+                    "    {character}.brain_actor_brain_{i}_path = {character}.get_path_to({target_name}.get_node(\"Brain\"))"
                 )?;
             }
             for (i, value) in brain.variables.iter().enumerate() {
@@ -747,7 +747,7 @@ impl Project {
                 let target = format!("{}_character", names[&target_node.id]);
                 writeln!(
                     self.builder,
-                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.get_node(\"Brain\").dsg_{i} = {target}"
+                    "    {character}.brain_dsg_{i} = {target}"
                 )?;
             }
         }
@@ -768,7 +768,7 @@ impl Project {
             // inspection pose until their own behavior path is supported.
             writeln!(
                 self.builder,
-                "    {scene_id}.set_editable_instance({main}, true)\n    {main}.motion_enabled = true"
+                "    {main}.motion_enabled = true"
             )?;
             writeln!(
                 self.builder,
@@ -785,7 +785,7 @@ impl Project {
                 let camera_actor = format!("{}_character", names[&node.id]);
                 writeln!(
                     self.builder,
-                    "    {scene_id}.set_editable_instance({camera_actor}, true)\n    {camera_actor}.get_node(\"SourceCamera\").initial_target_path = {camera_actor}.get_node(\"SourceCamera\").get_path_to({main})"
+                    "    {camera_actor}.camera_initial_target_path = {camera_actor}.get_path_to({main})"
                 )?;
             }
             writeln!(
@@ -805,7 +805,7 @@ impl Project {
                 let character = format!("{}_character", names[&node.id]);
                 writeln!(
                     self.builder,
-                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.get_node(\"Brain\").main_actor_path = {character}.get_node(\"Brain\").get_path_to({main})"
+                    "    {character}.brain_main_actor_path = {character}.get_path_to({main})"
                 )?;
             }
             for name in global_names.values() {
