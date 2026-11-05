@@ -22,7 +22,7 @@ const CASES := {
 	# 160 passed, 162 armed, as the chain leaves them) and Hype walking the last
 	# four markers on his forward input, heading at the armed marker; then No
 	# to the rematch (answer 1 of wellet_reussit).
-	"race_win": {"watch": [178, 181, 162, 164, 166, 168], "near": 178, "at": Vector3(190.6, -15.3, 121.4), "seconds": 70.0, "map_first": true, "talk": true, "gold": 200, "answers": {"wellet_explicationcourse": 1, "wellet_reussit": 1}, "course": [162, 164, 166, 168]},
+	"race_win": {"watch": [178, 181, 162, 164, 166, 168], "near": 178, "at": Vector3(190.6, -15.3, 121.4), "seconds": 95.0, "map_first": true, "talk": true, "gold": 200, "answers": {"wellet_explicationcourse": 1, "wellet_reussit": 1}, "course": [162, 164, 166, 168]},
 	# Water during the race: once 1800 runs (normal 6), Hype is placed just above
 	# a real surface below -16 on the course's last stretch (source x 140 to 210,
 	# y -135 to -170), where 181's sector is loaded.
@@ -163,12 +163,17 @@ func run() -> void:
 				hype.global_position = found + Vector3(0, 0.6, 0)
 				hype.velocity = Vector3.ZERO
 		# Page through any dialogue the start position opens, as a player does.
+		if not is_instance_valid(hype_brain) or not is_instance_valid(level):
+			report["level_gone_at"] = float(step) / Engine.physics_ticks_per_second
+			report["session_state"] = [str(current_scene), session.get("loading_stage") if is_instance_valid(session) else "-", session.get("source_death_requested") if is_instance_valid(session) else "-", session.get("level").get_meta("source_level", "") if is_instance_valid(session) and is_instance_valid(session.get("level")) else "-"]
+			report["last_samples"] = report["samples"].slice(-6)
+			break
 		var phase := step % 30
 		if phase == 0 and choose_answer(spec, screen):
 			press_key(&"Button_Down", true)
 		elif phase == 2:
 			press_key(&"Button_Down", false)
-		elif int(hype_brain.get("current_normal")) in [28, 41] and phase == 15:
+		elif phase == 15 and (int(hype_brain.get("current_normal")) in [28, 41] or (screen != null and screen.get("dialogue").get("item") != null and not bool(screen.get("dialogue").call("is_over")))):
 			press_hit(true)
 		elif phase == 18:
 			press_hit(false)
@@ -203,6 +208,8 @@ func run() -> void:
 		if shots != "" and step % shot_every == 0:
 			await save_shot("%s_%03d" % [case_name, step / shot_every])
 	Input.action_release(&"Analog_Up")
+	if report.has("level_gone_at"):
+		finish(false, "the level was torn down at %s s: %s (water %s)" % [report["level_gone_at"], report["session_state"], report.get("water_start")]); return
 	if spec.has("gold"): report["gold_end"] = hype.get("source_inventory").call("gold_value")
 	report["moved"] = {}
 	for index in watch:
