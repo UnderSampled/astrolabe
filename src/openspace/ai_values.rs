@@ -54,7 +54,7 @@ pub struct DesignerValueCodec {
 }
 impl DesignerValueCodec {
     pub fn supports(kind: u32) -> bool {
-        matches!(kind, 0..=12 | 14 | 20..=23 | 25)
+        matches!(kind, 0..=12 | 14 | 19..=23 | 25)
     }
     pub fn kind(value: &DesignerValue) -> u32 {
         match value {
@@ -71,6 +71,7 @@ impl DesignerValueCodec {
             DesignerValue::Real(_) => 7,
             DesignerValue::Vector(_) => 12,
             DesignerValue::ActorList(_) => 11,
+            DesignerValue::ActorArray(_) => 19,
             DesignerValue::VectorArray(_) => 20,
             DesignerValue::RealArray(_) => 21,
             DesignerValue::IntegerArray(_) => 22,
@@ -92,7 +93,7 @@ impl DesignerValueCodec {
             5..=8 | 10 | 14 => 4,
             11 => 4 + 4 * usize::from(ListHeader::read(&mut Cursor::new(bytes))?.capacity),
             12 => 12,
-            20..=23 | 25 => 8 + 12 * usize::from(ArrayHeader::read(&mut Cursor::new(bytes))?.count),
+            19..=23 | 25 => 8 + 12 * usize::from(ArrayHeader::read(&mut Cursor::new(bytes))?.count),
             _ => bail!("unsupported designer type {}", self.kind),
         })
     }
@@ -155,6 +156,27 @@ impl FormatCodec for DesignerValueCodec {
                 })
             }
             12 => DesignerValue::Vector(<[f32; 3]>::read_le(&mut c)?),
+            19 => {
+                let raw: DesignerArray<u32> = read_array(&mut c, 10, true)?;
+                let mut values = Vec::with_capacity(raw.values.len());
+                for (index, word) in raw.values.iter().enumerate() {
+                    let offset = 8 + index * 12;
+                    values.push(if *word == 0 {
+                        None
+                    } else if let Some(Some(actor)) = self.actors.get(&offset) {
+                        Some(DesignerActorListEntry::Actor(actor.clone()))
+                    } else if let Some(Some(source)) = self.source_actors.get(&offset) {
+                        Some(DesignerActorListEntry::Source(source.clone()))
+                    } else {
+                        bail!("unbound designer actor array element at +{offset}")
+                    });
+                }
+                DesignerValue::ActorArray(DesignerArray {
+                    values,
+                    unknown: raw.unknown,
+                    element_unknown: raw.element_unknown,
+                })
+            }
             20 => DesignerValue::VectorArray(read_array(&mut c, 12, false)?),
             21 => DesignerValue::RealArray(read_array(&mut c, 7, true)?),
             22 => DesignerValue::IntegerArray(read_array(&mut c, 5, true)?),
@@ -259,6 +281,29 @@ impl FormatCodec for DesignerValueCodec {
                     };
                     handle.write_le(&mut c)?;
                 }
+            }
+            DesignerValue::ActorArray(v) => {
+                let mut handles = Vec::with_capacity(v.values.len());
+                for entry in &v.values {
+                    handles.push(match entry {
+                        None => 0,
+                        Some(DesignerActorListEntry::Actor(actor)) => self
+                            .actor_handles
+                            .iter()
+                            .find(|(reference, _)| reference.as_ref() == Some(actor))
+                            .map(|(_, handle)| *handle)
+                            .context("missing assigned designer array actor handle")?,
+                        Some(DesignerActorListEntry::Source(_)) => {
+                            bail!("external source array actor reconstruction is not implemented")
+                        }
+                    });
+                }
+                let raw = DesignerArray {
+                    values: handles,
+                    unknown: v.unknown,
+                    element_unknown: v.element_unknown.clone(),
+                };
+                write_array(&mut c, &raw, 10, true)?
             }
             DesignerValue::VectorArray(v) => write_array(&mut c, v, 12, false)?,
             DesignerValue::RealArray(v) => write_array(&mut c, v, 7, true)?,
@@ -410,6 +455,42 @@ mod list_tests {
         assert_eq!(value, DesignerValue::Way(3));
         assert_eq!(DesignerValueCodec::kind(&value), 9);
         assert_eq!(codec.write(&value)?, [3]);
+        Ok(())
+    }
+
+    #[test]
+    fn perso_array_keeps_header_element_bytes_and_actor_identities() -> Result<()> {
+        // DSG type 19 (PersoArray): header (element kind 10, count 3, three
+        // unknown bytes), then 12-byte elements of a Perso word + 8 bytes.
+        assert!(DesignerValueCodec::supports(19));
+        let actor = AssetRef::new("level:/persos/world/0/7")?;
+        let mut codec = DesignerValueCodec {
+            kind: 19,
+            ..Default::default()
+        };
+        codec.actors.insert(20, Some(actor.clone()));
+        codec.actor_handles.push((Some(actor.clone()), 0x0901_2345));
+        let mut bytes = vec![10, 0, 0, 0, 3, 0xa1, 0xb2, 0xc3];
+        bytes.extend([0; 12]);
+        bytes.extend([0x45, 0x23, 0x01, 0x09, 0, 0, 0, 0, 0, 0, 0, 0]);
+        bytes.extend([0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8]);
+        let value = codec.read(&bytes)?;
+        let DesignerValue::ActorArray(array) = &value else {
+            panic!("type 19 did not decode as an actor array")
+        };
+        assert_eq!(array.values.len(), 3);
+        assert!(array.values[0].is_none() && array.values[2].is_none());
+        assert_eq!(
+            array.values[1],
+            Some(DesignerActorListEntry::Actor(actor.clone()))
+        );
+        assert_eq!(array.unknown, [0xa1, 0xb2, 0xc3]);
+        assert_eq!(DesignerValueCodec::kind(&value), 19);
+        assert_eq!(codec.write(&value)?, bytes);
+        // An element word with no actor binding is refused, not guessed.
+        let mut unbound = bytes.clone();
+        unbound[8] = 1;
+        assert!(codec.read(&unbound).is_err());
         Ok(())
     }
 

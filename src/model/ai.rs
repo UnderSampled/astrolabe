@@ -1219,6 +1219,10 @@ pub enum DesignerValue {
     /// A bounded source list whose verified camera use stores Perso identities.
     /// Inactive slots remain present because source removal can leave stale data.
     ActorList(DesignerActorList),
+    /// DSG type 19, PersoArray (descriptor 0x5fdcc0 row 19, the generic array
+    /// reader/writer 00523a20/00523d30): Perso words in 12-byte elements. The
+    /// header's three bytes and each element's trailing 8 bytes are kept.
+    ActorArray(DesignerArray<Option<DesignerActorListEntry>>),
     Action(Option<StateRef>),
     ActionArray(DesignerArray<Option<StateRef>>),
     Actor(Option<AssetRef<Perso>>),
@@ -1511,12 +1515,29 @@ impl AiModel {
         let mut out = Vec::new();
         for script in self.scripts() {
             for (node, _) in script.walk() {
-                if let AstNode::Statement(Statement::ExecuteActionAndGenerateObject {
-                    template,
-                    ..
-                }) = node
-                    && !out.contains(template)
-                {
+                let template = match node {
+                    AstNode::Statement(Statement::ExecuteActionAndGenerateObject {
+                        template,
+                        ..
+                    }) => template,
+                    // A Perso stored into a PersoArray may be an unplaced fix
+                    // object template; its exported scene is its identity.
+                    AstNode::Statement(Statement::ArrayAssign {
+                        array: Expression::Variable(variable),
+                        value: Expression::Actor(ActorTarget::Reference(template)),
+                        ..
+                    }) if matches!(
+                        self.variables
+                            .get(usize::from(*variable))
+                            .map(|v| &v.default),
+                        Some(DesignerValue::ActorArray(_))
+                    ) =>
+                    {
+                        template
+                    }
+                    _ => continue,
+                };
+                if !out.contains(template) {
                     out.push(template.clone());
                 }
             }

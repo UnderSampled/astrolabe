@@ -729,6 +729,47 @@ impl Project {
                 )?;
             }
             for (i, value) in brain.variables.iter().enumerate() {
+                let crate::model::ai::DesignerValue::ActorArray(array) = value else {
+                    continue;
+                };
+                if array.values.iter().all(Option::is_none) {
+                    continue;
+                }
+                let mut elements = Vec::with_capacity(array.values.len());
+                for entry in &array.values {
+                    elements.push(match entry {
+                        None => "null".to_string(),
+                        Some(crate::model::ai::DesignerActorListEntry::Actor(target)) => {
+                            let target_node = scene
+                                .nodes
+                                .iter()
+                                .find(|n| n.perso.as_ref() == Some(target))
+                                .ok_or_else(|| {
+                                    anyhow::anyhow!(
+                                        "{} designer {i} array refers to actor {} outside the saved scene",
+                                        perso.path,
+                                        target.path
+                                    )
+                                })?;
+                            format!("{}_character", names[&target_node.id])
+                        }
+                        Some(crate::model::ai::DesignerActorListEntry::Source(_)) => {
+                            anyhow::bail!(
+                                "{} designer {i} array holds an actor outside the imported graph",
+                                perso.path
+                            )
+                        }
+                    });
+                }
+                let character = format!("{}_character", names[&node.id]);
+                // A new array per placed actor, never shared.
+                writeln!(
+                    self.builder,
+                    "    {character}.brain_dsg_{i} = [{}]",
+                    elements.join(", ")
+                )?;
+            }
+            for (i, value) in brain.variables.iter().enumerate() {
                 let crate::model::ai::DesignerValue::Actor(Some(target)) = value else {
                     continue;
                 };

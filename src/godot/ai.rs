@@ -747,6 +747,8 @@ pub(super) fn value_type(v: &DesignerValue) -> &'static str {
         DesignerValue::RealArray(_) => "PackedFloat32Array",
         DesignerValue::VectorArray(_) => "PackedVector3Array",
         DesignerValue::ActorList(_) => "Array[Node3D]",
+        // Placed actor nodes, fix object templates (their PackedScene) or null.
+        DesignerValue::ActorArray(_) => "Array",
         DesignerValue::Actor(_) | DesignerValue::SourceActor(_) => "Node3D",
         DesignerValue::SourceWaypoint(_) | DesignerValue::SourceWaypointArray(_) => "Variant",
         DesignerValue::Waypoint(_) => "Resource",
@@ -838,6 +840,8 @@ fn literal(
                 .join(", ")
         ),
         DesignerValue::ActorList(_) => "[]".into(),
+        // Non-null elements are scene actors, assigned in the saved scene.
+        DesignerValue::ActorArray(v) => format!("[{}]", vec!["null"; v.values.len()].join(", ")),
         DesignerValue::Opaque { bytes, .. } => format!(
             "PackedByteArray([{}])",
             bytes
@@ -1082,6 +1086,7 @@ fn reference_expression(expression: &Expression, model: &AiModel) -> bool {
                     | DesignerValue::Waypoint(_)
                     | DesignerValue::SourceWaypoint(_)
                     | DesignerValue::ActorList(_)
+                    | DesignerValue::ActorArray(_)
                     | DesignerValue::WaypointArray(_)
                     | DesignerValue::SourceWaypointArray(_)
             )
@@ -1094,6 +1099,7 @@ fn reference_expression(expression: &Expression, model: &AiModel) -> bool {
                     .map(|variable| &variable.default),
                 Some(
                     DesignerValue::ActorList(_)
+                        | DesignerValue::ActorArray(_)
                         | DesignerValue::WaypointArray(_)
                         | DesignerValue::SourceWaypointArray(_)
                 )
@@ -4554,6 +4560,45 @@ fn statements(
                 };
                 if matches!(
                     model.variables[usize::from(variable)].default,
+                    DesignerValue::ActorArray(_)
+                ) {
+                    // A PersoArray element holds a Perso identity: a placed
+                    // scene actor's node, else a fix object template's cached
+                    // PackedScene (never spawned), else null for Nobody.
+                    let index = guarded_expression(out, index, model, depth, flow)?;
+                    if matches!(value, Expression::Nobody) {
+                        writeln!(out, "{pad}dsg_{variable}[int({index})] = null")?;
+                        continue;
+                    }
+                    let template = match value {
+                        Expression::Actor(ActorTarget::Reference(reference)) => model
+                            .object_templates()
+                            .iter()
+                            .position(|template| template == reference),
+                        _ => None,
+                    };
+                    let value = guarded_expression(out, value, model, depth, flow)?;
+                    let id = flow.local;
+                    flow.local += 1;
+                    writeln!(out, "{pad}var actor_array_value_{id}: Variant = {value}")?;
+                    if let Some(template) = template {
+                        writeln!(
+                            out,
+                            "{pad}if not (actor_array_value_{id} is Node3D) and not object_template_{template}_path.is_empty():\n{pad}    actor_array_value_{id} = character()._source_template(object_template_{template}_path)"
+                        )?;
+                    }
+                    writeln!(
+                        out,
+                        "{pad}if not (actor_array_value_{id} is Node3D or actor_array_value_{id} is PackedScene):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}dsg_{variable}[int({index})] = actor_array_value_{id}",
+                        quoted(&format!(
+                            "{} stores a Perso in dsg_{variable} that is neither a placed actor nor an exported object template",
+                            model.path
+                        ))
+                    )?;
+                    continue;
+                }
+                if matches!(
+                    model.variables[usize::from(variable)].default,
                     DesignerValue::WaypointArray(_)
                 ) {
                     // A waypoint array holds waypoint Resources (Array[Resource]):
@@ -5101,6 +5146,13 @@ fn brain_variable_initialization(
     if matches!(value, DesignerValue::ActorList(_)) {
         return Ok(format!(
             "var {parent}_brain_list_{index}: Array[Node3D] = []\n    {parent}_brain.dsg_{index} = {parent}_brain_list_{index}"
+        ));
+    }
+    if let DesignerValue::ActorArray(v) = value {
+        // A fresh array per placed actor; non-null elements are bound later.
+        return Ok(format!(
+            "var {parent}_brain_array_{index}: Array = [{}]\n    {parent}_brain.dsg_{index} = {parent}_brain_array_{index}",
+            vec!["null"; v.values.len()].join(", ")
         ));
     }
     if matches!(
@@ -5713,6 +5765,70 @@ mod source_position_tests {
             "{generated}"
         );
         assert!(!generated.contains("float(dsg_1[int(0)])"), "{generated}");
+        Ok(())
+    }
+
+    #[test]
+    fn perso_array_stores_nobody_placed_actors_and_template_identities() -> anyhow::Result<()> {
+        // DSG type 19: Nobody is null; a reference is its placed node, else
+        // the exported template's cached PackedScene (thief 1060's stores).
+        let path = AssetPath::new("level:/ai/models/perso_array")?;
+        let template: AssetRef<Perso> = AssetRef::new("fix:/persos/5-0-27239")?;
+        let store = |index, value| Statement::ArrayAssign {
+            array: Expression::Variable(0),
+            index: Expression::Integer(index),
+            value,
+        };
+        let model = AiModel {
+            path,
+            name: "Perso array".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![
+                            store(0, Expression::Nobody),
+                            store(
+                                1,
+                                Expression::Actor(ActorTarget::Reference(template.clone())),
+                            ),
+                        ],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: vec![DesignerVariable {
+                default: DesignerValue::ActorArray(DesignerArray::new(vec![None, None])),
+                save: 0,
+                initialize: 0,
+            }],
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        assert_eq!(model.object_templates(), vec![template]);
+        let generated = compile(&model, &[])?;
+        assert!(
+            generated.contains("@export var dsg_0: Array = [null, null]"),
+            "{generated}"
+        );
+        assert!(generated.contains("dsg_0[int(0)] = null"), "{generated}");
+        assert!(
+            generated.contains("character().source_actor_node(\"fix:/persos/5-0-27239\")"),
+            "{generated}"
+        );
+        assert!(
+            generated.contains("character()._source_template(object_template_0_path)"),
+            "{generated}"
+        );
+        assert!(
+            generated.contains("is Node3D or actor_array_value_"),
+            "{generated}"
+        );
         Ok(())
     }
 

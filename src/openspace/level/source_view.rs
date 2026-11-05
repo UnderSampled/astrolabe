@@ -245,7 +245,7 @@ where
         ..Default::default()
     };
     let prefix = match info.kind {
-        20..=23 | 25 => 8,
+        19..=23 | 25 => 8,
         0..=2 | 9 => 1,
         3..=4 => 2,
         5..=8 | 10..=11 | 14 => 4,
@@ -292,6 +292,23 @@ where
                 .insert(0, Some(source.source_identity(target)?));
         } else {
             codec.actors.insert(0, mapped);
+        }
+    }
+    if info.kind == 19 {
+        // PersoArray elements bind like a single Perso value (kind 10).
+        for operand in (0..(extent - 8) / 12).map(|index| 8 + 12 * index) {
+            let site = source.add(address, operand)?;
+            if matches!(u32_at(&bytes, operand)?, 0 | u32::MAX) {
+                continue;
+            }
+            let target = source.required(site, 0)?;
+            if let Some(actor) = actor(Some(target))? {
+                codec.actors.insert(operand, Some(actor));
+            } else {
+                codec
+                    .source_actors
+                    .insert(operand, Some(source.source_identity(target)?));
+            }
         }
     }
     if info.kind == 11 {
