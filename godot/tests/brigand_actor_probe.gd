@@ -14,6 +14,10 @@ const CASES := {
 	# The take at 426 s: Hype at source (47, -26, -16.9), below the -16 that
 	# iDummy_Brigand1_Trous (181, model 1892) tests, with no fade or warp.
 	"hole": {"watch": [181, 178], "near": 181, "at": Vector3(47.0, -16.9, 26.0), "seconds": 8.0, "map_first": true},
+	# Wellet's race (1800, the kid at source (192.9, -121.9, -15.3)): Hype beside
+	# him with gold for the fee, accepts by paging every question (answer 0 is
+	# Yes), then stands still: the 60 s trial (dsg_6 60000) runs out.
+	"race": {"watch": [178, 181, 169, 168, 135], "near": 178, "at": Vector3(190.6, -15.3, 121.4), "seconds": 95.0, "map_first": true, "talk": true, "gold": 200, "answers": {"wellet_explicationcourse": 1}},
 	"wolves_bite": {"watch": [119, 120], "near": 120, "offset": Vector3(0.0, 0.0, -12.0), "seconds": 24.0, "bite": true},
 	"bats": {"watch": [45, 46, 47, 48, 49, 50, 51], "near": 51, "offset": Vector3(0.0, 0.0, 6.0), "seconds": 12.0},
 	# The original take's own stop at Maliq (467 s): source (40.1, -71.0, -15.0).
@@ -104,6 +108,16 @@ func run() -> void:
 	var start: Vector3 = spec["at"] if spec.has("at") else anchor.global_position + (spec["offset"] as Vector3)
 	hype.global_position = start
 	hype.velocity = Vector3.ZERO
+	if spec.has("gold"):
+		var purse: Resource = hype.get("source_inventory")
+		purse.call("add_gold", int(spec["gold"]) - int(purse.call("gold_value")))
+		report["gold_start"] = purse.call("gold_value")
+	if spec.get("talk", false):
+		hype.look_at(actor_of(world, spec["near"]).global_position, Vector3.UP, true)
+		for i in 10: await physics_frame
+		press_hit(true)
+		for i in 4: await physics_frame
+		press_hit(false)
 	report["start"] = vec(start)
 	var watch: Array = spec["watch"]
 	var initial := {}
@@ -125,15 +139,19 @@ func run() -> void:
 			walk_toward(hype, walk_target, session)
 		# Page through any dialogue the start position opens, as a player does.
 		var phase := step % 30
-		if int(hype_brain.get("current_normal")) == 28 and phase == 0:
+		if phase == 0 and choose_answer(spec, screen):
+			press_key(&"Button_Down", true)
+		elif phase == 2:
+			press_key(&"Button_Down", false)
+		elif int(hype_brain.get("current_normal")) in [28, 41] and phase == 15:
 			press_hit(true)
-		elif phase == 3:
+		elif phase == 18:
 			press_hit(false)
 		await physics_frame
 		if screen != null:
 			var box: Node = screen.get("dialogue")
 			var item: Variant = box.get("item") if box != null else null
-			var state := "%s pending=%s normal=%s brain=%s over=%s" % [item.identity if item != null else "-", screen.get("completion_pending"), screen.get("completion_normal"), str(screen.get("completion_brain").get_path()) if is_instance_valid(screen.get("completion_brain")) else "-", box.call("is_over") if box != null else "?"]
+			var state := "%s page=%s reveal=%s pending=%s normal=%s brain=%s over=%s" % [item.identity if item != null else "-", box.get("page_start"), box.get("_reveal_active"), screen.get("completion_pending"), screen.get("completion_normal"), str(screen.get("completion_brain").get_path()) if is_instance_valid(screen.get("completion_brain")) else "-", box.call("is_over") if box != null else "?"]
 			if state != last_dialogue:
 				report["dialogue_changes"].append([step, state])
 				last_dialogue = state
@@ -159,6 +177,7 @@ func run() -> void:
 		if shots != "" and step % shot_every == 0:
 			await save_shot("%s_%03d" % [case_name, step / shot_every])
 	Input.action_release(&"Analog_Up")
+	if spec.has("gold"): report["gold_end"] = hype.get("source_inventory").call("gold_value")
 	report["moved"] = {}
 	for index in watch:
 		report["moved"][str(index)] = snappedf(actor_of(world, index).global_position.distance_to(initial[index]), 0.01)
@@ -187,6 +206,13 @@ func finish_case(case_name: String) -> void:
 					finish(false, "wolf %s took the tree sidestep (normal 12) away from its tree" % key); return
 				if float(report["moved"][key]) < 3.0 or float(closest[key]) > 8.0:
 					finish(false, "wolf %s did not move to Hype: moved %s, closest %s" % [key, report["moved"][key], closest[key]]); return
+		"race":
+			var kid: Dictionary = visited.get("178", {})
+			report["race_normals"] = kid.keys()
+			if not kid.has(1) and not kid.has(6):
+				finish(false, "Wellet's race never started: 1800 normals %s, Hype normals %s" % [kid.keys(), samples.map(func(r): return r.get("hype_normal")).reduce(func(a, b): return a if b in a else a + [b], [])]); return
+			if not kid.has(7):
+				finish(false, "the 60 s trial did not fail into normal 7: %s" % [kid.keys()]); return
 		"hole":
 			var first: Array = samples[0]["hype"]
 			for row in samples:
@@ -224,11 +250,42 @@ func finish_case(case_name: String) -> void:
 				finish(false, "no wolf bit Hype from 3.5 m: normals %s, life %s" % [visited, lives.min()]); return
 	finish(true, "source outcome observed")
 
+func press_key(action: StringName, down: bool) -> void:
+	for bound in InputMap.action_get_events(action):
+		if bound is InputEventKey:
+			var event := bound.duplicate() as InputEventKey
+			event.pressed = down
+			Input.parse_input_event(event)
+			return
+
+## Answer choices by dialogue item: scroll to the chosen answer before selecting.
+var answer_scrolled := {}
+func choose_answer(spec: Dictionary, screen: Node) -> bool:
+	if screen == null or not spec.has("answers"): return false
+	var box: Node = screen.get("dialogue")
+	var item: Variant = box.get("item")
+	if item == null or not bool(box.get("answer_mode")): return false
+	var want: int = int(spec["answers"].get(item.identity, 0))
+	var key := str(item.identity) + str(box.get_instance_id())
+	if want <= 0 or answer_scrolled.get(key, 0) >= want: return false
+	answer_scrolled[key] = int(answer_scrolled.get(key, 0)) + 1
+	return true
+
 func press_hit(down: bool) -> void:
-	var event := InputEventAction.new()
-	event.action = &"Button_Hit"
-	event.pressed = down
-	Input.parse_input_event(event)
+	# The bound key, as a player presses it (the screen claims a physical edge).
+	var sent := false
+	for bound in InputMap.action_get_events(&"Button_Hit"):
+		if bound is InputEventKey:
+			var event := bound.duplicate() as InputEventKey
+			event.pressed = down
+			Input.parse_input_event(event)
+			sent = true
+			break
+	if not sent:
+		var event := InputEventAction.new()
+		event.action = &"Button_Hit"
+		event.pressed = down
+		Input.parse_input_event(event)
 	report["presses"] = int(report.get("presses", 0)) + (1 if down else 0)
 
 func walk_toward(_hype: Node3D, _target: Vector3, _session: Node) -> void:
