@@ -110,6 +110,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::ChangeSighting(value)
                 | Statement::ChangeConfiguration(value)
                 | Statement::CameraChangeState { state: value, .. }
+                | Statement::CameraChangeTargetedPersoField { target: value, .. }
                 | Statement::SetActorAbsolutePosition {
                     position: value, ..
                 }

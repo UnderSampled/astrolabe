@@ -3924,6 +3924,27 @@ fn statements(
                     quoted(method)
                 )?;
             }
+            Statement::CameraChangeTargetedPersoField { camera, target } => {
+                let failure = quoted(&format!(
+                    "{} requires camera target state for {}",
+                    model.path,
+                    camera_asset(camera)?
+                ));
+                writeln!(
+                    out,
+                    "{pad}if not character().source_camera_prepare_target_change({}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(&camera_asset(camera)?)
+                )?;
+                // 00548070 evaluates the new target after the old one's reset.
+                let value = guarded_expression(out, target, model, depth, flow)?;
+                let local = format!("camera_field_target_{}", flow.local);
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var {local} = {value}\n{pad}if typeof({local}) != TYPE_OBJECT or not is_instance_valid({local}) or not ({local} is Node3D):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not character().source_camera_change_targeted_perso({}, {local}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(&camera_asset(camera)?)
+                )?;
+            }
             Statement::CameraChangeTargetedPerso { camera, target } => {
                 let failure = quoted(&format!(
                     "{} requires camera target state for {}",

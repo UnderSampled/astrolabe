@@ -663,6 +663,16 @@ impl Parser<'_> {
                     } else if id == 163 {
                         Statement::CameraResetTargetedPerso { camera }
                     } else {
+                        if self.nodes.get(self.at).is_some_and(|n| {
+                            n.indent == indent + 1 && n.kind == 2 && n.parameter == 12
+                        }) {
+                            // An actor read through Operator_Dot (fix 688).
+                            out.push(Statement::CameraChangeTargetedPersoField {
+                                camera,
+                                target: self.expression(indent + 1)?,
+                            });
+                            continue;
+                        }
                         let (target_at, target) = self.take(indent + 1)?;
                         // 00548070 evaluates the new target as any actor
                         // expression (00524fa0), so a designer actor variable
@@ -2708,6 +2718,11 @@ impl Writer<'_> {
                     self.node(4, 415, inner);
                     self.expression(position, inner + 1)?;
                 }
+                Statement::CameraChangeTargetedPersoField { camera, target } => {
+                    self.node(4, 160, indent);
+                    self.camera_node(camera, indent + 1)?;
+                    self.expression(target, indent + 1)?;
+                }
                 Statement::CameraChangeTargetedPerso { camera, target } => {
                     self.node(4, 160, indent);
                     self.camera_node(camera, indent + 1)?;
@@ -4632,6 +4647,29 @@ mod partial_tests {
                 variable: 45,
                 group: BehaviorGroup::Normal,
                 pause_after: false
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn camera_target_read_through_dot_reconstructs() -> Result<()> {
+        // fix 688: Procedure_Camera_ChangeTargetedPerso(Self, MainActor.dsg 9).
+        let (codec, bytes) = partial(&[
+            (4, 160, 1),
+            (0, 4, 2),
+            (2, 12, 2),
+            (0, 5, 3),
+            (11, 9, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::CameraChangeTargetedPersoField {
+                camera: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                target: Expression::MainActorFieldRead(9),
             }
         ));
         assert_eq!(codec.write(&script)?, bytes);

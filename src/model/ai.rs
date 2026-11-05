@@ -557,6 +557,12 @@ pub enum Statement {
         camera: ActorTarget,
         target: ActorTarget,
     },
+    /// Camera procedure 160 whose target is read through Operator_Dot: 00548070
+    /// evaluates the new target as any actor expression (00524fa0).
+    CameraChangeTargetedPersoField {
+        camera: ActorTarget,
+        target: Expression,
+    },
     /// Source camera procedure 163 restores the component target to MainActor.
     CameraResetTargetedPerso {
         /// The camera actor: a referenced camera, or the calling actor (a
@@ -2368,6 +2374,12 @@ impl Script {
                         if let ActorTarget::Reference(camera) = camera {
                             ensure!(camera.path.member().is_none(), "camera is a member");
                         }
+                    }
+                    Statement::CameraChangeTargetedPersoField { camera, target } => {
+                        if let ActorTarget::Reference(camera) = camera {
+                            ensure!(camera.path.member().is_none(), "camera is a member");
+                        }
+                        expression(target, variables, depth + 1, count)?;
                     }
                     Statement::SetActorAbsolutePosition { actor, position } => {
                         ensure!(
