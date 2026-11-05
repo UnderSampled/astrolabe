@@ -167,3 +167,32 @@ Hype source position, `Hype.dsg_56/14/30/123`, fade direction, pending dialogue 
 - GPI hourglass: implement Proc_GPI_SetDraw/SetImage/MovingUV in R/ui/hud*.gd and the emitter (docs/astrolabe/full-game-ai-sites.md:115-120).
 - Camera states used by the win and reward: `source_camera.gd:487` (`source_change_state`), 1398's Camera_SetTargetPosition/SetPosition.
 - Marker action 2: family `characters/feucourse__b3617575/.../actions.gd` and its animation library (converter, not hand edits).
+
+## Runtime results (owner, 2026-11-04)
+
+Port at main 2ac84cb with the always-active and loaded-sector Brain gate. Probe cases are in
+godot/tests/brigand_actor_probe.gd.
+- `race`, offer to failure:
+  - wellet_intro; the 100 fee is charged (200 to 100); wellet_explicationcourse answer 1.
+  - 1800 normal 1: fade, Hype placed at source (-68.9, -9.33, -5.23), as in the take at 793.4 s;
+    181 set to normal 2.
+  - wellet_depart, then 1800 normal 6 at 14.2 s.
+  - Standing still: normal 7 at 76.2 s. Hype is returned to Wellet, 181 goes back to normal 0, and
+    wellet_echouer plays, then the offer again (retry).
+- `race_win`:
+  - The real start, then a positioned course state: chain through 160 passed, 162 armed, Hype 5 m
+    short of 162.
+  - Hype walks on Button_Up with his heading at the armed marker. Markers 162, 164, 166 and 168 each
+    reach normal 4 by contact (14.8 to 18.3 s).
+  - Hype's win and reward normals are 50, 49, 61, 78, 90, the take's sequence at 839 to 851 s.
+  - 1800 normal 8 at 30.1 s.
+- Blocked after that:
+  1. Wellet's run to Hype (normal 8, action 5): his body has no motion enabled, so the run
+     animation's translation is dropped and he never comes within 3 of 168. Normal 9, and with it
+     wellet_reussit and the rematch question, never starts. The port enables motion only for the main
+     actor and after motion procedures. The source mechanics of a treated Character actor apply its
+     animation displacement. That needs a scoped rule with Manoir checks.
+  2. 1398 (the reward actor) normal 10: Func_VectorLocalToGlobal (function 151) with an Ultra
+     MainActor receiver is a generic-untyped stand-in, so 1398.gd:773 fails Vector3 + int. This is in
+     the static worker's "Ultra 151/2" scope.
+- Not exercised: water recovery during the race (181 normal 2 path), and the decline/refus2 reset.

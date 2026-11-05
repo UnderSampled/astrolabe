@@ -18,6 +18,11 @@ const CASES := {
 	# him with gold for the fee, accepts by paging every question (answer 0 is
 	# Yes), then stands still: the 60 s trial (dsg_6 60000) runs out.
 	"race": {"watch": [178, 181, 169, 168, 135], "near": 178, "at": Vector3(190.6, -15.3, 121.4), "seconds": 95.0, "map_first": true, "talk": true, "gold": 200, "answers": {"wellet_explicationcourse": 1}},
+	# The win: the real start, then a positioned course state (markers through
+	# 160 passed, 162 armed, as the chain leaves them) and Hype walking the last
+	# four markers on his forward input, heading at the armed marker; then No
+	# to the rematch (answer 1 of wellet_reussit).
+	"race_win": {"watch": [178, 181, 162, 164, 166, 168], "near": 178, "at": Vector3(190.6, -15.3, 121.4), "seconds": 70.0, "map_first": true, "talk": true, "gold": 200, "answers": {"wellet_explicationcourse": 1, "wellet_reussit": 1}, "course": [162, 164, 166, 168]},
 	"wolves_bite": {"watch": [119, 120], "near": 120, "offset": Vector3(0.0, 0.0, -12.0), "seconds": 24.0, "bite": true},
 	"bats": {"watch": [45, 46, 47, 48, 49, 50, 51], "near": 51, "offset": Vector3(0.0, 0.0, 6.0), "seconds": 12.0},
 	# The original take's own stop at Maliq (467 s): source (40.1, -71.0, -15.0).
@@ -135,8 +140,8 @@ func run() -> void:
 	var steps := int(float(spec["seconds"]) * Engine.physics_ticks_per_second)
 	var shot_every := int(Engine.physics_ticks_per_second * 2)
 	for step in steps:
-		if spec.get("walk", false):
-			walk_toward(hype, walk_target, session)
+		if spec.has("course"):
+			drive_course(spec, world, hype, step)
 		# Page through any dialogue the start position opens, as a player does.
 		var phase := step % 30
 		if phase == 0 and choose_answer(spec, screen):
@@ -206,6 +211,13 @@ func finish_case(case_name: String) -> void:
 					finish(false, "wolf %s took the tree sidestep (normal 12) away from its tree" % key); return
 				if float(report["moved"][key]) < 3.0 or float(closest[key]) > 8.0:
 					finish(false, "wolf %s did not move to Hype: moved %s, closest %s" % [key, report["moved"][key], closest[key]]); return
+		"race_win":
+			var kid: Dictionary = visited.get("178", {})
+			report["race_normals"] = kid.keys()
+			if not visited.get("168", {}).has(4):
+				finish(false, "the last marker 168 never reached normal 4 (course %s, markers %s)" % [report.get("course_start"), [visited.get("162", {}).keys(), visited.get("164", {}).keys(), visited.get("166", {}).keys(), visited.get("168", {}).keys()]]); return
+			if kid.has(7):
+				finish(false, "the race failed (normal 7) despite the finish: %s" % [kid.keys()]); return
 		"race":
 			var kid: Dictionary = visited.get("178", {})
 			report["race_normals"] = kid.keys()
@@ -249,6 +261,42 @@ func finish_case(case_name: String) -> void:
 			if not (visited["119"].has(5) or visited["120"].has(5)) or lives.min() >= lives[0]:
 				finish(false, "no wolf bit Hype from 3.5 m: normals %s, life %s" % [visited, lives.min()]); return
 	finish(true, "source outcome observed")
+
+const CHAIN := [169, 154, 161, 163, 159, 155, 157, 152, 150, 148, 136, 146, 144, 142, 140, 138, 135, 137, 167, 165, 139, 143, 141, 145, 147, 149, 151, 170, 171, 153, 156, 158, 160, 162, 164, 166, 168]
+var course_state := "waiting"
+func drive_course(spec: Dictionary, world: Node, hype: Node3D, step: int) -> void:
+	var kid := actor_of(world, 178).get_node("Brain")
+	if course_state == "waiting":
+		if int(kid.get("current_normal")) != 6: return
+		# Positioned course state: earlier markers passed (normal 2), the first
+		# of the course armed (normal 1), Hype a few metres short of it.
+		var first: int = spec["course"][0]
+		for index in CHAIN:
+			if index == first: break
+			actor_of(world, index).get_node("Brain").call("change_normal", 2, false)
+		actor_of(world, first).get_node("Brain").call("change_normal", 1, false)
+		var marker := actor_of(world, first)
+		var back := (hype.global_position - marker.global_position)
+		back.y = 0.0
+		hype.global_position = marker.global_position + back.normalized() * 5.0 + Vector3(0, 0.5, 0)
+		report["course_start"] = [step, vec(hype.global_position)]
+		course_state = "driving"
+		return
+	if course_state != "driving": return
+	var target: Node3D = null
+	for index in spec["course"]:
+		if int(actor_of(world, index).get_node("Brain").get("current_normal")) == 3:
+			target = actor_of(world, index)
+			break
+	if target == null:
+		Input.action_release(&"Button_Up")
+		if int(actor_of(world, spec["course"].back()).get_node("Brain").get("current_normal")) in [4, 2]:
+			course_state = "done"
+		return
+	var to := target.global_position - hype.global_position
+	to.y = 0.0
+	if to.length() > 0.2: hype.global_rotation.y = atan2(to.x, to.z)
+	press_key(&"Button_Up", true)
 
 func press_key(action: StringName, down: bool) -> void:
 	for bound in InputMap.action_get_events(action):
