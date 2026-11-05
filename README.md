@@ -7,6 +7,11 @@ OpenSpace data into a native Godot project using your local game copy. This is
 still a partial game port; [coverage and evidence](./notes/implementation-progress.md)
 distinguish implemented code from demonstrated gameplay.
 
+**Current demo (2026-11-05):** main `4ce5e35`, Rete schema 75, support
+interface 101, with Manoir and Brigand regenerated and New Game, Load Game and
+controls checked. See [the demo release state](./notes/demo-release-2026-11-05.md)
+for launch, verified behavior and known gaps.
+
 ## Open the native Godot project
 
 Requires Rust/Cargo, Godot **4.7.2**, and a local Hype game directory containing

@@ -15,14 +15,15 @@ pointers are into `~/Projects/hype-decomp` (read-only):
 `research/coverage.tsv` maps an address to its readable `src/` file, and raw
 Ghidra is in `reference/ghidra/functions/<addr>_FUN_<addr>.c`.
 
-**Status, 2026-11-04 (main 5392f91).** The reached sites below are from the
+**Status, 2026-11-05 (main 4ce5e35).** The reached sites below are from the
 8dc992b runs and are not rerun.
 - Rows marked Ported, or with a commit named, no longer compile to that
   stand-in.
 - The [full-game AI sites](full-game-ai-sites.md) inventory has current counts
   for every level.
-- Still compiled in the current Brigand conversion: 4-53, 4-296, 4-356, 4-357
-  and 4-271, plus 1060's opaque field-46 guard.
+- Still compiled in the Brigand conversion at main 4ce5e35: 4-356, 4-357 and
+  4-271. 4-53, 4-296 and 1060's field 46 are ported (aeba270, 4ce5e35,
+  d695fb2).
 
 ## Runs
 
@@ -79,13 +80,13 @@ each needs and how many sites one fix covers.
 | 4 | `speech-gain` | every dialogue line, from the intro (23 s) | The speech event's own volume, not 0.7 times resource gain; the volume source is unknown | decomp `src/sound/event_dispatch.c`, `ai_object_volume.c`; UA-27 |
 | 5 | `drop-shadow` (kinds 2, 3, 4) | every shadowed actor, at load | Fake_Sh textures; kind 2 projected, kinds 3 and 4 light-placed | No decomp pointer is recorded yet; find the Fake_Sh users |
 | 6 | `hud-count-offset` | HUD, at load, always on screen | FON 3D projection of the weapon count | FUN_0040ca40 (`0040ca40_FUN_0040ca40.c`, untouched); BCG-19:0 FON text objects |
-| 7 | **Ported 2026-11-04** (828d6bb, 480e835). Thief and guard behavior requests with DSG operands: guard "opaque source designer field 46/51/52" (17 sites) and `generic-untyped` "non-behavior operand" (30 sites); 1060, 927 | 18 hits in 7 s of Brigand, on enemies | Type-13 variables hold behavior pointers into the model's own set (live check, 22 guards in 9 levels: `notes/research/live-checks-prevcomport-dsg13.md`). Category-32 literals are typed, and so are requests through these variables and PrevComportIntell. Left: 1060's opaque field 46 (6 guard sites) | [UAE 4-209](../../notes/research/unsupported-ai-entries.md): 005426f0, 005216e0, 00536000 / 00536030 |
+| 7 | **Ported 2026-11-04** (828d6bb, 480e835). Thief and guard behavior requests with DSG operands: guard "opaque source designer field 46/51/52" (17 sites) and `generic-untyped` "non-behavior operand" (30 sites); 1060, 927 | 18 hits in 7 s of Brigand, on enemies | Type-13 variables hold behavior pointers into the model's own set (live check, 22 guards in 9 levels: `notes/research/live-checks-prevcomport-dsg13.md`). Category-32 literals are typed, and so are requests through these variables and PrevComportIntell. 1060's field 46 (DSG type 19 PersoArray, 6 sites) was ported in d695fb2 | [UAE 4-209](../../notes/research/unsupported-ai-entries.md): 005426f0, 005216e0, 00536000 / 00536030 |
 | 8 | **Ported 2026-11-04**, with item 2. Pigeon distance, Func_DistanceToPerso of a designer actor variable (779 dsg 7 and 8; 816, 1862, fix/28) | was 80 hits in Manoir | Same fix: all 14 sites now compute the distance; the variable belongs to the script owner | same note |
 | 9 | `kill-without-reset` | 33 hits: barrels in Manoir, Brigand entry | The revival component reset and the activation flags; matters when Brigand respawns its mobs on re-entry | stand-ins.md row; decomp actor reset (`src/actor/`) |
 | 10 | `item point contact` and `card-less hold` | 64 and 15 hits: barrel drops; Fire in training | What DNM collides with when there's no ZDM; that card-less objects get no dynamics | [magic-mannequin-chain](../../notes/research/magic-mannequin-chain.md); decomp `src/dynamics/`, `src/collision/` |
 | 11 | Camera position update guard (fix/437; 15 sites across 437, 535, 839, 1951) | 7 hits in Manoir, at about 4 min | The native camera position update that 437's rule 0 requires | `source_camera.gd`; UAE camera block (00547200 to 00547980) |
 | 12 | Brigand HUD: `generic-4-356` Proc_GPI_SetTextNumber (284 IWorld) and `generic-4-357` Proc_GPI_SlideGamePlayInterface (2058 nest dummy) | at Brigand entry; HUD counters and beehive HUD | Set a HUD text item to a number; slide the gameplay interface | 0053ef50 (case table 0x53f300), 00447300; UAE 4-356 |
-| 13 | Brigand AI one-offs (Cond_IsValidWay 1-68 and InitWayWithWp 4-222 ported 2026-11-04, notes/research/way-procedures.md; `generic-5-25` Action_GoToWP ported in be8f49c and `generic-4-215` Proc_Turn2 in a3a755e, 544 door lady): left are `generic-4-53` Proc_SetHitPointsToInit (309, 1203) and `generic-4-296` Proc_CapsSetCapabilities (309) | 1 to 4 hits each, at Brigand entry | as named | 00540930 (`src/ai/life_damage_procedures.c`), 00545910, 005344a0, 0054b110 / 00522a50 (UAE 5-25), 00542bb0 |
+| 13 | Brigand AI one-offs (Cond_IsValidWay 1-68 and InitWayWithWp 4-222 ported 2026-11-04, notes/research/way-procedures.md; `generic-5-25` Action_GoToWP ported in be8f49c and `generic-4-215` Proc_Turn2 in a3a755e, 544 door lady): `generic-4-53` Proc_SetHitPointsToInit (309, 1203) was ported in aeba270, and `generic-4-296` Proc_CapsSetCapabilities (309) in 4ce5e35 (capabilities only: meta 35 graph traversal, their only other reader, is still a stand-in) | 1 to 4 hits each, at Brigand entry | as named | 00540930 (`src/ai/life_damage_procedures.c`), 00545910, 005344a0, 0054b110 / 00522a50 (UAE 5-25), 00542bb0 |
 | 14 | `travel-save` | Brigand save and reload | Per-level records and level history; Brigand re-entry respawns mobs in the original | stand-ins.md row; decomp `src/snapshot/` |
 | 15 | `4-271` Map_vSetDestination (2026 Gogoud map) | once, in the entry cutscene | Records the map destination | 00545cc0 |
 | 16 | `load-placement` | original-save loads only (tests, not New Game) | How the engine places Hype from the saved matrix | UA-26; `src/godot/save_import.rs` |
