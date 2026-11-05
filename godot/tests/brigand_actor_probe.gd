@@ -27,6 +27,10 @@ const CASES := {
 	# a real surface below -16 on the course's last stretch (source x 140 to 210,
 	# y -135 to -170), where 181's sector is loaded.
 	"race_water": {"watch": [178, 181], "near": 178, "at": Vector3(190.6, -15.3, 121.4), "seconds": 60.0, "map_first": true, "talk": true, "gold": 200, "answers": {"wellet_explicationcourse": 1}, "water": true},
+	# Maliq's loot (Stephen: 'the drop sat atop him until he disappeared'): the
+	# real scene, then Hype faces thief 88 and swings (Button_Hit); every tick
+	# after its death the drop and the corpse are logged.
+	"maliq_kill": {"watch": [20, 88], "near": 20, "at": Vector3(40.1, -15.0, 71.0), "seconds": 60.0, "map_first": true, "fight": 88},
 	"wolves_bite": {"watch": [119, 120], "near": 120, "offset": Vector3(0.0, 0.0, -12.0), "seconds": 24.0, "bite": true},
 	"bats": {"watch": [45, 46, 47, 48, 49, 50, 51], "near": 51, "offset": Vector3(0.0, 0.0, 6.0), "seconds": 12.0},
 	# The original take's own stop at Maliq (467 s): source (40.1, -71.0, -15.0).
@@ -146,6 +150,8 @@ func run() -> void:
 	for step in steps:
 		if spec.has("course"):
 			drive_course(spec, world, hype, step)
+		if spec.has("fight"):
+			fight_step(spec, world, level, hype, step)
 		if spec.get("water", false) and not report.has("water_start") and int(actor_of(world, 178).get_node("Brain").get("current_normal")) == 6:
 			var space := hype.get_world_3d().direct_space_state
 			var found := Vector3.INF
@@ -297,6 +303,44 @@ func finish_case(case_name: String) -> void:
 			if not (visited["119"].has(5) or visited["120"].has(5)) or lives.min() >= lives[0]:
 				finish(false, "no wolf bit Hype from 3.5 m: normals %s, life %s" % [visited, lives.min()]); return
 	finish(true, "source outcome observed")
+
+var fight_log := []
+var known_bodies := {}
+func fight_step(spec: Dictionary, world: Node, level: Node, hype: Node3D, step: int) -> void:
+	var foe := actor_of(world, spec["fight"])
+	var foe_brain := foe.get_node_or_null("Brain") if is_instance_valid(foe) else null
+	var foe_normal := int(foe_brain.get("current_normal")) if foe_brain != null else -1
+	if is_instance_valid(foe) and foe_normal in [5, 6, 7, 14, 1, 2, 3, 4] and bool(foe.get("source_object_active")):
+		var to := foe.global_position - hype.global_position
+		to.y = 0.0
+		if to.length() > 0.2: hype.global_rotation.y = atan2(to.x, to.z)
+		if not report.has("sword_drawn"):
+			report["sword_drawn"] = step
+			press_key(&"Button_GetSword", true)
+		elif step == int(report["sword_drawn"]) + 6:
+			press_key(&"Button_GetSword", false)
+		if to.length() > 2.0:
+			press_key(&"Button_Up", true)
+		else:
+			press_key(&"Button_Up", false)
+			var phase := step % 20
+			if phase == 0: press_key(&"Button_Hit", true)
+			elif phase == 4: press_key(&"Button_Hit", false)
+	else:
+		press_key(&"Button_Up", false)
+	# Every generated body: spawn, then per-tick state while it exists.
+	for b in level.find_children("*", "CharacterBody3D", true, false):
+		if not b.has_meta("astrolabe_generated_template") or b.collision_mask & 8: continue
+		if not known_bodies.has(b):
+			known_bodies[b] = true
+			fight_log.append({"t": step, "spawn": str(b.name), "template": str(b.get_meta("astrolabe_generated_template")).get_file(), "layer": b.collision_layer, "mask": b.collision_mask, "parent": str(b.get_parent().name), "pos": vec(b.global_position)})
+		if fight_log.size() < 400:
+			var colliders := []
+			for i in b.get_slide_collision_count():
+				var c: Object = b.get_slide_collision(i).get_collider()
+				colliders.append(str(c.name) if c != null else "?")
+			fight_log.append({"t": step, "body": str(b.name), "pos": vec(b.global_position), "vel": vec(b.velocity), "floor": b.is_on_floor(), "hits": colliders, "active": b.get("source_object_active"), "motion": b.get("motion_enabled"), "foe_normal": foe_normal, "foe_pos": vec(foe.global_position) if is_instance_valid(foe) else [], "foe_active": foe.get("source_object_active") if is_instance_valid(foe) else null, "foe_visible": foe.is_visible_in_tree() if is_instance_valid(foe) else null})
+	report["fight_log"] = fight_log
 
 const CHAIN := [169, 154, 161, 163, 159, 155, 157, 152, 150, 148, 136, 146, 144, 142, 140, 138, 135, 137, 167, 165, 139, 143, 141, 145, 147, 149, 151, 170, 171, 153, 156, 158, 160, 162, 164, 166, 168]
 var course_state := "waiting"

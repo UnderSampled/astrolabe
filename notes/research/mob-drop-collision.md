@@ -87,3 +87,24 @@ refuting the hypothesis). If the symptom is the drop jumping or stuck, log the I
 character.gd after 1430, generated branch only: generated.add_collision_exception_with(self), the same call
 as the mode-11 branch. Per instance (no shared resource mutation). Only valid with source evidence of
 +0x30/+0x31 or the 00464570 skip for those specific objects.
+
+## Maliq reproduction status (owner, 2026-11-04, checkpoint)
+
+Stephen's case is Maliq: "the drop sat atop him until he disappeared, only then did it fall".
+Probe `maliq_kill` (brigand_actor_probe.gd):
+- The real scene; Maliq becomes thief 88 (model 1060).
+- Hype draws the sword (Button_GetSword), walks in on Button_Up and swings (Button_Hit).
+- Generated bodies are logged every tick.
+
+Results:
+- Thief 88: normals 7, 14, 5. It then stands at Maliq's spot in action 90, reflex 1, motion off.
+- Hype closes to 1.5 m and swings (normals 4 and 29 alternate), but the thief takes no damage. It
+  never reaches its death (normal 11, which drops) or its fade (normal 13).
+- The only generated body seen is the thief's thrown dagger (layer 2, mask 9). It is not loot.
+
+Next step:
+- Find why Hype's swing does not damage thief 88 here: the sword zone contact or the attack flag
+  dsg_17, compare the checklist's earlier thief kill. Then rerun to reach normal 11 and log the drop
+  against the corpse through the fade.
+- Static facts so far: the drops are on layer 0 with mask 1 and no owner exception. The source corpse
+  stays collidable until it is deactivated (normal 13, opacity < 1), which matches Stephen's timing.
