@@ -1143,6 +1143,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::ActorRelativeZ { .. }
         | Expression::ActorFacingAngle { .. }
         | Expression::VectorLocalToGlobal { .. }
+        | Expression::PositionFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::ActorLocalDistance { .. }
         | Expression::IsAbovePerso { .. }
@@ -1350,6 +1351,24 @@ fn guarded_expression(
                 ))
             )?;
             format!("bits_actor_{id}.source_has_custom_bit(bit_payload_{id})")
+        }
+        Expression::PositionFacingAngle { receiver, position } => {
+            // 00537780: the receiver's heading helper on a caller-evaluated
+            // source position (the same chain as Func1, 0052eb70/ecb0/ec00).
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var position_facing_receiver_{id}: Node3D = {}\n{pad}if not is_instance_valid(position_facing_receiver_{id}) or not position_facing_receiver_{id}.has_method(\"source_turn_angles_to_position\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                actor_target_code(receiver),
+                quoted(&format!("{} requires a native facing receiver", model.path))
+            )?;
+            let position = guarded_expression(out, position, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var position_facing_angles_{id}: Vector2 = position_facing_receiver_{id}.source_turn_angles_to_position(source_vector({position}))"
+            )?;
+            format!("(position_facing_angles_{id}.y * 57.295780181884766)")
         }
         Expression::VectorLocalToGlobal { receiver, vector } => {
             // R_source * v: the exported basis is the source matrix in Godot
@@ -2439,6 +2458,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::ActorRelativeZ { .. }
         | Expression::ActorFacingAngle { .. }
         | Expression::VectorLocalToGlobal { .. }
+        | Expression::PositionFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::ActorLocalDistance { .. }
         | Expression::IsAbovePerso { .. }

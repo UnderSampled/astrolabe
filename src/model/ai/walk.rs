@@ -409,6 +409,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::ActorRelativeZ { target, .. }
                 | Expression::ActorFacingAngle { target, .. }
                 | Expression::VectorLocalToGlobal { vector: target, .. }
+                | Expression::PositionFacingAngle {
+                    position: target, ..
+                }
                 | Expression::DistanceToPosition { point: target, .. }
                 | Expression::ActorLocalDistance { target, .. } => {
                     self.expressions(child_depth, &[target]);

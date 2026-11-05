@@ -1000,6 +1000,13 @@ pub enum Expression {
         receiver: ActorTarget,
         target: Box<Expression>,
     },
+    /// Func_GetAngleAroundZToPosition (2, 00537780): Func1's signed heading
+    /// difference, in degrees, from the receiver's forward (source -Y through
+    /// its +0x24 matrix) to a position evaluated for the caller.
+    PositionFacingAngle {
+        receiver: ActorTarget,
+        position: Box<Expression>,
+    },
     /// Func_VectorLocalToGlobal (151, 0053b830): the operand vector, evaluated
     /// for the caller, rotated without translation by the receiver's global
     /// matrix (SuperObject +0x24, POS_fn_vRotateVector).
@@ -1357,6 +1364,10 @@ impl Content for AiModel {
                     ..
                 }
                 | Expression::VectorLocalToGlobal {
+                    receiver: ActorTarget::Variable(index),
+                    ..
+                }
+                | Expression::PositionFacingAngle {
                     receiver: ActorTarget::Variable(index),
                     ..
                 }
@@ -1821,6 +1832,10 @@ impl Script {
                 | Expression::VectorLocalToGlobal {
                     receiver,
                     vector: target,
+                }
+                | Expression::PositionFacingAngle {
+                    receiver,
+                    position: target,
                 } => {
                     if let ActorTarget::Reference(actor) = receiver {
                         ensure!(
