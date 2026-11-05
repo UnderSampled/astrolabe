@@ -139,6 +139,13 @@ pub enum Statement {
         actor: Expression,
         value: Expression,
     },
+    /// Proc_SetHitPointsToInit (53, 00540930 -> 00438d70): the actor's life
+    /// byte (StandardGame +0x18) is restored from the saved-value table entry
+    /// of key 0x31 (004c6d30), which 00438bf0 fills with the life at the
+    /// level's registration. Not a refill to the maximum.
+    RestoreHitPointsToInit {
+        actor: Expression,
+    },
     /// Proc_SetHitPoints: clamped by the actor's maximum.
     SetHitPoints {
         actor: Expression,
@@ -2263,7 +2270,8 @@ impl Script {
                     | Statement::FightSubHitPointsEnemy(index)
                     | Statement::SetMagicPointsMaximum(index)
                     | Statement::SelectArmor(index)
-                    | Statement::SetArmorResistance(index) => {
+                    | Statement::SetArmorResistance(index)
+                    | Statement::RestoreHitPointsToInit { actor: index } => {
                         expression(index, variables, depth + 1, count)?
                     }
                     Statement::SetHitPointsMaximum { actor, value }

@@ -104,6 +104,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SetLaserPointerSniperMode(value)
                 | Statement::SetLaserPointerFlyMode(value)
                 | Statement::SetTransparency(value)
+                | Statement::RestoreHitPointsToInit { actor: value }
                 | Statement::SetGameState(value)
                 | Statement::SetFadeTexture(value)
                 | Statement::SetFadeValue(value)

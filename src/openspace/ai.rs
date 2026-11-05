@@ -199,6 +199,9 @@ impl Parser<'_> {
                     self.at -= 1;
                     Statement::Evaluate(self.expression(indent)?)
                 }
+                (4, 53) => Statement::RestoreHitPointsToInit {
+                    actor: self.expression(indent + 1)?,
+                },
                 (4, 52) => Statement::SetHitPoints {
                     actor: self.expression(indent + 1)?,
                     value: self.expression(indent + 1)?,
@@ -2357,6 +2360,10 @@ impl Writer<'_> {
                         "unsupported standalone function"
                     );
                     self.expression(value, indent)?;
+                }
+                Statement::RestoreHitPointsToInit { actor } => {
+                    self.node(4, 53, indent);
+                    self.expression(actor, indent + 1)?;
                 }
                 Statement::SetHitPointsMaximum { actor, value }
                 | Statement::SetHitPoints { actor, value }
@@ -4703,6 +4710,21 @@ mod partial_tests {
                 variable: 45,
                 group: BehaviorGroup::Normal,
                 pause_after: false
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn set_hit_points_to_init_reconstructs() -> Result<()> {
+        // Proc_SetHitPointsToInit (4-53) on MainActor: one actor operand.
+        let (codec, bytes) = partial(&[(4, 53, 1), (0, 5, 2), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::RestoreHitPointsToInit {
+                actor: Expression::Actor(ActorTarget::Keyword(ActorKeyword::MainActor))
             }
         ));
         assert_eq!(codec.write(&script)?, bytes);

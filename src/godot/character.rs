@@ -685,8 +685,8 @@ pub(super) fn export_perso(
     if let Some(points) = perso.hit_points {
         writeln!(
             project.builder,
-            "    var {name}_hit_points = load(\"res://addons/astrolabe/character/hit_points.gd\").new()\n    {name}_hit_points.resource_local_to_scene = true\n    {name}_hit_points.current = {}\n    {name}_hit_points.maximum = {}\n    {name}_hit_points.limit = {}\n    {name}.source_hit_points = {name}_hit_points",
-            points.current, points.maximum, points.limit
+            "    var {name}_hit_points = load(\"res://addons/astrolabe/character/hit_points.gd\").new()\n    {name}_hit_points.resource_local_to_scene = true\n    {name}_hit_points.current = {}\n    {name}_hit_points.maximum = {}\n    {name}_hit_points.limit = {}\n    {name}_hit_points.initial = {}\n    {name}.source_hit_points = {name}_hit_points",
+            points.current, points.maximum, points.limit, points.current
         )?;
     }
     writeln!(

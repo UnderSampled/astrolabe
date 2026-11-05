@@ -3035,6 +3035,17 @@ fn statements(
                 flow.local += 1;
                 writeln!(out, "{pad}var _discarded_{local} = {value}")?;
             }
+            Statement::RestoreHitPointsToInit { actor } => {
+                // An actor without a StandardGame (no converted hit points) has
+                // no key-0x31 entry: 004c6d30 finds none and changes nothing.
+                let actor = guarded_expression(out, actor, model, depth, flow)?;
+                let local = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var life_actor_{local}: Node = {actor}\n{pad}if not is_instance_valid(life_actor_{local}):\n{pad}    fail_unsupported(\"Proc_SetHitPointsToInit requires an actor (the source dereferences it)\")\n{pad}    {exit}\n{pad}if life_actor_{local}.get(\"source_hit_points\") != null:\n{pad}    life_actor_{local}.get(\"source_hit_points\").restore_initial()"
+                )?;
+            }
             Statement::SetHitPointsMaximum { actor, value }
             | Statement::SetHitPoints { actor, value }
             | Statement::AddHitPoints { actor, value }

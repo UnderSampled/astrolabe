@@ -4,6 +4,11 @@ const SNAPSHOT = preload("res://addons/astrolabe/character/snapshot_values.gd")
 @export var current: int = 0
 @export var maximum: int = 0
 @export var limit: int = 0
+## The life byte saved at the level's initial-value registration (00438bf0,
+## key 0x31). 00402b60 registers (00438780) after the load-time restores
+## (004c6430 modes 2 and 8), and saves never write key 0x31 (004c6d60 masks
+## 0x300/0xc00): it is the converted value, or the life a load applies.
+@export var initial: int = 0
 
 ## Proc57 / 00438ef0 writes only the low byte. It does not cap at limit,
 ## change current life, or refill: those are separate source API operations.
@@ -14,6 +19,12 @@ func set_maximum(value: int) -> void:
 ## Proc52 / 00438ed0 writes the low byte, with no clamp to the maximum.
 func set_points(value: int) -> void:
 	current = value & 255
+	emit_changed()
+
+## Proc53 / 00438d70 restores the saved life byte (004c6d30 copies one byte
+## back); it neither fills to the maximum nor clamps.
+func restore_initial() -> void:
+	current = initial & 255
 	emit_changed()
 
 ## Proc55 / 00460a90 narrows the operand first, then clamps the sum.
@@ -56,5 +67,7 @@ func apply_snapshot(value: Dictionary) -> String:
 	current = int(value["current"])
 	maximum = int(value["maximum"])
 	limit = int(value["limit"])
+	# Snapshots are applied while a level loads, before its registration.
+	initial = current
 	emit_changed()
 	return ""
