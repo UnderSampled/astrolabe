@@ -24,6 +24,13 @@ pub(crate) struct NodeWire {
 }
 /// Source operands are bound by the localized SND/RTS files. Encoded handles are
 /// supplied only at this adapter boundary, never retained in the model/Rete.
+fn capability_operation(id: u32) -> CapabilityOperation {
+    match id {
+        296 => CapabilityOperation::Set,
+        297 => CapabilityOperation::Add,
+        _ => CapabilityOperation::Subtract,
+    }
+}
 #[derive(Default)]
 pub struct AiScriptCodec {
     /// Normalized source operands enable partial decoding; empty keeps strict decoding.
@@ -199,6 +206,11 @@ impl Parser<'_> {
                     self.at -= 1;
                     Statement::Evaluate(self.expression(indent)?)
                 }
+                (4, 296..=298) => Statement::ChangeCapabilities {
+                    actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                    operation: capability_operation(id),
+                    mask: self.expression(indent + 1)?,
+                },
                 (4, 53) => Statement::RestoreHitPointsToInit {
                     actor: self.expression(indent + 1)?,
                 },
@@ -789,6 +801,17 @@ impl Parser<'_> {
                                 actor: actor_target,
                                 enabled: operation.parameter == 185,
                             }
+                        }
+                    } else if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && matches!(n.parameter, 296..=298))
+                    {
+                        // 00545910 takes Operator_Ultra's receiver; the mask is
+                        // evaluated for the caller.
+                        let (_, operation) = self.take(indent + 1)?;
+                        Statement::ChangeCapabilities {
+                            actor: actor_target,
+                            operation: capability_operation(operation.parameter),
+                            mask: self.expression(indent + 2)?,
                         }
                     } else if let Some(actor_target) = actor_target.clone()
                         && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 217)
@@ -1860,6 +1883,8 @@ impl Parser<'_> {
                     Expression::VectorLocalToGlobal { vector, .. } => {
                         Expression::VectorLocalToGlobal { receiver, vector }
                     }
+                    // 0053b750 reads the Ultra receiver's capabilities.
+                    Expression::ActorCapabilities(_) => Expression::ActorCapabilities(receiver),
                     // 00537780 takes the Ultra receiver's matrix; the position
                     // operand was evaluated for the caller.
                     Expression::PositionFacingAngle { position, .. } => {
@@ -2112,6 +2137,11 @@ impl Parser<'_> {
                 receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
                 position: Box::new(self.expression(indent + 1)?),
             },
+            (40, word) => Expression::CapabilitiesLiteral(word),
+            (3, 143) => {
+                Expression::ActorCapabilities(ActorTarget::Keyword(ActorKeyword::SelfActor))
+            }
+            (3, 144) => Expression::CapabilityBit(Box::new(self.expression(indent + 1)?)),
             (3, 151) => Expression::VectorLocalToGlobal {
                 receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
                 vector: Box::new(self.expression(indent + 1)?),
@@ -2360,6 +2390,26 @@ impl Writer<'_> {
                         "unsupported standalone function"
                     );
                     self.expression(value, indent)?;
+                }
+                Statement::ChangeCapabilities {
+                    actor,
+                    operation,
+                    mask,
+                } => {
+                    let id = match operation {
+                        CapabilityOperation::Set => 296,
+                        CapabilityOperation::Add => 297,
+                        CapabilityOperation::Subtract => 298,
+                    };
+                    if *actor == ActorTarget::Keyword(ActorKeyword::SelfActor) {
+                        self.node(4, id, indent);
+                        self.expression(mask, indent + 1)?;
+                    } else {
+                        self.node(2, 24, indent);
+                        self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                        self.node(4, id, indent + 1);
+                        self.expression(mask, indent + 2)?;
+                    }
                 }
                 Statement::RestoreHitPointsToInit { actor } => {
                     self.node(4, 53, indent);
@@ -3931,6 +3981,20 @@ impl Writer<'_> {
                 self.expression(duration, indent + 1)?;
             }
             Expression::BehaviorLiteral(target) => self.behavior(target, indent)?,
+            Expression::ActorCapabilities(receiver) => {
+                if *receiver == ActorTarget::Keyword(ActorKeyword::SelfActor) {
+                    self.node(3, 143, indent);
+                } else {
+                    self.node(2, 24, indent);
+                    self.expression(&Expression::Actor(receiver.clone()), indent + 1)?;
+                    self.node(3, 143, indent + 1);
+                }
+            }
+            Expression::CapabilitiesLiteral(word) => self.node(40, *word, indent),
+            Expression::CapabilityBit(value) => {
+                self.node(3, 144, indent);
+                self.expression(value, indent + 1)?;
+            }
             Expression::CastActorFieldRead {
                 actor,
                 model,
@@ -4711,6 +4775,62 @@ mod partial_tests {
                 group: BehaviorGroup::Normal,
                 pause_after: false
             }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn capability_procedures_and_getters_reconstruct() -> Result<()> {
+        // 00545910 / 0053b750: CapsSet(capabilities 0x80000001, as brigand
+        // 309) on the caller; Ultra
+        // MainActor.CapsAdd(CapabilityAtBitNumber(dsg 3)); Ultra dsg 4.CapsSub;
+        // dsg 0 := MainActor.CapsGetCapabilities.
+        let (codec, bytes) = partial(&[
+            (4, 296, 1),
+            (40, 0x8000_0001, 2),
+            (2, 24, 1),
+            (0, 5, 2),
+            (4, 297, 2),
+            (3, 144, 3),
+            (11, 3, 4),
+            (2, 24, 1),
+            (11, 4, 2),
+            (4, 298, 2),
+            (12, 0x10, 3),
+            (2, 11, 1),
+            (11, 0, 2),
+            (2, 24, 2),
+            (0, 5, 3),
+            (3, 143, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[..],
+            [
+                Statement::ChangeCapabilities {
+                    actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                    operation: CapabilityOperation::Set,
+                    mask: Expression::CapabilitiesLiteral(0x8000_0001),
+                },
+                Statement::ChangeCapabilities {
+                    actor: ActorTarget::Keyword(ActorKeyword::MainActor),
+                    operation: CapabilityOperation::Add,
+                    mask: Expression::CapabilityBit(_),
+                },
+                Statement::ChangeCapabilities {
+                    actor: ActorTarget::Variable(4),
+                    operation: CapabilityOperation::Subtract,
+                    ..
+                },
+                Statement::Assign {
+                    value: Expression::ActorCapabilities(ActorTarget::Keyword(
+                        ActorKeyword::MainActor
+                    )),
+                    ..
+                }
+            ]
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

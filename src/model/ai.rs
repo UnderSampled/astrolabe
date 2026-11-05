@@ -139,6 +139,15 @@ pub enum Statement {
         actor: Expression,
         value: Expression,
     },
+    /// Proc_CapsSet/Add/SubCapabilities (296..298, 00545910): the receiver's
+    /// (Ultra or caller) StandardGame +0x14 capabilities word is assigned,
+    /// ORed, or has the mask's bits cleared. The mask is evaluated for the
+    /// caller, after the receiver is chosen; its first word is used.
+    ChangeCapabilities {
+        actor: ActorTarget,
+        operation: CapabilityOperation,
+        mask: Expression,
+    },
     /// Proc_SetHitPointsToInit (53, 00540930 -> 00438d70): the actor's life
     /// byte (StandardGame +0x18) is restored from the saved-value table entry
     /// of key 0x31 (004c6d30), which 00438bf0 fills with the life at the
@@ -764,6 +773,12 @@ pub enum HudIndicator {
     Cash,
 }
 /// Writable designer field selected by a source AI arithmetic operator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CapabilityOperation {
+    Set,
+    Add,
+    Subtract,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum FieldTarget {
     Variable(u16),
@@ -1027,6 +1042,14 @@ pub enum Expression {
         receiver: ActorTarget,
         target: Box<Expression>,
     },
+    /// A category-40 capabilities literal (leaf 00522260, tag 43): its word.
+    CapabilitiesLiteral(u32),
+    /// Proc_CapsGetCapabilities (function 143, 0053b750): the receiver's
+    /// (Ultra or caller) capabilities word, tagged 0x2b.
+    ActorCapabilities(ActorTarget),
+    /// Proc_CapabilityAtBitNumber (function 144, 0053b750): 1 << (the
+    /// operand word's low byte & 31), tagged 0x2b.
+    CapabilityBit(Box<Expression>),
     /// Func_GetAngleAroundZToPosition (2, 00537780): Func1's signed heading
     /// difference, in degrees, from the receiver's forward (source -Y through
     /// its +0x24 matrix) to a position evaluated for the caller.

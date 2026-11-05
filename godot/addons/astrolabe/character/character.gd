@@ -64,6 +64,11 @@ var source_contact_eligible: bool:
     get: return source_object_active and not source_return_suppressed
 ## StandardGame custom flags belong to this actor; draw/activation flags are separate.
 @export var source_custom_bits: int = 0
+## StandardGame +0x14 capabilities dword (unsigned 32-bit), when the actor has
+## a StandardGame. Only the AI setters/getter use it here: graph traversal
+## (Action_GoOverShortestPathBezier, meta 35) is not ported.
+@export var source_capabilities: int = 0
+@export var source_capabilities_ready: bool = false
 var _contact_sector: Node3D
 var _contact_previous: Variant = null
 ## World-space acceleration supplied by the level/game's environment.
@@ -1479,6 +1484,18 @@ func source_execute_action_and_generate_object(template_path: String, action: in
 func source_sighting() -> Vector3:
     var direction := global_basis.z
     return Vector3(direction.x, -direction.z, direction.y)
+
+## Proc296/297/298 (00545910 -> 00439050/70/80): set, OR, or clear the mask
+## word's bits; Sub is x - (m & x). False without a StandardGame.
+func source_change_capabilities(operation: int, mask: int) -> bool:
+    if not source_capabilities_ready: return false
+    var word := mask & 0xffffffff
+    match operation:
+        0: source_capabilities = word
+        1: source_capabilities = (source_capabilities | word) & 0xffffffff
+        2: source_capabilities = (source_capabilities - (word & source_capabilities)) & 0xffffffff
+        _: return false
+    return true
 
 static func source_scalar_word(value: Variant) -> int:
     if typeof(value) == TYPE_FLOAT:

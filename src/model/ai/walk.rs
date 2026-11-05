@@ -105,6 +105,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SetLaserPointerFlyMode(value)
                 | Statement::SetTransparency(value)
                 | Statement::RestoreHitPointsToInit { actor: value }
+                | Statement::ChangeCapabilities { mask: value, .. }
                 | Statement::SetGameState(value)
                 | Statement::SetFadeTexture(value)
                 | Statement::SetFadeValue(value)
@@ -386,6 +387,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Cosine(value)
                 | Expression::ActorLocalSourceXYDistance(value)
                 | Expression::IsValidActor(value)
+                | Expression::CapabilityBit(value)
                 | Expression::CastActorFieldRead { actor: value, .. }
                 | Expression::ApplyArmoredDamage(value)
                 | Expression::IsInAction(value)
@@ -542,6 +544,8 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::ActorFieldRead { .. }
                 | Expression::SelfFieldRead(_)
                 | Expression::BehaviorLiteral(_)
+                | Expression::ActorCapabilities(_)
+                | Expression::CapabilitiesLiteral(_)
                 | Expression::MainActorFieldRead(_)
                 | Expression::IsInBehavior { .. }
                 | Expression::Button { .. }

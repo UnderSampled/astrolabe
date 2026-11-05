@@ -131,6 +131,10 @@ pub struct Perso {
     pub microphone: Option<Microphone>,
     /// Source StandardGame bytes read by the life HUD; actor-local mutable state.
     pub hit_points: Option<HitPoints>,
+    /// StandardGame +0x14 capabilities dword (00439050..00439080), absent
+    /// without a StandardGame. Graph traversal (meta 35) is not ported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<u32>,
     /// Perso3dData shadow fields: SHW_fn_vDrawShadow (004e4e30) reads the kind
     /// at +0x198 and the scales at +0x190 and +0x194.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -266,6 +266,14 @@ impl<'a> Importer<'a> {
                     reset_on_kill: state.return_policy == 1,
                 })
             },
+            capabilities: self
+                .session
+                .pointer(perso, 4)?
+                .map(|a| -> Result<u32> {
+                    let state: StandardSaveWire = wire(self.session.bytes(a, 56)?)?;
+                    Ok(u32::from_le_bytes(state.prefix[0x14..0x18].try_into()?))
+                })
+                .transpose()?,
             custom_bits: {
                 let standard = self.session.required(perso, 4)?;
                 let state: StandardSaveWire = wire(self.session.bytes(standard, 56)?)?;

@@ -264,6 +264,7 @@ mod tests {
                 picking_bounds: None,
                 activation: None,
                 custom_bits: 0,
+                capabilities: None,
                 microphone: None,
                 routes: Vec::new(),
                 brain: None,
@@ -1152,6 +1153,8 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::ActorRelativeZ { .. }
         | Expression::ActorFacingAngle { .. }
         | Expression::VectorLocalToGlobal { .. }
+        | Expression::ActorCapabilities(_)
+        | Expression::CapabilityBit(_)
         | Expression::PositionFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::ActorLocalDistance { .. }
@@ -1378,6 +1381,25 @@ fn guarded_expression(
                 "{pad}var position_facing_angles_{id}: Vector2 = position_facing_receiver_{id}.source_turn_angles_to_position(source_vector({position}))"
             )?;
             format!("(position_facing_angles_{id}.y * 57.295780181884766)")
+        }
+        Expression::ActorCapabilities(receiver) => {
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var capabilities_actor_{id}: Node3D = {}\n{pad}if not is_instance_valid(capabilities_actor_{id}) or not bool(capabilities_actor_{id}.get(\"source_capabilities_ready\")):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                actor_target_code(receiver),
+                quoted(&format!(
+                    "{} Proc_CapsGetCapabilities requires a StandardGame receiver {}",
+                    model.path,
+                    actor_target_label(receiver)
+                ))
+            )?;
+            format!("int(capabilities_actor_{id}.source_capabilities)")
+        }
+        Expression::CapabilityBit(value) => {
+            let value = guarded_expression(out, value, model, depth, flow)?;
+            format!("(1 << (NativeCharacter.source_scalar_word({value}) & 0x1f))")
         }
         Expression::VectorLocalToGlobal { receiver, vector } => {
             // R_source * v: the exported basis is the source matrix in Godot
@@ -2422,6 +2444,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         }
         Expression::InTopOfJump => "character().source_in_top_of_jump()".into(),
         Expression::BehaviorLiteral(target) => target.behavior.to_string(),
+        Expression::CapabilitiesLiteral(word) => word.to_string(),
         Expression::IsInBehavior { actor, target } => {
             format!(
                 "character().source_actor_is_in_behavior({}, &\"{}\", {})",
@@ -2467,6 +2490,8 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::ActorRelativeZ { .. }
         | Expression::ActorFacingAngle { .. }
         | Expression::VectorLocalToGlobal { .. }
+        | Expression::ActorCapabilities(_)
+        | Expression::CapabilityBit(_)
         | Expression::PositionFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::ActorLocalDistance { .. }
@@ -3034,6 +3059,36 @@ fn statements(
                 let local = flow.local;
                 flow.local += 1;
                 writeln!(out, "{pad}var _discarded_{local} = {value}")?;
+            }
+            Statement::ChangeCapabilities {
+                actor,
+                operation,
+                mask,
+            } => {
+                // 00545910: the receiver is chosen first, then the mask is
+                // evaluated for the caller; its first word is the operand.
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var capabilities_actor_{id}: Node3D = {}",
+                    actor_target_code(actor)
+                )?;
+                let mask = guarded_expression(out, mask, model, depth, flow)?;
+                let operation = match operation {
+                    CapabilityOperation::Set => 0,
+                    CapabilityOperation::Add => 1,
+                    CapabilityOperation::Subtract => 2,
+                };
+                writeln!(
+                    out,
+                    "{pad}if not is_instance_valid(capabilities_actor_{id}) or not capabilities_actor_{id}.has_method(\"source_change_capabilities\") or not capabilities_actor_{id}.source_change_capabilities({operation}, NativeCharacter.source_scalar_word({mask})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} capability change requires a StandardGame receiver {}",
+                        model.path,
+                        actor_target_label(actor)
+                    ))
+                )?;
             }
             Statement::RestoreHitPointsToInit { actor } => {
                 // An actor without a StandardGame (no converted hit points) has

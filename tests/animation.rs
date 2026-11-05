@@ -479,6 +479,7 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         picking_bounds: None,
         activation: None,
         custom_bits: 0,
+        capabilities: None,
         microphone: None,
         camera: None,
         routes: vec![],

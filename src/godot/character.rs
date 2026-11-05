@@ -573,6 +573,12 @@ pub(super) fn export_perso(
         "    {name}.source_custom_bits = {}",
         perso.custom_bits
     )?;
+    if let Some(capabilities) = perso.capabilities {
+        writeln!(
+            project.builder,
+            "    {name}.source_capabilities = {capabilities}\n    {name}.source_capabilities_ready = true"
+        )?;
+    }
     if let Some(activation) = perso.activation {
         writeln!(
             project.builder,
