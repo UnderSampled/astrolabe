@@ -1812,6 +1812,11 @@ impl Parser<'_> {
                     Expression::ActorFacingAngle { target, .. } => {
                         Expression::ActorFacingAngle { receiver, target }
                     }
+                    // 0053b830 takes the Ultra receiver's matrix; the vector
+                    // operand was evaluated for the caller.
+                    Expression::VectorLocalToGlobal { vector, .. } => {
+                        Expression::VectorLocalToGlobal { receiver, vector }
+                    }
                     Expression::MainActorDistance => Expression::ActorDistanceFrom {
                         receiver,
                         target: Box::new(Expression::Actor(ActorTarget::Keyword(
@@ -2054,6 +2059,10 @@ impl Parser<'_> {
             (3, 1) => Expression::ActorFacingAngle {
                 receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
                 target: Box::new(self.expression(indent + 1)?),
+            },
+            (3, 151) => Expression::VectorLocalToGlobal {
+                receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                vector: Box::new(self.expression(indent + 1)?),
             },
             (3, 38) => Expression::ActorHitPointsMaximum(Box::new(self.expression(indent + 1)?)),
             (3, 37) => Expression::SubtractAndGetHitPoints {
@@ -3561,6 +3570,26 @@ impl Writer<'_> {
                 }
                 self.node(3, 0, indent + 1);
             }
+            Expression::VectorLocalToGlobal { receiver, vector } => {
+                if *receiver != ActorTarget::Keyword(ActorKeyword::SelfActor) {
+                    self.node(2, 24, indent);
+                    match receiver {
+                        ActorTarget::Keyword(ActorKeyword::MainActor) => {
+                            self.node(0, 5, indent + 1)
+                        }
+                        ActorTarget::Keyword(ActorKeyword::SelfActor) => unreachable!(),
+                        ActorTarget::Variable(variable) => {
+                            self.node(11, u32::from(*variable), indent + 1)
+                        }
+                        ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                    }
+                    self.node(3, 151, indent + 1);
+                    self.expression(vector, indent + 2)?;
+                } else {
+                    self.node(3, 151, indent);
+                    self.expression(vector, indent + 1)?;
+                }
+            }
             Expression::ActorFacingAngle { receiver, target } => {
                 if *receiver != ActorTarget::Keyword(ActorKeyword::SelfActor) {
                     self.node(2, 24, indent);
@@ -4572,6 +4601,47 @@ mod partial_tests {
                 group: BehaviorGroup::Normal,
                 pause_after: false
             }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn vector_local_to_global_plain_and_ultra_reconstruct() -> Result<()> {
+        // Func_VectorLocalToGlobal (3-151, 0053b830) on the caller, then through
+        // Operator_Ultra on MainActor; the vector operand is a designer variable.
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (3, 151, 2),
+            (11, 1, 3),
+            (2, 11, 1),
+            (11, 0, 2),
+            (2, 24, 2),
+            (0, 5, 3),
+            (3, 151, 3),
+            (11, 1, 4),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[..],
+            [
+                Statement::Assign {
+                    value: Expression::VectorLocalToGlobal {
+                        receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                        ..
+                    },
+                    ..
+                },
+                Statement::Assign {
+                    value: Expression::VectorLocalToGlobal {
+                        receiver: ActorTarget::Keyword(ActorKeyword::MainActor),
+                        vector,
+                    },
+                    ..
+                }
+            ] if matches!(**vector, Expression::Variable(1))
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

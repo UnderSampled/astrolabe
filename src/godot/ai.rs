@@ -1142,6 +1142,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::DistanceToPosition { .. }
         | Expression::ActorRelativeZ { .. }
         | Expression::ActorFacingAngle { .. }
+        | Expression::VectorLocalToGlobal { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::ActorLocalDistance { .. }
         | Expression::IsAbovePerso { .. }
@@ -1349,6 +1350,28 @@ fn guarded_expression(
                 ))
             )?;
             format!("bits_actor_{id}.source_has_custom_bit(bit_payload_{id})")
+        }
+        Expression::VectorLocalToGlobal { receiver, vector } => {
+            // R_source * v: the exported basis is the source matrix in Godot
+            // axes (source (x, y, z) is Godot (x, z, -y); see source_sighting).
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var local_to_global_actor_{id}: Node3D = {}\n{pad}if not is_instance_valid(local_to_global_actor_{id}) or not local_to_global_actor_{id}.is_inside_tree():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                actor_target_code(receiver),
+                quoted(&format!(
+                    "{} Func_VectorLocalToGlobal requires a placed receiver {}",
+                    model.path,
+                    actor_target_label(receiver)
+                ))
+            )?;
+            let value = guarded_expression(out, vector, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var local_vector_{id}: Vector3 = source_vector({value})\n{pad}var global_vector_{id}: Vector3 = local_to_global_actor_{id}.global_basis * Vector3(local_vector_{id}.x, local_vector_{id}.z, -local_vector_{id}.y)"
+            )?;
+            format!("Vector3(global_vector_{id}.x, -global_vector_{id}.z, global_vector_{id}.y)")
         }
         Expression::ActorFacingAngle { receiver, target } => {
             let id = flow.local;
@@ -2415,6 +2438,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::DistanceToPosition { .. }
         | Expression::ActorRelativeZ { .. }
         | Expression::ActorFacingAngle { .. }
+        | Expression::VectorLocalToGlobal { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::ActorLocalDistance { .. }
         | Expression::IsAbovePerso { .. }

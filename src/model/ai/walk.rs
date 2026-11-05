@@ -408,6 +408,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::HasCustomBit { bit: target, .. }
                 | Expression::ActorRelativeZ { target, .. }
                 | Expression::ActorFacingAngle { target, .. }
+                | Expression::VectorLocalToGlobal { vector: target, .. }
                 | Expression::DistanceToPosition { point: target, .. }
                 | Expression::ActorLocalDistance { target, .. } => {
                     self.expressions(child_depth, &[target]);

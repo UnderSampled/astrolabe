@@ -1000,6 +1000,13 @@ pub enum Expression {
         receiver: ActorTarget,
         target: Box<Expression>,
     },
+    /// Func_VectorLocalToGlobal (151, 0053b830): the operand vector, evaluated
+    /// for the caller, rotated without translation by the receiver's global
+    /// matrix (SuperObject +0x24, POS_fn_vRotateVector).
+    VectorLocalToGlobal {
+        receiver: ActorTarget,
+        vector: Box<Expression>,
+    },
     /// The installed Hype category-3/raw-ID-8 handler returns the source-XY
     /// magnitude between its current actor and the actor operand in that
     /// operand's local frame. The installed table names row 8
@@ -1346,6 +1353,10 @@ impl Content for AiModel {
                     ..
                 }
                 | Expression::ActorFacingAngle {
+                    receiver: ActorTarget::Variable(index),
+                    ..
+                }
+                | Expression::VectorLocalToGlobal {
                     receiver: ActorTarget::Variable(index),
                     ..
                 }
@@ -1806,7 +1817,11 @@ impl Script {
                 }
                 | Expression::ActorDistanceFrom { receiver, target }
                 | Expression::ActorRelativeZ { receiver, target }
-                | Expression::ActorFacingAngle { receiver, target } => {
+                | Expression::ActorFacingAngle { receiver, target }
+                | Expression::VectorLocalToGlobal {
+                    receiver,
+                    vector: target,
+                } => {
                     if let ActorTarget::Reference(actor) = receiver {
                         ensure!(
                             actor.path.member().is_none(),
