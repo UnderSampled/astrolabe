@@ -78,6 +78,8 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::AddAssign { value, .. }
                 | Statement::MultiplyAssign { value, .. }
                 | Statement::VectorComponentAssign { value, .. }
+                | Statement::VectorComponentAddAssign { value, .. }
+                | Statement::FieldAddAssign { value, .. }
                 | Statement::Wait {
                     milliseconds: value,
                 }

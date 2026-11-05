@@ -875,7 +875,10 @@ fn opaque_accessed_variable(statement: &Statement, model: &AiModel) -> Option<u1
                 | Statement::AddAssign { variable, .. }
                 | Statement::MultiplyAssign { variable, .. },
             ) => Some(*variable),
-            AstNode::Statement(Statement::VectorComponentAssign { vector, .. }) => Some(*vector),
+            AstNode::Statement(
+                Statement::VectorComponentAssign { vector, .. }
+                | Statement::VectorComponentAddAssign { vector, .. },
+            ) => Some(*vector),
             AstNode::Statement(Statement::ArrayAssign {
                 array: Expression::Variable(index),
                 ..
@@ -3322,6 +3325,84 @@ fn statements(
             Statement::AddAssign { variable, value } => {
                 let value = guarded_expression(out, value, model, depth, flow)?;
                 writeln!(out, "{pad}dsg_{variable} = dsg_{variable} + ({value})")?;
+            }
+            Statement::VectorComponentAddAssign {
+                vector,
+                axis,
+                value,
+            } => {
+                ensure!(
+                    matches!(
+                        &model.variables[usize::from(*vector)].default,
+                        DesignerValue::Vector(_)
+                    ),
+                    "vector component add assignment requires a vector designer property"
+                );
+                let id = flow.local;
+                flow.local += 1;
+                // 00525160 reads the vector before evaluating the scalar.
+                writeln!(
+                    out,
+                    "{pad}var vector_add_current_{id}: Vector3 = dsg_{vector}"
+                )?;
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                let delta = match axis {
+                    VectorAxis::X => format!("Vector3(float({value}), 0.0, 0.0)"),
+                    VectorAxis::Y => format!("Vector3(0.0, float({value}), 0.0)"),
+                    VectorAxis::Z => format!("Vector3(0.0, 0.0, float({value}))"),
+                };
+                writeln!(out, "{pad}dsg_{vector} = vector_add_current_{id} + {delta}")?;
+            }
+            Statement::FieldAddAssign { target, value } => {
+                let id = flow.local;
+                flow.local += 1;
+                let (node, failure, setup) = match target {
+                    FieldTarget::Variable(variable) => {
+                        let value = guarded_expression(out, value, model, depth, flow)?;
+                        writeln!(out, "{pad}dsg_{variable} = dsg_{variable} + ({value})")?;
+                        continue;
+                    }
+                    FieldTarget::ActorField { actor, variable } => {
+                        let index = model
+                            .actor_field_targets()
+                            .iter()
+                            .position(|target| target == actor)
+                            .ok_or_else(|| {
+                                anyhow::anyhow!("actor field target was not declared")
+                            })?;
+                        let node = format!("actor_brain_{index}_add_{id}");
+                        let failure = quoted(&format!(
+                            "{} requires actor {} Brain field {variable}",
+                            model.path, actor.path
+                        ));
+                        let setup = format!(
+                            "{pad}var {node} := actor_brain_{index}\n{pad}if not is_instance_valid({node}) and not actor_brain_{index}_path.is_empty():\n{pad}    {node} = get_node_or_null(actor_brain_{index}_path)"
+                        );
+                        (node, (failure, *variable), setup)
+                    }
+                    FieldTarget::MainActorField(variable) => {
+                        let node = format!("main_actor_brain_add_{id}");
+                        let failure = quoted(&format!(
+                            "{} requires main actor Brain field {variable}",
+                            model.path
+                        ));
+                        let setup = format!(
+                            "{pad}var {node}: Node = main_actor.get_node_or_null(\"Brain\") if is_instance_valid(main_actor) else null"
+                        );
+                        (node, (failure, *variable), setup)
+                    }
+                };
+                let (failure, variable) = failure;
+                // 00525160 resolves and reads the lvalue before the right operand.
+                writeln!(
+                    out,
+                    "{setup}\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var field_add_current_{id} = {node}.get(\"dsg_{variable}\")"
+                )?;
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}{node}.set(\"dsg_{variable}\", field_add_current_{id} + ({value}))"
+                )?;
             }
             Statement::Increment { target } | Statement::Decrement { target } => {
                 let delta = if matches!(statement, Statement::Increment { .. }) {

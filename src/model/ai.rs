@@ -194,6 +194,20 @@ pub enum Statement {
         variable: u16,
         value: Expression,
     },
+    /// Operator_PlusAffect on an actor's Brain field through Operator_Dot
+    /// (00525160): the lvalue is resolved and read before the right operand.
+    FieldAddAssign {
+        target: FieldTarget,
+        value: Expression,
+    },
+    /// Operator_PlusAffect on .X/.Y/.Z of a vector variable (00525160): the
+    /// scalar becomes a vector on that axis only (005258d0) and is added to
+    /// the whole vector, so the other components are carried by adding 0.
+    VectorComponentAddAssign {
+        vector: u16,
+        axis: VectorAxis,
+        value: Expression,
+    },
     /// Capture the observed Brain and expected value once, then await its
     /// ordinary Boolean designer property to equal that captured value.
     WaitBoolean {
@@ -1519,6 +1533,10 @@ impl AiModel {
                     })
                     | AstNode::Statement(Statement::Increment {
                         target: FieldTarget::ActorField { actor, variable },
+                    })
+                    | AstNode::Statement(Statement::FieldAddAssign {
+                        target: FieldTarget::ActorField { actor, variable },
+                        ..
                     })
                     | AstNode::Statement(Statement::Decrement {
                         target: FieldTarget::ActorField { actor, variable },

@@ -344,11 +344,50 @@ impl Parser<'_> {
                     }
                 }
                 (2, 5) => {
-                    if !self
-                        .nodes
-                        .get(self.at)
-                        .is_some_and(|target| target.kind == 11)
+                    let target_node = self.nodes.get(self.at).map(|n| (n.kind, n.parameter));
+                    if target_node == Some((2, 12)) {
+                        // An actor's Brain field through Operator_Dot.
+                        let target = match self.expression(indent + 1)? {
+                            Expression::ActorFieldRead { actor, variable } => {
+                                FieldTarget::ActorField { actor, variable }
+                            }
+                            Expression::MainActorFieldRead(variable) => {
+                                FieldTarget::MainActorField(variable)
+                            }
+                            _ => {
+                                out.push(Statement::Unsupported(self.unsupported(
+                                    at,
+                                    format!("unsupported add assignment field target at node {at}"),
+                                )?));
+                                continue;
+                            }
+                        };
+                        Statement::FieldAddAssign {
+                            target,
+                            value: self.expression(indent + 1)?,
+                        }
+                    } else if matches!(target_node, Some((2, 13..=15)))
+                        && self.nodes.get(self.at + 1).is_some_and(|n| n.kind == 11)
                     {
+                        let (_, component) = self.take(indent + 1)?;
+                        let axis = match component.parameter {
+                            13 => VectorAxis::X,
+                            14 => VectorAxis::Y,
+                            _ => VectorAxis::Z,
+                        };
+                        let (_, vector) = self.take(indent + 2)?;
+                        Statement::VectorComponentAddAssign {
+                            vector: vector.parameter.try_into()?,
+                            axis,
+                            value: self.expression(indent + 1)?,
+                        }
+                    } else if target_node.is_some_and(|(kind, _)| kind == 11) {
+                        let (_, target) = self.take(indent + 1)?;
+                        Statement::AddAssign {
+                            variable: target.parameter.try_into()?,
+                            value: self.expression(indent + 1)?,
+                        }
+                    } else {
                         out.push(Statement::Unsupported(self.unsupported(
                             at,
                             format!(
@@ -360,15 +399,6 @@ impl Parser<'_> {
                             ),
                         )?));
                         continue;
-                    }
-                    let (_, target) = self.take(indent + 1)?;
-                    ensure!(
-                        target.kind == 11,
-                        "add assignment requires a designer variable at node {at}"
-                    );
-                    Statement::AddAssign {
-                        variable: target.parameter.try_into()?,
-                        value: self.expression(indent + 1)?,
                     }
                 }
                 (2, 9 | 10) => {
@@ -2449,6 +2479,29 @@ impl Writer<'_> {
                     self.node(11, u32::from(*variable), indent + 1);
                     self.expression(value, indent + 1)?;
                 }
+                Statement::VectorComponentAddAssign {
+                    vector,
+                    axis,
+                    value,
+                } => {
+                    self.node(2, 5, indent);
+                    self.node(
+                        2,
+                        match axis {
+                            VectorAxis::X => 13,
+                            VectorAxis::Y => 14,
+                            VectorAxis::Z => 15,
+                        },
+                        indent + 1,
+                    );
+                    self.node(11, u32::from(*vector), indent + 2);
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::FieldAddAssign { target, value } => {
+                    self.node(2, 5, indent);
+                    self.field_target(target, indent + 1)?;
+                    self.expression(value, indent + 1)?;
+                }
                 Statement::Increment { target } | Statement::Decrement { target } => {
                     self.node(
                         2,
@@ -2459,28 +2512,7 @@ impl Writer<'_> {
                         },
                         indent,
                     );
-                    match target {
-                        FieldTarget::Variable(variable) => {
-                            self.node(11, u32::from(*variable), indent + 1);
-                        }
-                        FieldTarget::ActorField { actor, variable } => {
-                            self.node(2, 12, indent + 1);
-                            let handle = self
-                                .codec
-                                .actor_handles
-                                .iter()
-                                .find(|(reference, _)| reference == actor)
-                                .context("missing adjusted AI actor handle")?
-                                .1;
-                            self.node(24, handle, indent + 2);
-                            self.node(11, u32::from(*variable), indent + 2);
-                        }
-                        FieldTarget::MainActorField(variable) => {
-                            self.node(2, 12, indent + 1);
-                            self.node(0, 5, indent + 2);
-                            self.node(11, u32::from(*variable), indent + 2);
-                        }
-                    }
+                    self.field_target(target, indent + 1)?;
                 }
                 Statement::Turn {
                     degrees_per_second,
@@ -3339,6 +3371,30 @@ impl Writer<'_> {
                 }
                 Statement::SoundKillMusic => self.node(4, 382, indent),
                 Statement::Noop => self.node(4, 206, indent),
+            }
+        }
+        Ok(())
+    }
+    /// A field lvalue: a designer variable, or an actor's field through Dot.
+    fn field_target(&mut self, target: &FieldTarget, indent: u8) -> Result<()> {
+        match target {
+            FieldTarget::Variable(variable) => self.node(11, u32::from(*variable), indent),
+            FieldTarget::ActorField { actor, variable } => {
+                self.node(2, 12, indent);
+                let handle = self
+                    .codec
+                    .actor_handles
+                    .iter()
+                    .find(|(reference, _)| reference == actor)
+                    .context("missing adjusted AI actor handle")?
+                    .1;
+                self.node(24, handle, indent + 1);
+                self.node(11, u32::from(*variable), indent + 1);
+            }
+            FieldTarget::MainActorField(variable) => {
+                self.node(2, 12, indent);
+                self.node(0, 5, indent + 1);
+                self.node(11, u32::from(*variable), indent + 1);
             }
         }
         Ok(())
@@ -4648,6 +4704,41 @@ mod partial_tests {
                 group: BehaviorGroup::Normal,
                 pause_after: false
             }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn add_assignment_to_actor_field_and_component_reconstructs() -> Result<()> {
+        // Operator_PlusAffect (00525160): MainActor.dsg 7 += 2 (Manoir 348's
+        // Dot lvalue shape) and dsg 1.Z += 0.5 (Brigand 1203's .Z shape).
+        let (codec, bytes) = partial(&[
+            (2, 5, 1),
+            (2, 12, 2),
+            (0, 5, 3),
+            (11, 7, 3),
+            (12, 2, 2),
+            (2, 5, 1),
+            (2, 15, 2),
+            (11, 1, 3),
+            (13, 0.5f32.to_bits(), 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[..],
+            [
+                Statement::FieldAddAssign {
+                    target: FieldTarget::MainActorField(7),
+                    value: Expression::Integer(2),
+                },
+                Statement::VectorComponentAddAssign {
+                    vector: 1,
+                    axis: VectorAxis::Z,
+                    ..
+                }
+            ]
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())
