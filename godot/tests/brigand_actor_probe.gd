@@ -30,7 +30,7 @@ const CASES := {
 	# Maliq's loot (Stephen: 'the drop sat atop him until he disappeared'): the
 	# real scene, then Hype faces thief 88 and swings (Button_Hit); every tick
 	# after its death the drop and the corpse are logged.
-	"maliq_kill": {"watch": [20, 88], "near": 20, "at": Vector3(40.1, -15.0, 71.0), "seconds": 60.0, "map_first": true, "fight": 88},
+	"maliq_kill": {"watch": [20, 88], "near": 20, "at": Vector3(40.1, -15.0, 71.0), "seconds": 40.0, "map_first": true, "fight": 88},
 	"wolves_bite": {"watch": [119, 120], "near": 120, "offset": Vector3(0.0, 0.0, -12.0), "seconds": 24.0, "bite": true},
 	"bats": {"watch": [45, 46, 47, 48, 49, 50, 51], "near": 51, "offset": Vector3(0.0, 0.0, 6.0), "seconds": 12.0},
 	# The original take's own stop at Maliq (467 s): source (40.1, -71.0, -15.0).
@@ -121,6 +121,8 @@ func run() -> void:
 	var start: Vector3 = spec["at"] if spec.has("at") else anchor.global_position + (spec["offset"] as Vector3)
 	hype.global_position = start
 	hype.velocity = Vector3.ZERO
+	# A placed start goes through the same sector research as a scripted placement.
+	hype.call("source_research_sector")
 	if spec.has("gold"):
 		var purse: Resource = hype.get("source_inventory")
 		purse.call("add_gold", int(spec["gold"]) - int(purse.call("gold_value")))
@@ -209,7 +211,7 @@ func run() -> void:
 					hype.global_position = wolf.global_position + away.normalized() * 3.5 + Vector3(0, hype.global_position.y - wolf.global_position.y, 0)
 					report["bite_start"] = {"t": float(step) / Engine.physics_ticks_per_second, "wolf": index}
 					break
-		if step % int(Engine.physics_ticks_per_second / 4) == 0:
+		if step % (int(Engine.physics_ticks_per_second / 4) if not spec.has("fight") else 3) == 0:
 			report["samples"].append(sample(step, session, hype, world, watch))
 		if shots != "" and step % shot_every == 0:
 			await save_shot("%s_%03d" % [case_name, step / shot_every])
@@ -319,7 +321,7 @@ func fight_step(spec: Dictionary, world: Node, level: Node, hype: Node3D, step: 
 			press_key(&"Button_GetSword", true)
 		elif step == int(report["sword_drawn"]) + 6:
 			press_key(&"Button_GetSword", false)
-		if to.length() > 2.0:
+		if to.length() > 1.4:
 			press_key(&"Button_Up", true)
 		else:
 			press_key(&"Button_Up", false)
@@ -330,10 +332,16 @@ func fight_step(spec: Dictionary, world: Node, level: Node, hype: Node3D, step: 
 		press_key(&"Button_Up", false)
 	# Every generated body: spawn, then per-tick state while it exists.
 	for b in level.find_children("*", "CharacterBody3D", true, false):
-		if not b.has_meta("astrolabe_generated_template") or b.collision_mask & 8: continue
+		if not b.has_meta("astrolabe_generated_template"): continue
 		if not known_bodies.has(b):
 			known_bodies[b] = true
-			fight_log.append({"t": step, "spawn": str(b.name), "template": str(b.get_meta("astrolabe_generated_template")).get_file(), "layer": b.collision_layer, "mask": b.collision_mask, "parent": str(b.get_parent().name), "pos": vec(b.global_position)})
+			var gb: Node = b.get_node_or_null("Brain")
+			report.get_or_add("generated", []).append([step, str(b.get_meta("astrolabe_generated_template")).get_file(), str(gb.get("source_model_path")) if gb != null else "-", gb.call("source_character_treated", b) if gb != null else "-", str(b.call("source_current_sector").name) if b.has_method("source_current_sector") and is_instance_valid(b.call("source_current_sector")) else "-"])
+		var model := str(b.get_node("Brain").get("source_model_path")) if b.get_node_or_null("Brain") != null else ""
+		if model.ends_with("/708") or model.ends_with("/73"): continue
+		if not known_bodies.has(str(b.get_instance_id()) + "s"):
+			known_bodies[str(b.get_instance_id()) + "s"] = true
+			fight_log.append({"t": step, "spawn": str(b.name), "template": str(b.get_meta("astrolabe_generated_template")).get_file(), "layer": b.collision_layer, "mask": b.collision_mask, "parent": str(b.get_parent().name), "pos": vec(b.global_position), "model": model, "card": int(b.get("current_mechanics").mode) if b.get("current_mechanics") != null else -1, "exceptions": b.get_collision_exceptions().map(func(x): return str(x.name))})
 		if fight_log.size() < 400:
 			var colliders := []
 			for i in b.get_slide_collision_count():
@@ -428,6 +436,9 @@ func sample(step: int, session: Node, hype: Node3D, world: Node, watch: Array) -
 		row["hype_normal"] = hype_brain.get("current_normal")
 		row["hype_reflex"] = hype_brain.get("current_reflex")
 		row["hype_dsg_56"] = hype_brain.get("dsg_56")
+		row["hype_attack"] = [hype_brain.get("dsg_17"), hype_brain.get("dsg_55")]
+		var global_brain: Node = hype_brain.get("actor_brain_0")
+		row["global_dsg_26"] = global_brain.get("dsg_26") if global_brain != null else "?"
 	var points: Variant = hype.get("source_hit_points")
 	if points != null: row["hype_life"] = points.get("current")
 	for index in watch:

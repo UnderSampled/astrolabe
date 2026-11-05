@@ -108,3 +108,24 @@ Next step:
   against the corpse through the fade.
 - Static facts so far: the drops are on layer 0 with mask 1 and no owner exception. The source corpse
   stays collidable until it is deactivated (normal 13, opacity < 1), which matches Stephen's timing.
+
+## Maliq loot reproduced (owner, 2026-11-04)
+
+- Prerequisite bug fixed: `source_set_absolute_position` (and placed test starts) did not re-research
+  the sector (00447bf0). Generated swing objects (fix 708) then inherited Hype's stale sector, the
+  engine-turn gate left them untreated, and Hype's attack flag dsg_17 never turned on.
+  `source_research_sector` now runs at absolute placement.
+- With that fix, `maliq_kill`:
+  - Thief 88 goes 7, 14, 5, then is hit (normal 12, three times), dies (11) and fades (13).
+  - At death it spawns loot fix 1138 (card type 4) at its own position, layer 0, mask 9, no
+    exceptions.
+- Port cause of "sat atop him": mask bit 8 (actors' ZDR reaction zones). _collide_with_actor_zones()
+  (d07a878, Nov 2: "actors stop against each other's reaction zones") applies to every
+  motion-enabled body, generated loot included. So the loot rests on the dying thief's ZDR until the
+  kill removes it.
+- Source gate still to decode, then fix:
+  - The original pair test is 00463df0, then 00464570, then 00464380. The other actor must be
+    active, and must have no dynamics or have dynamics+0x31 != 0; priority bytes +0x30 are compared
+    at 0045f910.
+  - Generation holds the new object's +0x31 at 0 and sets it to 1 on release (0043bcd0).
+  - Decode those bytes for the loot template and the thief, and port that rule. No blanket exception.

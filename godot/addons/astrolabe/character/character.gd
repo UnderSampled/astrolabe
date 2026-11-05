@@ -1895,7 +1895,26 @@ func source_set_absolute_position(point: Vector3) -> bool:
     if not point.is_finite():
         return false
     global_position = Vector3(point.x, point.z, -point.y)
+    source_research_sector()
     return true
+
+## 00447bf0 researches the sector at an explicit placement and publishes it;
+## the crossing walk from the old position cannot follow a jump. Objects this
+## actor generates inherit the result, and the engine turn's sector test uses it.
+func source_research_sector() -> void:
+    if source_contact_sector_path.is_empty() and _contact_sector == null: return
+    var holder: Node = self
+    while holder != null and holder.get_node_or_null("SourceSectorIndex") == null:
+        holder = holder.get_parent()
+    if holder == null: return
+    var index := holder.get_node("SourceSectorIndex")
+    var result: Dictionary = index.call("resolve_position", global_position)
+    var id := str(result.get("sector_id", ""))
+    var resolved: Node3D = index.call("sector_node", id) if id != "" else null
+    if is_instance_valid(resolved):
+        if is_instance_valid(_contact_sector) and resolved != _contact_sector: _source_sector_music(_contact_sector, resolved)
+        _contact_sector = resolved
+        _contact_previous = global_position
 
 func source_collide_with_slope() -> bool:
     if not is_on_floor(): return false
