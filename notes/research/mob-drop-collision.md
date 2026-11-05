@@ -183,3 +183,36 @@ Next:
 - A walking approach would need key steering over about 50 to 150 m, which is outside the
   no-route-bot rule. So the original's loot behavior was not observed live.
 - Mover-side contact query: static trace in loot-mover-contact-query.md.
+
+## Fix (owner, 2026-11-04)
+
+Source, from loot-mover-contact-query.md:
+- 00464570 tests characters only if the mover's CollSet +0x31 == 1.
+- 00464380 gates both character stages on 00463dd0 (list non-empty) of the mover's ZDM list. They
+  test the mover's ZDM against the other's ZDR.
+- An item without ZDM geometry therefore meets scenery only. The thief loot template has no ZDM;
+  that absence is why the port adds the "item point contact" stand-in sphere.
+
+Port:
+- _collide_with_actor_zones() now adds layer 8 (actors' ZDR) only when the body has ZDM geometry
+  (exported Movement_* shapes, active or not).
+- The loot keeps mask 1, collides with the world and is picked up by contact as before.
+
+Probe `maliq_kill`, ASTROLABE_SEED=11 (Hype steps 4 m back when the thief enters normal 11, so
+contact pickup does not take the loot at once):
+- Old: loot mask 9. It rests on the thief's ZDR at y -13.07 (tick 850, thief in normal 11, about
+  2.3 m up), and only later reaches the floor at -15.4.
+- New: loot mask 1, no ZDR contact, floor at -15.4 (tick 866) while the thief is still fading
+  (normal 13 active until tick 969).
+- Seed 7: no drop in either run (random roll).
+
+Counterexamples:
+- Hype keeps mask 9.
+- Wolves, bats and Maliq's scene still pass.
+- The Manoir type-19 census is unchanged (0.00 m).
+
+Remaining:
+- The original's visible loot motion was not observed live (placement limits above).
+- The loot's +0x31 release flag (0, then 1 on release) is not modelled. It only matters for movers
+  that have a ZDM.
+- Contact response 00599703 was not read.

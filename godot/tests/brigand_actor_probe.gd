@@ -78,6 +78,8 @@ func run() -> void:
 		return
 	var spec: Dictionary = CASES[case_name]
 	report["case"] = case_name
+	# As bootstrap.gd with ASTROLABE_SEED: a fixed seed for random drops.
+	seed(int(OS.get_environment("ASTROLABE_SEED")) if OS.get_environment("ASTROLABE_SEED").is_valid_int() else 7)
 	# As bootstrap.gd: the game plays on through documented stand-ins.
 	load("res://addons/astrolabe/behavior/behavior.gd").strict_unsupported = OS.get_environment("ASTROLABE_STRICT_BEHAVIOR") == "1"
 	await process_frame
@@ -308,10 +310,21 @@ func finish_case(case_name: String) -> void:
 
 var fight_log := []
 var known_bodies := {}
+var loot_watch := []
 func fight_step(spec: Dictionary, world: Node, level: Node, hype: Node3D, step: int) -> void:
 	var foe := actor_of(world, spec["fight"])
 	var foe_brain := foe.get_node_or_null("Brain") if is_instance_valid(foe) else null
 	var foe_normal := int(foe_brain.get("current_normal")) if foe_brain != null else -1
+	# Observation: when the thief begins dying (normal 11, the drop follows),
+	# Hype steps 4 m back so his contact pickup does not take the loot at once.
+	if foe_normal == 11 and not report.has("stepped_back"):
+		var away := hype.global_position - foe.global_position
+		away.y = 0.0
+		hype.global_position = foe.global_position + away.normalized() * 4.0 + Vector3(0, hype.global_position.y - foe.global_position.y, 0)
+		hype.call("source_research_sector")
+		press_key(&"Button_Up", false)
+		press_key(&"Button_Hit", false)
+		report["stepped_back"] = step
 	if is_instance_valid(foe) and foe_normal in [5, 6, 7, 14, 1, 2, 3, 4] and bool(foe.get("source_object_active")):
 		var to := foe.global_position - hype.global_position
 		to.y = 0.0
@@ -341,13 +354,19 @@ func fight_step(spec: Dictionary, world: Node, level: Node, hype: Node3D, step: 
 		if model.ends_with("/708") or model.ends_with("/73"): continue
 		if not known_bodies.has(str(b.get_instance_id()) + "s"):
 			known_bodies[str(b.get_instance_id()) + "s"] = true
+			loot_watch.append(b)
+			report["inventory_before"] = hype.get("source_inventory").call("capture_snapshot") if hype.get("source_inventory") != null else null
 			fight_log.append({"t": step, "spawn": str(b.name), "template": str(b.get_meta("astrolabe_generated_template")).get_file(), "layer": b.collision_layer, "mask": b.collision_mask, "parent": str(b.get_parent().name), "pos": vec(b.global_position), "model": model, "card": int(b.get("current_mechanics").mode) if b.get("current_mechanics") != null else -1, "exceptions": b.get_collision_exceptions().map(func(x): return str(x.name))})
-		if fight_log.size() < 400:
+		if fight_log.size() < 2000:
 			var colliders := []
 			for i in b.get_slide_collision_count():
 				var c: Object = b.get_slide_collision(i).get_collider()
 				colliders.append(str(c.name) if c != null else "?")
 			fight_log.append({"t": step, "body": str(b.name), "pos": vec(b.global_position), "vel": vec(b.velocity), "floor": b.is_on_floor(), "hits": colliders, "active": b.get("source_object_active"), "motion": b.get("motion_enabled"), "foe_normal": foe_normal, "foe_pos": vec(foe.global_position) if is_instance_valid(foe) else [], "foe_active": foe.get("source_object_active") if is_instance_valid(foe) else null, "foe_visible": foe.is_visible_in_tree() if is_instance_valid(foe) else null})
+	for b in loot_watch:
+		if not is_instance_valid(b) and not report.has("loot_gone"):
+			report["loot_gone"] = step
+			report["inventory_after"] = hype.get("source_inventory").call("capture_snapshot") if hype.get("source_inventory") != null else null
 	report["fight_log"] = fight_log
 
 const CHAIN := [169, 154, 161, 163, 159, 155, 157, 152, 150, 148, 136, 146, 144, 142, 140, 138, 135, 137, 167, 165, 139, 143, 141, 145, 147, 149, 151, 170, 171, 153, 156, 158, 160, 162, 164, 166, 168]
@@ -436,6 +455,7 @@ func sample(step: int, session: Node, hype: Node3D, world: Node, watch: Array) -
 		row["hype_normal"] = hype_brain.get("current_normal")
 		row["hype_reflex"] = hype_brain.get("current_reflex")
 		row["hype_dsg_56"] = hype_brain.get("dsg_56")
+		row["hype_mask"] = hype.collision_mask
 		row["hype_attack"] = [hype_brain.get("dsg_17"), hype_brain.get("dsg_55")]
 		var global_brain: Node = hype_brain.get("actor_brain_0")
 		row["global_dsg_26"] = global_brain.get("dsg_26") if global_brain != null else "?"
@@ -451,7 +471,9 @@ func sample(step: int, session: Node, hype: Node3D, world: Node, watch: Array) -
 			entry["running"] = brain.get("running")
 		for key in ["current_state", "requested_action_state", "motion_enabled", "source_point_active", "source_route_active", "source_object_active", "source_point_holds_motion", "source_route_holds_motion", "source_turned_this_tick"]:
 			if key in actor: entry[key] = actor.get(key)
-		if actor is CharacterBody3D: entry["vel"] = vec((actor as CharacterBody3D).velocity)
+		if actor is CharacterBody3D:
+			entry["vel"] = vec((actor as CharacterBody3D).velocity)
+			entry["mask"] = (actor as CharacterBody3D).collision_mask
 		if "root_motion_displacement" in actor: entry["rm"] = vec(actor.get("root_motion_displacement"))
 		entry["dist"] = snappedf(actor.global_position.distance_to(hype.global_position), 0.01)
 		row["actors"][str(index)] = entry
