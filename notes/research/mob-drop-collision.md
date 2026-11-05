@@ -170,3 +170,16 @@ Next:
 - Or kill thief 88 in the private original and read the loot's height and contacts during the fade.
 - Then export CollSet +0x30/+0x31 per perso, which needs a model and schema field coordinated with
   the static owner's schema 73 work, and gate the port's actor-zone collision by that rule.
+
+## Live original attempt (owner, 2026-11-04, second pass)
+
+- Private disposable original, menu load, then `navigate_level brigand`.
+- The memory hop toward Maliq's stop point (source 40.1, -71.0, -14.8) used the earlier hop13
+  method, in 5 m steps with a 0.6 s settle.
+- Hype sank under the world: z -261 to -312 by the last steps. The floor of unloaded sectors does
+  not hold him, and the level restarted (phase 38/4).
+- Loading the take's forest save did not select the slot reliably through the menu (it loaded the
+  manor slot).
+- A walking approach would need key steering over about 50 to 150 m, which is outside the
+  no-route-bot rule. So the original's loot behavior was not observed live.
+- Mover-side contact query: static trace in loot-mover-contact-query.md.
