@@ -284,7 +284,7 @@ func _physics_step(delta: float) -> void:
     # downward acceleration into retained sideways momentum on a slight slope.
     var gravity_ratio := 1.0
     if current_mechanics != null:
-        gravity_ratio = 0.0 if _source_request_only_mechanics() else float(current_mechanics.ratio)
+        gravity_ratio = 0.0 if _source_request_only_mechanics() or source_kinematic_animation_mechanics() else float(current_mechanics.ratio)
     external_velocity += gravity * gravity_ratio * delta
     velocity = motion + external_velocity
     move_and_slide()
@@ -956,6 +956,22 @@ func source_go_relative() -> void:
 ## gravity moves them.
 func _source_request_only_mechanics() -> bool:
     return current_mechanics != null and int(current_mechanics.mode) == 6
+
+## Card type 19 (Gogoud, Wellet, Zatila, the door lady, the crow, barrels):
+## each tick 004436c0 turns the current animation's authored root translation
+## into event 0xc, 0057e110 rotates it by the actor's global matrix, and the
+## type-19 integrator 0057e472 applies pos += v * dt. No mass, no gravity, and
+## the velocity is cleared every tick (0058e782); see type19-mechanics-motion.md.
+## A barrel's animations carry no root translation, so it stays put.
+func source_kinematic_animation_mechanics() -> bool:
+    return current_mechanics != null and int(current_mechanics.mode) == 19
+
+## The engine runs a treated character's mechanics every tick (4499b0). A
+## type-19 actor needs no motion procedure for its animation to move it.
+func source_begin_treated_mechanics() -> void:
+    if motion_enabled or not source_kinematic_animation_mechanics(): return
+    motion_enabled = true
+    _configure_motion()
 
 ## ASTROLABE_PERF=1: time spent per actor and stage, summed in an Engine meta
 ## dictionary that tests/route_bot.gd prints. Kept here rather than preloaded

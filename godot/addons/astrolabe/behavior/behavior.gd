@@ -267,6 +267,7 @@ func advance(seconds: float) -> void:
 	var body := get_parent() as NativeCharacter
 	if body != null and not body.source_object_active: return
 	if body != null and not source_character_treated(body): return
+	if body != null: body.source_begin_treated_mechanics()
 	frame_seconds = seconds
 	clock_milliseconds += seconds * 1000.0
 	reflex_controls_tick = false

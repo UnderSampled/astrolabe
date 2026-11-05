@@ -23,6 +23,10 @@ const CASES := {
 	# four markers on his forward input, heading at the armed marker; then No
 	# to the rematch (answer 1 of wellet_reussit).
 	"race_win": {"watch": [178, 181, 162, 164, 166, 168], "near": 178, "at": Vector3(190.6, -15.3, 121.4), "seconds": 70.0, "map_first": true, "talk": true, "gold": 200, "answers": {"wellet_explicationcourse": 1, "wellet_reussit": 1}, "course": [162, 164, 166, 168]},
+	# Water during the race: once 1800 runs (normal 6), Hype is placed just above
+	# a real surface below -16 on the course's last stretch (source x 140 to 210,
+	# y -135 to -170), where 181's sector is loaded.
+	"race_water": {"watch": [178, 181], "near": 178, "at": Vector3(190.6, -15.3, 121.4), "seconds": 60.0, "map_first": true, "talk": true, "gold": 200, "answers": {"wellet_explicationcourse": 1}, "water": true},
 	"wolves_bite": {"watch": [119, 120], "near": 120, "offset": Vector3(0.0, 0.0, -12.0), "seconds": 24.0, "bite": true},
 	"bats": {"watch": [45, 46, 47, 48, 49, 50, 51], "near": 51, "offset": Vector3(0.0, 0.0, 6.0), "seconds": 12.0},
 	# The original take's own stop at Maliq (467 s): source (40.1, -71.0, -15.0).
@@ -142,6 +146,22 @@ func run() -> void:
 	for step in steps:
 		if spec.has("course"):
 			drive_course(spec, world, hype, step)
+		if spec.get("water", false) and not report.has("water_start") and int(actor_of(world, 178).get_node("Brain").get("current_normal")) == 6:
+			var space := hype.get_world_3d().direct_space_state
+			var found := Vector3.INF
+			for gx in range(140, 212, 4):
+				for gy in range(135, 172, 4):
+					var top := Vector3(gx, 10.0, gy)
+					var query := PhysicsRayQueryParameters3D.create(top, top + Vector3(0, -60, 0), 1)
+					query.exclude = [hype.get_rid()]
+					var hit := space.intersect_ray(query)
+					if not hit.is_empty() and float(hit["position"].y) < -16.5:
+						found = hit["position"]; break
+				if found != Vector3.INF: break
+			report["water_start"] = vec(found) if found != Vector3.INF else "none"
+			if found != Vector3.INF:
+				hype.global_position = found + Vector3(0, 0.6, 0)
+				hype.velocity = Vector3.ZERO
 		# Page through any dialogue the start position opens, as a player does.
 		var phase := step % 30
 		if phase == 0 and choose_answer(spec, screen):
@@ -162,6 +182,7 @@ func run() -> void:
 				last_dialogue = state
 		if true:
 			for b in all_brains:
+				if not is_instance_valid(b): continue
 				var now := [b.get("current_normal"), b.get("current_reflex")]
 				if now != before[b]:
 					report["brain_changes"].append([step, str(level.get_path_to(b)), before[b], now])
@@ -211,6 +232,14 @@ func finish_case(case_name: String) -> void:
 					finish(false, "wolf %s took the tree sidestep (normal 12) away from its tree" % key); return
 				if float(report["moved"][key]) < 3.0 or float(closest[key]) > 8.0:
 					finish(false, "wolf %s did not move to Hype: moved %s, closest %s" % [key, report["moved"][key], closest[key]]); return
+		"race_water":
+			var kid: Dictionary = visited.get("178", {})
+			report["race_normals"] = kid.keys()
+			report["trous_normals"] = visited.get("181", {}).keys()
+			if str(report.get("water_start")) == "none":
+				finish(false, "no surface below -16 found on the course's last stretch"); return
+			if not kid.has(7):
+				finish(false, "falling in the water during the race did not fail it: 1800 %s, 181 %s, water %s" % [kid.keys(), report["trous_normals"], report.get("water_start")]); return
 		"race_win":
 			var kid: Dictionary = visited.get("178", {})
 			report["race_normals"] = kid.keys()
