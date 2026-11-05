@@ -129,3 +129,44 @@ Next step:
     at 0045f910.
   - Generation holds the new object's +0x31 at 0 and sets it to 1 on release (0043bcd0).
   - Decode those bytes for the loot template and the thief, and port that rule. No blanket exception.
+
+## Correction and decoded CollSet bytes (owner, 2026-11-04)
+
+Correction: the earlier static claim "a drop's mask is 1, so it can only touch level geometry" was
+wrong. The live drop has mask 9: _collide_with_actor_zones() adds layer 8, the actors' ZDR. The port
+loot does collide with the dying thief's zones, as Stephen saw.
+
+The test's D is the CollSet at perso+0x18, CharacterCollisionsWire, 52 bytes (constructor 0045f4f0).
+Bytes +0x30 to +0x33 are preserved as `CharacterCollisions.unknown` and not yet exported. Stored
+values from the Brigand level import:
+- Hype (world/0/0): [127, 1, 0, 0], so priority 127 and +0x31 = 1.
+- Thief 88, Maliq 20, boar 4, wolf 119 and 70 other level persos: [0, 1, 0, 0].
+- Loot template fix:/persos/5-0-27269 (thief drop, model 1138), 12 other fix templates and level
+  persos 55, 179, 180, 182, 189: [0, 0, 0, 0].
+
+00464380, with esi = the other character and edi = the mover (objdump):
+1. Skip unless the other is active (00438f40 == 1).
+2. If the other has D, skip unless D+0x31 != 0 (0045f930).
+3. Run the bounding test 0055dde0.
+4. If the other has D and the gate 00463dd0(arg) holds, run the zone test 00464510. This one has no
+   priority check.
+5. Skip the rest if the mover's D+0x30 is below the other's (`cmp mover, other; jb`).
+6. If 00463dd0(arg2) holds, test each of the other's zones with 004644b0.
+
+For loot as mover against the thief: the thief is active with flag 1 and priority 0, and the loot
+priority is 0. Neither priority nor flag excludes the pair. So by these bytes, the original also
+tests loot against the corpse.
+
+What is undecided is the mover side:
+- which test kinds the loot's type-4 mechanics query requests (00463df0/00464570 arguments, the
+  00463dd0 gates);
+- whether the loot's own +0x31 (0 at generation, 1 on release in 0043bcd0) gates it;
+- which zone type the thief's ZDR or ZDM presents.
+
+The take's 549 to 568 s frames (boar fights) are too small to show loot.
+
+Next:
+- Read 00463df0, 00464570 and 00463dd0, plus the type-4 call site.
+- Or kill thief 88 in the private original and read the loot's height and contacts during the fade.
+- Then export CollSet +0x30/+0x31 per perso, which needs a model and schema field coordinated with
+  the static owner's schema 73 work, and gate the port's actor-zone collision by that rule.
