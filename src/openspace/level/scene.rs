@@ -150,6 +150,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             hud: None,
             loading: None,
             global_actors: Vec::new(),
+            always_active: Vec::new(),
             nodes: Vec::new(),
         },
         collisions: Vec::new(),

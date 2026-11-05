@@ -48,6 +48,7 @@ fn fixture() -> Result<(Scene, Collision, Material)> {
         hud: None,
         loading: None,
         global_actors: vec![],
+        always_active: Vec::new(),
         path: AssetPath::new("level:/scene")?,
         name: "SyntheticScene".into(),
         nodes: vec![SceneNode {

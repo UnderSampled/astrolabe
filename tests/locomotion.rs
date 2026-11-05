@@ -269,6 +269,7 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
         hud: None,
         loading: None,
         global_actors: vec![],
+        always_active: Vec::new(),
         nodes: vec![SceneNode {
             properties: Default::default(),
             id: "mover".into(),

@@ -291,6 +291,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
             draw_mask: 1,
         }],
         global_actors: vec![],
+        always_active: Vec::new(),
     };
     let static_box = |name: &str, min, max| -> Result<Collision> {
         Ok(Collision {

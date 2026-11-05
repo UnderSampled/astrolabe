@@ -266,11 +266,63 @@ func advance(seconds: float) -> void:
 	# Initial inactive actors enter their first behavior only upon activation.
 	var body := get_parent() as NativeCharacter
 	if body != null and not body.source_object_active: return
+	if body != null and not source_character_treated(body): return
 	frame_seconds = seconds
 	clock_milliseconds += seconds * 1000.0
 	reflex_controls_tick = false
 	_step_reflex()
 	if running and not reflex_controls_tick: _step_normal()
+
+## The engine turn (0x44a1e0, hype-decomp src/gameplay/frame_update.c) runs a
+## character's AI only when it is flagged this frame: always-active characters
+## (the level's GPT+0x2aec list, flagged at 0x44a241) and those in the main
+## actor's sector or a sector in its activity list (00449cd0 -> 00449c60).
+## Live Brigand at arrival: of 136 brains the 27 that had run are exactly these
+## (notes/research/brigand-ai-start-rule.md). A level without the exported list
+## keeps every Brain running. A skipped Brain keeps its behaviors and awaits.
+var _always_active := -1
+func source_character_treated(body: NativeCharacter) -> bool:
+	if not is_instance_valid(main_actor) or main_actor == body: return true
+	if _always_active < 0:
+		var level: Node = body
+		while level != null and not level.has_meta("source_always_active"):
+			level = level.get_parent()
+		if level == null:
+			_always_active = 1
+		else:
+			var listed: PackedStringArray = level.get_meta("source_always_active")
+			_always_active = 1 if listed.has(str(body.get_meta("source_perso", ""))) else 0
+	if _always_active == 1: return true
+	var sector: Node = body.source_current_sector()
+	if not is_instance_valid(sector) or int(sector.get("virtual_sector")) != 0: return true
+	var main_body := main_actor as NativeCharacter
+	if main_body == null: return true
+	var main_sector: Node = _source_main_sector(main_body)
+	if not is_instance_valid(main_sector) or main_sector == sector: return true
+	if sector.get_parent() != main_sector.get_parent(): return true
+	for entry: String in main_sector.get("activity"):
+		if entry.get_file() == str(sector.name): return true
+	return false
+
+## The main actor's sector by position (004e0020's resolver, SourceSectorIndex),
+## once per physics frame: scripted placements move him without a crossing walk.
+static var _main_sector_frame := -1
+static var _main_sector: Node
+func _source_main_sector(main_body: NativeCharacter) -> Node:
+	var frame := Engine.get_physics_frames()
+	if frame == _main_sector_frame and is_instance_valid(_main_sector): return _main_sector
+	_main_sector_frame = frame
+	_main_sector = main_body.source_current_sector()
+	var holder: Node = main_body
+	while holder != null and holder.get_node_or_null("SourceSectorIndex") == null:
+		holder = holder.get_parent()
+	if holder != null:
+		var index := holder.get_node("SourceSectorIndex")
+		var result: Dictionary = index.call("resolve_position", main_body.global_position)
+		var id := str(result.get("sector_id", ""))
+		var resolved: Node = index.call("sector_node", id) if id != "" else null
+		if is_instance_valid(resolved): _main_sector = resolved
+	return _main_sector
 
 func source_time_elapsed(start_ms: int, duration_ms: int) -> bool:
 	assert(duration_ms >= 0)

@@ -748,6 +748,18 @@ impl Project {
                 writeln!(self.builder, "    {character}.brain_dsg_{i} = {target}")?;
             }
         }
+        if !scene.always_active.is_empty() {
+            let paths: Vec<String> = scene
+                .always_active
+                .iter()
+                .map(|actor| quoted(actor.path.as_str()))
+                .collect();
+            writeln!(
+                self.builder,
+                "    {scene_id}.set_meta(\"source_always_active\", PackedStringArray([{}]))",
+                paths.join(", ")
+            )?;
+        }
         if let Some(actor) = &scene.main_actor {
             let actor_node = scene
                 .nodes

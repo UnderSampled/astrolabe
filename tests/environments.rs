@@ -43,6 +43,7 @@ fn fixture() -> Result<(Environment, VisualEnvironment, Fog, Scene)> {
         hud: None,
         loading: None,
         global_actors: vec![],
+        always_active: Vec::new(),
         path: AssetPath::new("level:/scene")?,
         name: "Fog".into(),
         nodes: Vec::new(),

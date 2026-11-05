@@ -494,6 +494,7 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         hud: None,
         loading: None,
         global_actors: vec![],
+        always_active: Vec::new(),
         path: AssetPath::new("level:/scene")?,
         name: "AnimationTest".into(),
         nodes: vec![SceneNode {

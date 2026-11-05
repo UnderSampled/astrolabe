@@ -60,6 +60,7 @@ fn fixture() -> Result<Scene> {
         hud: None,
         loading: None,
         global_actors: vec![],
+        always_active: Vec::new(),
         path: AssetPath::new("level:/scene")?,
         name: "Graph".into(),
         nodes,

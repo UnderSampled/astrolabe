@@ -33,6 +33,12 @@ pub struct Scene {
     /// These are useful assets with source identity, not fabricated scene nodes.
     #[serde(default)]
     pub global_actors: Vec<GlobalActor>,
+    /// The level's always-active characters (GPT+0x2aec list, loader keyword
+    /// CharacterIsAlwaysActive). The engine turn (0x44a1e0) runs them wherever
+    /// they are; other characters run while their sector is the main actor's
+    /// or in its activity list (00449cd0, 00449c60).
+    #[serde(default)]
+    pub always_active: Vec<AssetRef<super::character::Perso>>,
     /// Parents precede their children. IDs are stable within this asset.
     pub nodes: Vec<SceneNode>,
 }

@@ -979,6 +979,32 @@ pub(super) fn import(
             .context("main actor outside rooted scene")?;
         result.scene.main_actor = Some(AssetRef::new(format!("level:/persos/{}", node.path))?);
     }
+    // GPT+0x2ab8/+0x2abc/+0x2ac0: the always-active list {first, last, count}
+    // (Raymap R2Loader: after the families header), nodes {SuperObject, next,
+    // previous, header}; the engine turn 0x44a241 flags each one every frame.
+    // Brigand: 61 file nodes in the live list's order (live 0x756e7c: 62).
+    let count = u32_at(&s.gpt, 0x2ac0)?;
+    if count != 0 {
+        let mut node = s.root(0x2ab8)?;
+        for index in 0..count {
+            let object = s.required(node, 0)?;
+            let rooted = tree
+                .iter()
+                .find(|n| n.address == object)
+                .context("always-active character outside the rooted scene")?;
+            result
+                .scene
+                .always_active
+                .push(AssetRef::new(format!("level:/persos/{}", rooted.path))?);
+            if index + 1 < count {
+                node = s.required(node, 4)?;
+            }
+        }
+        ensure!(
+            result.scene.always_active.len() == count as usize,
+            "always-active list is shorter than its count"
+        );
+    }
     let sounds = SoundSites::open(game, selection_value, s)?;
     for &perso in actors.keys() {
         if let Some(component) = s.pointer(perso, 64)?
